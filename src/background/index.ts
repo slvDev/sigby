@@ -7,6 +7,7 @@
 import { PortoService } from "./portoService";
 import { AccountManager } from "./accountManager";
 import { MessageHandler } from "./messageHandler";
+import { DappManager } from "./dappManager";
 import { StorageManager } from "../utils/storage";
 import type { Message, MessageResponse } from "../types/messages";
 
@@ -18,6 +19,7 @@ class BackgroundService {
   private portoService: PortoService;
   private storageManager: StorageManager;
   private accountManager: AccountManager;
+  private dappManager: DappManager;
   private messageHandler: MessageHandler;
   private isInitialized: boolean = false;
 
@@ -31,10 +33,12 @@ class BackgroundService {
       this.storageManager,
       this.portoService
     );
+    this.dappManager = new DappManager(this.storageManager);
     this.messageHandler = new MessageHandler(
       this.portoService,
       this.accountManager,
-      this.storageManager
+      this.storageManager,
+      this.dappManager
     );
   }
 
@@ -54,13 +58,17 @@ class BackgroundService {
       // Load persisted state
       await this.loadState();
 
-      // Initialize Porto if user has account
-      const hasAccount = await this.storageManager.hasAccount();
-      if (hasAccount) {
-        console.log("[Background] Existing account found, initializing Porto...");
-        await this.portoService.initialize();
+      // Always initialize Porto SDK (required for account creation and connection)
+      console.log("[Background] Initializing Porto SDK...");
+      await this.portoService.initialize();
+
+      // Check if user has existing accounts
+      const accounts = await this.storageManager.getAllAccounts();
+      const accountCount = Object.keys(accounts).length;
+      if (accountCount > 0) {
+        console.log("[Background] Found", accountCount, "account(s)");
       } else {
-        console.log("[Background] No account found, skipping Porto initialization");
+        console.log("[Background] No accounts found - ready for account creation");
       }
 
       this.isInitialized = true;
@@ -137,7 +145,7 @@ class BackgroundService {
     // Listen to external messages (from web pages - rare, but possible)
     chrome.runtime.onMessageExternal.addListener(
       (
-        message: any,
+        _message: any,
         sender: chrome.runtime.MessageSender,
         sendResponse: (response: any) => void
       ) => {
@@ -158,14 +166,18 @@ class BackgroundService {
     try {
       console.log("[Background] Loading persisted state...");
 
-      const account = await this.storageManager.getAccount();
+      // Run migration from single-account to multi-account format (idempotent)
+      await this.storageManager.migrateToMultiAccount();
+
+      // Load multi-account state
+      const accounts = await this.storageManager.getAllAccounts();
+      const activeAddress = await this.storageManager.getActiveAccountAddress();
       const settings = await this.storageManager.getSettings();
-      const connectedDapps = await this.storageManager.getConnectedDapps();
 
       console.log("[Background] State loaded:", {
-        hasAccount: !!account,
+        accountCount: accounts.length,
+        activeAddress: activeAddress ? `${activeAddress.slice(0, 6)}...` : null,
         chainId: settings.defaultChain,
-        connectedDappsCount: Object.keys(connectedDapps).length,
       });
     } catch (error) {
       console.error("[Background] Failed to load state:", error);
@@ -206,9 +218,8 @@ class BackgroundService {
     console.log("[Background] Extension updated from:", previousVersion);
 
     try {
-      // Run migration logic if needed
-      // For Phase 1, no migrations needed
-
+      // Migration runs automatically in loadState() on every startup
+      // This ensures existing users get migrated to multi-account format
       console.log("[Background] Update handled successfully");
     } catch (error) {
       console.error("[Background] Update handling failed:", error);
