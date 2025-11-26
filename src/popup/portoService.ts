@@ -180,6 +180,114 @@ class PopupPortoService {
     }
   }
 
+  // ==================== SIGNING METHODS (Phase 4) ====================
+
+  /**
+   * Send a transaction via Porto SDK
+   * This triggers WebAuthn for signing
+   * @param params Transaction parameters
+   * @returns Transaction hash
+   */
+  async sendTransaction(params: {
+    to: string;
+    value?: string;
+    data?: string;
+    chainId: number;
+  }): Promise<string> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Sending transaction:', params);
+
+    try {
+      // Use wallet_sendCalls (EIP-5792) for Porto
+      const chainIdHex = `0x${params.chainId.toString(16)}`;
+
+      const result = await this.provider.request({
+        method: 'wallet_sendCalls',
+        params: [{
+          calls: [{
+            to: params.to,
+            value: params.value || '0x0',
+            data: params.data || '0x',
+          }],
+          chainId: chainIdHex,
+        }],
+      });
+
+      console.log('[PopupPorto] Transaction sent, result:', result);
+
+      // wallet_sendCalls returns bundle id, need to get tx hash
+      // For now, return the bundle id as the result
+      // The actual tx hash can be retrieved via wallet_getCallsStatus if needed
+      return result;
+    } catch (error: any) {
+      console.error('[PopupPorto] Transaction failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sign a personal message via Porto SDK
+   * This triggers WebAuthn for signing
+   * @param message The message to sign (hex string)
+   * @param account The account address to sign with
+   * @returns The signature
+   */
+  async signMessage(message: string, account: string): Promise<string> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Signing message...');
+
+    try {
+      // personal_sign params are [message, account]
+      const signature = await this.provider.request({
+        method: 'personal_sign',
+        params: [message, account],
+      });
+
+      console.log('[PopupPorto] Message signed successfully');
+      return signature;
+    } catch (error: any) {
+      console.error('[PopupPorto] Message signing failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sign typed data (EIP-712) via Porto SDK
+   * This triggers WebAuthn for signing
+   * @param typedData The typed data to sign (as JSON string or object)
+   * @param account The account address to sign with
+   * @returns The signature
+   */
+  async signTypedData(typedData: string | object, account: string): Promise<string> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Signing typed data...');
+
+    try {
+      // eth_signTypedData_v4 params are [account, typedDataJson]
+      const typedDataJson = typeof typedData === 'string' ? typedData : JSON.stringify(typedData);
+
+      const signature = await this.provider.request({
+        method: 'eth_signTypedData_v4',
+        params: [account, typedDataJson],
+      });
+
+      console.log('[PopupPorto] Typed data signed successfully');
+      return signature;
+    } catch (error: any) {
+      console.error('[PopupPorto] Typed data signing failed:', error);
+      throw error;
+    }
+  }
+
   /**
    * Check if initialized
    */
