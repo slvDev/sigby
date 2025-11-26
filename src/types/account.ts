@@ -8,16 +8,18 @@
 export interface Account {
   /** Ethereum address (0x...) */
   address: string;
-  /** WebAuthn credential ID (base64) */
+  /** WebAuthn credential ID (base64) - managed by Porto SDK */
   credentialId: string;
-  /** Public key (hex string) */
+  /** Public key (hex string) - managed by Porto SDK */
   publicKey: string;
   /** Display name for the account */
-  displayName?: string;
+  displayName: string;
   /** Timestamp of account creation */
   createdAt: number;
   /** Last authentication timestamp */
   lastAuthAt?: number;
+  /** Sequential account index for keychain label (Account #1, #2, etc.) */
+  accountIndex: number;
 }
 
 /**
@@ -34,6 +36,8 @@ export interface ConnectedDapp {
   timestamp: number;
   /** Last interaction timestamp */
   lastInteractionAt?: number;
+  /** Which account this connection is for */
+  accountAddress: string;
   /** dApp metadata */
   metadata?: {
     name?: string;

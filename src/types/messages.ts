@@ -7,11 +7,22 @@
  * All available message types in the extension
  */
 export enum MessageType {
-  // Authentication & Account Management
+  // Authentication & Account Management (Legacy - single account)
   CREATE_ACCOUNT = "CREATE_ACCOUNT",
   CONNECT_ACCOUNT = "CONNECT_ACCOUNT",
   DISCONNECT_ACCOUNT = "DISCONNECT_ACCOUNT",
   GET_ACCOUNT = "GET_ACCOUNT",
+
+  // Multi-Account Management
+  GET_ALL_ACCOUNTS = "GET_ALL_ACCOUNTS",
+  SWITCH_ACCOUNT = "SWITCH_ACCOUNT",
+  UPDATE_ACCOUNT = "UPDATE_ACCOUNT",
+  DELETE_ACCOUNT = "DELETE_ACCOUNT",
+
+  // Per-Account dApp Management
+  GET_ACCOUNT_DAPPS = "GET_ACCOUNT_DAPPS",
+  CONNECT_ACCOUNT_DAPP = "CONNECT_ACCOUNT_DAPP",
+  DISCONNECT_ACCOUNT_DAPP = "DISCONNECT_ACCOUNT_DAPP",
 
   // dApp Communication (EIP-1193 Methods)
   DAPP_REQUEST = "DAPP_REQUEST",
@@ -50,6 +61,11 @@ export enum MessageType {
   // WebAuthn (for offscreen document)
   WEBAUTHN_CREATE = "WEBAUTHN_CREATE",
   WEBAUTHN_GET = "WEBAUTHN_GET",
+
+  // Porto SDK Operations (proxied to offscreen document)
+  PORTO_CREATE_ACCOUNT = "PORTO_CREATE_ACCOUNT",
+  PORTO_CONNECT_ACCOUNT = "PORTO_CONNECT_ACCOUNT",
+  PORTO_SIGN_TRANSACTION = "PORTO_SIGN_TRANSACTION",
 
   // dApp Connection Management
   REQUEST_CONNECTION = "REQUEST_CONNECTION",
@@ -176,4 +192,98 @@ export interface PortfolioData {
     balance: string;
     value: number;
   }>;
+}
+
+// ==================== MULTI-ACCOUNT PAYLOADS ====================
+
+/**
+ * Switch account payload
+ */
+export interface SwitchAccountPayload {
+  /** Address of account to switch to */
+  address: string;
+}
+
+/**
+ * Update account payload
+ */
+export interface UpdateAccountPayload {
+  /** Address of account to update */
+  address: string;
+  /** Updated display name */
+  displayName?: string;
+}
+
+/**
+ * Delete account payload
+ */
+export interface DeleteAccountPayload {
+  /** Address of account to delete */
+  address: string;
+}
+
+/**
+ * Get account dApps payload
+ */
+export interface GetAccountDappsPayload {
+  /** Account address */
+  address: string;
+}
+
+/**
+ * Connect account to dApp payload
+ */
+export interface ConnectAccountDappPayload {
+  /** Account address */
+  address: string;
+  /** dApp origin */
+  origin: string;
+  /** Optional dApp metadata */
+  metadata?: {
+    name?: string;
+    icon?: string;
+  };
+}
+
+/**
+ * Disconnect account from dApp payload
+ */
+export interface DisconnectAccountDappPayload {
+  /** Account address */
+  address: string;
+  /** dApp origin */
+  origin: string;
+}
+
+// ==================== CONNECTION APPROVAL PAYLOADS ====================
+
+/**
+ * Request connection payload (from dApp)
+ */
+export interface RequestConnectionPayload {
+  /** dApp origin */
+  origin: string;
+  /** Optional metadata */
+  favicon?: string;
+  title?: string;
+}
+
+/**
+ * Approve connection payload (from popup)
+ */
+export interface ApproveConnectionPayload {
+  /** dApp origin */
+  origin: string;
+  /** Account address to connect */
+  accountAddress: string;
+}
+
+/**
+ * Reject connection payload (from popup)
+ */
+export interface RejectConnectionPayload {
+  /** dApp origin */
+  origin: string;
+  /** Account address */
+  accountAddress: string;
 }
