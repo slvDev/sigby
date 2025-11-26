@@ -8,6 +8,7 @@ import { PortoService } from "./portoService";
 import { AccountManager } from "./accountManager";
 import { MessageHandler } from "./messageHandler";
 import { DappManager } from "./dappManager";
+import { TransactionMonitor } from "./transactionMonitor";
 import { StorageManager } from "../utils/storage";
 import type { Message, MessageResponse } from "../types/messages";
 
@@ -20,6 +21,7 @@ class BackgroundService {
   private storageManager: StorageManager;
   private accountManager: AccountManager;
   private dappManager: DappManager;
+  private transactionMonitor: TransactionMonitor;
   private messageHandler: MessageHandler;
   private isInitialized: boolean = false;
 
@@ -34,12 +36,16 @@ class BackgroundService {
       this.portoService
     );
     this.dappManager = new DappManager(this.storageManager);
+    this.transactionMonitor = new TransactionMonitor(this.storageManager);
     this.messageHandler = new MessageHandler(
       this.portoService,
       this.accountManager,
       this.storageManager,
       this.dappManager
     );
+
+    // Inject transaction monitor into message handler
+    this.messageHandler.setTransactionMonitor(this.transactionMonitor);
   }
 
   /**
@@ -57,6 +63,10 @@ class BackgroundService {
 
       // Load persisted state
       await this.loadState();
+
+      // Initialize transaction monitor (sets up alarm listener and resumes pending monitors)
+      console.log("[Background] Initializing transaction monitor...");
+      await this.transactionMonitor.initialize();
 
       // Always initialize Porto SDK (required for account creation and connection)
       console.log("[Background] Initializing Porto SDK...");
@@ -97,6 +107,11 @@ class BackgroundService {
     // Extension started (service worker woke up)
     chrome.runtime.onStartup.addListener(() => {
       console.log("[Background] Extension started");
+    });
+
+    // Window closed - cleanup pending requests
+    chrome.windows.onRemoved.addListener((windowId) => {
+      this.dappManager.handleWindowClosed(windowId);
     });
 
     // Service worker suspending (Chrome may terminate inactive service workers)

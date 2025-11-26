@@ -18,15 +18,58 @@ import type {
   DisconnectAccountDappPayload,
   ApproveConnectionPayload,
   RejectConnectionPayload,
+  GetPendingSigningPayload,
+  ApproveSigningPayload,
+  RejectSigningPayload,
+  SigningRequest,
 } from "../types/messages";
+import { TransactionStatus, type Transaction } from "../types/account";
 import { PortoService } from "./portoService";
 import { AccountManager } from "./accountManager";
 import { StorageManager } from "../utils/storage";
 import { RpcHandler } from "./rpcHandler";
 import { DappManager } from "./dappManager";
+import { TransactionMonitor } from "./transactionMonitor";
 import { eventBroadcaster } from "./eventBroadcaster";
 import { ERROR_MESSAGES } from "../utils/constants";
 import { MessageType as MT } from "../types/messages";
+import {
+  validateTransactionParams,
+  validatePersonalSignParams,
+  validateTypedDataParams,
+  extractValidOrigin,
+} from "../utils/validators";
+
+/**
+ * Map Porto SDK errors to user-friendly messages
+ */
+function mapPortoError(error: Error): string {
+  const msg = error.message.toLowerCase();
+
+  if (msg.includes("not allowed") || msg.includes("cancelled") || msg.includes("canceled")) {
+    return ERROR_MESSAGES.WEBAUTHN_CANCELLED;
+  }
+  if (msg.includes("timeout")) {
+    return ERROR_MESSAGES.WEBAUTHN_TIMEOUT;
+  }
+  if (msg.includes("insufficient funds") || msg.includes("insufficient balance")) {
+    return ERROR_MESSAGES.INSUFFICIENT_FUNDS;
+  }
+  if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch")) {
+    return ERROR_MESSAGES.NETWORK_ERROR;
+  }
+  if (msg.includes("nonce") || msg.includes("replacement transaction")) {
+    return "Transaction nonce conflict. Please try again.";
+  }
+  if (msg.includes("gas")) {
+    return "Gas estimation failed. The transaction may fail.";
+  }
+  if (msg.includes("reverted") || msg.includes("revert")) {
+    return "Transaction would revert. Check contract conditions.";
+  }
+
+  return error.message; // Fallback to original
+}
 
 /**
  * Message Handler class
@@ -35,6 +78,7 @@ import { MessageType as MT } from "../types/messages";
 export class MessageHandler {
   private rpcHandler: RpcHandler;
   private portoService: PortoService;
+  private transactionMonitor: TransactionMonitor | null = null;
 
   constructor(
     portoService: PortoService,
@@ -45,6 +89,13 @@ export class MessageHandler {
     // Store for Phase 4 transaction signing
     this.portoService = portoService;
     this.rpcHandler = new RpcHandler();
+  }
+
+  /**
+   * Set the transaction monitor (injected from index.ts after initialization)
+   */
+  setTransactionMonitor(monitor: TransactionMonitor): void {
+    this.transactionMonitor = monitor;
   }
 
   /**
@@ -127,6 +178,19 @@ export class MessageHandler {
 
         case MT.REJECT_CONNECTION:
           response = await this.handleRejectConnection(message.payload as RejectConnectionPayload);
+          break;
+
+        // Signing request management (Phase 4)
+        case MT.GET_PENDING_SIGNING:
+          response = await this.handleGetPendingSigning(message.payload as GetPendingSigningPayload);
+          break;
+
+        case MT.APPROVE_SIGNING:
+          response = await this.handleApproveSigning(message.payload as ApproveSigningPayload);
+          break;
+
+        case MT.REJECT_SIGNING:
+          response = await this.handleRejectSigning(message.payload as RejectSigningPayload);
           break;
 
         // dApp requests
@@ -353,27 +417,24 @@ export class MessageHandler {
 
         // Transaction methods (Phase 4)
         case "eth_sendTransaction":
-          // TODO: Implement in Phase 4
-          return { success: false, error: "Transaction signing not yet implemented" };
+          return await this.handleEthSendTransaction(params || [], sender, origin);
 
         case "eth_sendRawTransaction":
-          // TODO: Implement in Phase 4
-          return { success: false, error: "Raw transaction sending not yet implemented" };
+          // TODO: Implement raw transaction sending
+          return { success: false, error: "Raw transaction sending not yet supported" };
 
         // Signing methods (Phase 4)
         case "personal_sign":
-          // TODO: Implement in Phase 4
-          return { success: false, error: "Message signing not yet implemented" };
+          return await this.handlePersonalSign(params || [], sender, origin);
 
         case "eth_sign":
-          // TODO: Implement in Phase 4
-          return { success: false, error: "Message signing not yet implemented" };
+          // eth_sign is deprecated and insecure, redirect to personal_sign
+          return await this.handlePersonalSign(params || [], sender, origin);
 
         case "eth_signTypedData":
         case "eth_signTypedData_v3":
         case "eth_signTypedData_v4":
-          // TODO: Implement in Phase 4
-          return { success: false, error: "Typed data signing not yet implemented" };
+          return await this.handleSignTypedData(params || [], sender, origin);
 
         // Wallet methods
         case "wallet_switchEthereumChain":
@@ -423,15 +484,21 @@ export class MessageHandler {
         };
       }
 
-      // Get origin from sender tab or provided origin
-      const dappOrigin = origin || sender.tab?.url ? new URL(sender.tab!.url!).origin : null;
+      // Extract and validate origin (prefer sender.tab.url for security)
+      const dappOrigin = extractValidOrigin(sender, origin);
 
       if (!dappOrigin) {
         console.warn("[MessageHandler] Could not determine dApp origin");
-        // Still return account if we can't determine origin (popup access)
+        // For popup access (no sender.tab), return account
+        if (!sender.tab) {
+          return {
+            success: true,
+            data: [account.address],
+          };
+        }
         return {
-          success: true,
-          data: [account.address],
+          success: false,
+          error: ERROR_MESSAGES.INVALID_ORIGIN,
         };
       }
 
@@ -1252,6 +1319,293 @@ export class MessageHandler {
         success: true,
         data: [],
       };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  // ==================== SIGNING REQUEST HANDLERS (Phase 4) ====================
+
+  /**
+   * Handle eth_sendTransaction
+   * Verifies dApp is connected, creates signing request, opens popup
+   */
+  private async handleEthSendTransaction(
+    params: any[],
+    sender: chrome.runtime.MessageSender,
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      // Validate transaction parameters
+      const validation = validateTransactionParams(params);
+      if (!validation.valid) {
+        return { success: false, error: validation.error || ERROR_MESSAGES.INVALID_REQUEST };
+      }
+
+      const account = await this.accountManager.getAccount();
+      if (!account) {
+        return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
+      }
+
+      // Extract and validate origin (prefer sender.tab.url for security)
+      const dappOrigin = extractValidOrigin(sender, origin);
+      if (!dappOrigin) {
+        return { success: false, error: "Could not determine valid dApp origin" };
+      }
+
+      // Verify dApp is connected
+      const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
+      if (!isConnected) {
+        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+      }
+
+      // Get current chain ID
+      const settings = await this.storageManager.getSettings();
+
+      // Request signing approval (this opens popup and waits)
+      const txHash = await this.dappManager.requestSigning({
+        method: "eth_sendTransaction",
+        params,
+        origin: dappOrigin,
+        accountAddress: account.address,
+        chainId: settings.defaultChain,
+        metadata: {
+          favicon: sender.tab?.favIconUrl,
+          title: sender.tab?.title,
+        },
+      });
+
+      return { success: true, data: txHash };
+    } catch (error) {
+      console.error("[MessageHandler] eth_sendTransaction error:", error);
+      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Handle personal_sign
+   * Verifies dApp is connected, creates signing request, opens popup
+   */
+  private async handlePersonalSign(
+    params: any[],
+    sender: chrome.runtime.MessageSender,
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      // Validate personal_sign parameters
+      const validation = validatePersonalSignParams(params);
+      if (!validation.valid) {
+        return { success: false, error: validation.error || ERROR_MESSAGES.INVALID_REQUEST };
+      }
+
+      const account = await this.accountManager.getAccount();
+      if (!account) {
+        return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
+      }
+
+      // Extract and validate origin (prefer sender.tab.url for security)
+      const dappOrigin = extractValidOrigin(sender, origin);
+      if (!dappOrigin) {
+        return { success: false, error: "Could not determine valid dApp origin" };
+      }
+
+      // Verify dApp is connected
+      const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
+      if (!isConnected) {
+        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+      }
+
+      // Get current chain ID
+      const settings = await this.storageManager.getSettings();
+
+      // Request signing approval (this opens popup and waits)
+      const signature = await this.dappManager.requestSigning({
+        method: "personal_sign",
+        params,
+        origin: dappOrigin,
+        accountAddress: account.address,
+        chainId: settings.defaultChain,
+        metadata: {
+          favicon: sender.tab?.favIconUrl,
+          title: sender.tab?.title,
+        },
+      });
+
+      return { success: true, data: signature };
+    } catch (error) {
+      console.error("[MessageHandler] personal_sign error:", error);
+      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Handle eth_signTypedData_v4 (and v3)
+   * Verifies dApp is connected, creates signing request, opens popup
+   */
+  private async handleSignTypedData(
+    params: any[],
+    sender: chrome.runtime.MessageSender,
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      // Validate typed data parameters
+      const validation = validateTypedDataParams(params);
+      if (!validation.valid) {
+        return { success: false, error: validation.error || ERROR_MESSAGES.INVALID_REQUEST };
+      }
+
+      const account = await this.accountManager.getAccount();
+      if (!account) {
+        return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
+      }
+
+      // Extract and validate origin (prefer sender.tab.url for security)
+      const dappOrigin = extractValidOrigin(sender, origin);
+      if (!dappOrigin) {
+        return { success: false, error: "Could not determine valid dApp origin" };
+      }
+
+      // Verify dApp is connected
+      const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
+      if (!isConnected) {
+        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+      }
+
+      // Get current chain ID
+      const settings = await this.storageManager.getSettings();
+
+      // Request signing approval (this opens popup and waits)
+      const signature = await this.dappManager.requestSigning({
+        method: "eth_signTypedData_v4",
+        params,
+        origin: dappOrigin,
+        accountAddress: account.address,
+        chainId: settings.defaultChain,
+        metadata: {
+          favicon: sender.tab?.favIconUrl,
+          title: sender.tab?.title,
+        },
+      });
+
+      return { success: true, data: signature };
+    } catch (error) {
+      console.error("[MessageHandler] eth_signTypedData error:", error);
+      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Handle GET_PENDING_SIGNING - returns pending signing request to popup
+   */
+  private async handleGetPendingSigning(
+    payload: GetPendingSigningPayload
+  ): Promise<MessageResponse> {
+    try {
+      if (!payload?.requestId) {
+        return { success: false, error: "Request ID is required" };
+      }
+
+      const request = this.dappManager.getPendingSigningRequest(payload.requestId);
+      if (!request) {
+        return { success: false, error: "Signing request not found or expired" };
+      }
+
+      return { success: true, data: request };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle APPROVE_SIGNING - popup approved signing, resolve promise
+   * Also saves transaction to history and starts monitoring
+   */
+  private async handleApproveSigning(
+    payload: ApproveSigningPayload
+  ): Promise<MessageResponse> {
+    try {
+      if (!payload?.requestId || !payload?.result) {
+        return { success: false, error: "Request ID and result are required" };
+      }
+
+      // Get the request before approving (it will be deleted)
+      const request = this.dappManager.getPendingSigningRequest(payload.requestId);
+
+      // Resolve the pending promise
+      this.dappManager.approveSigning(payload.requestId, payload.result);
+
+      // Save transaction to history if this was a transaction (not just a message signature)
+      if (request && request.method === "eth_sendTransaction") {
+        const tx = request.params?.[0] || {};
+        const transaction: Transaction = {
+          id: payload.requestId,
+          from: request.accountAddress,
+          to: tx.to || "",
+          value: tx.value || "0x0",
+          data: tx.data || "0x",
+          chainId: request.chainId,
+          status: TransactionStatus.SENT,
+          origin: request.origin,
+          timestamp: Date.now(),
+          hash: payload.result,
+        };
+
+        await this.storageManager.addTransaction(transaction);
+        console.log("[MessageHandler] Transaction saved to history:", payload.result);
+
+        // Start monitoring transaction status using alarm-based monitor (survives SW restart)
+        if (this.transactionMonitor) {
+          await this.transactionMonitor.startMonitoring(
+            payload.result,
+            request.chainId,
+            payload.requestId
+          );
+        } else {
+          console.warn("[MessageHandler] TransactionMonitor not set, skipping monitoring");
+        }
+      }
+
+      return { success: true, data: { requestId: payload.requestId } };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle REJECT_SIGNING - popup rejected signing, reject promise
+   */
+  private async handleRejectSigning(
+    payload: RejectSigningPayload
+  ): Promise<MessageResponse> {
+    try {
+      if (!payload?.requestId) {
+        return { success: false, error: "Request ID is required" };
+      }
+
+      this.dappManager.rejectSigning(payload.requestId);
+
+      return { success: true, data: { requestId: payload.requestId } };
     } catch (error) {
       return {
         success: false,
