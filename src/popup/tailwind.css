@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/* Explicitly configure source paths for Tailwind to scan for class usage */
+@source "../**/*.{tsx,ts,jsx,js,html}";
+
+@theme {
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #5558e3;
+  --color-primary-700: #4f46e5;
+  --color-primary-800: #4338ca;
+  --color-primary-900: #3730a3;
+
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f8f8f8;
+  --color-surface-tertiary: #f0f0f0;
+
+  --width-popup: 400px;
+  --min-height-popup: 600px;
+
+  --radius-btn: 12px;
+  --radius-card: 12px;
+
+  --shadow-dropdown: 0 4px 20px rgba(0, 0, 0, 0.15);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
