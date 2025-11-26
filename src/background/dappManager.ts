@@ -1,10 +1,11 @@
 /**
  * dApp Manager
- * Manages dApp connections and approval flows per account
+ * Manages dApp connections, signing requests, and approval flows per account
  */
 
 import { StorageManager } from "../utils/storage";
 import type { ConnectedDapp } from "../types/account";
+import type { SigningRequest } from "../types/messages";
 
 /**
  * Pending connection request
@@ -20,12 +21,42 @@ interface PendingConnectionRequest {
 }
 
 /**
+ * Pending signing request (transaction or message signing)
+ */
+interface PendingSigningRequest {
+  request: SigningRequest;
+  resolve: (result: string) => void;
+  reject: (error: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * Window request tracking info
+ */
+interface WindowRequestInfo {
+  type: "connection" | "signing";
+  id: string; // requestKey for connection, requestId for signing
+}
+
+/**
  * DappManager class
  * Handles dApp connection lifecycle and approval flows
  */
 export class DappManager {
   private pendingRequests: Map<string, PendingConnectionRequest> = new Map();
+  private pendingSigningRequests: Map<string, PendingSigningRequest> = new Map();
   private requestTimeout = 120000; // 2 minutes timeout for connection requests
+  private signingRequestTimeout = 300000; // 5 minutes timeout for signing requests
+
+  // Window lifecycle tracking
+  private windowToRequest: Map<number, WindowRequestInfo> = new Map();
+
+  // Signing request deduplication
+  // Key: `${method}:${origin}:${paramsHash}`, Value: requestId
+  private signingDedupeKeys: Map<string, string> = new Map();
+
+  // Connection request timeout tracking
+  private connectionTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   constructor(private storageManager: StorageManager) {
     console.log("[DappManager] Initialized");
@@ -93,13 +124,16 @@ export class DappManager {
 
       this.pendingRequests.set(requestKey, request);
 
-      // Set timeout
-      setTimeout(() => {
+      // Set timeout with proper cleanup tracking
+      const timeout = setTimeout(() => {
         if (this.pendingRequests.has(requestKey)) {
           this.pendingRequests.delete(requestKey);
+          this.connectionTimeouts.delete(requestKey);
           reject(new Error("Connection request timed out"));
         }
       }, this.requestTimeout);
+
+      this.connectionTimeouts.set(requestKey, timeout);
 
       // Open popup with connection request
       this.openConnectionPopup(origin, accountAddress, metadata);
@@ -135,6 +169,13 @@ export class DappManager {
 
     console.log("[DappManager] Connection approved:", origin, accountAddress);
 
+    // Cleanup timeout
+    const timeout = this.connectionTimeouts.get(requestKey);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.connectionTimeouts.delete(requestKey);
+    }
+
     // Resolve pending request
     if (request) {
       this.pendingRequests.delete(requestKey);
@@ -150,6 +191,13 @@ export class DappManager {
   rejectConnection(origin: string, accountAddress: string): void {
     const requestKey = `${origin}:${accountAddress}`;
     const request = this.pendingRequests.get(requestKey);
+
+    // Cleanup timeout
+    const timeout = this.connectionTimeouts.get(requestKey);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.connectionTimeouts.delete(requestKey);
+    }
 
     if (request) {
       console.log("[DappManager] Connection rejected:", origin, accountAddress);
@@ -225,19 +273,270 @@ export class DappManager {
         params.set("title", metadata.title);
       }
 
-      // Open popup
+      const requestKey = `${origin}:${accountAddress}`;
+
+      // Open popup and capture window ID
       chrome.windows.create({
         url: `src/popup/popup.html?${params.toString()}`,
         type: "popup",
         width: 400,
         height: 600,
         focused: true,
+      }, (window) => {
+        if (window?.id) {
+          this.windowToRequest.set(window.id, {
+            type: "connection",
+            id: requestKey,
+          });
+          console.log("[DappManager] Opened connection popup for:", origin, "windowId:", window.id);
+        } else {
+          console.log("[DappManager] Opened connection popup for:", origin);
+        }
       });
-
-      console.log("[DappManager] Opened connection popup for:", origin);
     } catch (error) {
       console.error("[DappManager] Failed to open popup:", error);
     }
+  }
+
+  // ==================== SIGNING REQUEST MANAGEMENT ====================
+
+  /**
+   * Request signing approval from user
+   * Opens popup with signing request UI
+   * @param params - Signing request parameters
+   * @returns Promise resolving to signed result (tx hash or signature)
+   */
+  async requestSigning(params: {
+    method: string;
+    params: any[];
+    origin: string;
+    accountAddress: string;
+    chainId: number;
+    metadata?: { favicon?: string; title?: string };
+  }): Promise<string> {
+    // Generate deduplication key
+    const dedupeKey = this.generateDedupeKey(params.method, params.origin, params.params);
+
+    // Check for duplicate request
+    const existingRequestId = this.signingDedupeKeys.get(dedupeKey);
+    if (existingRequestId && this.pendingSigningRequests.has(existingRequestId)) {
+      console.log("[DappManager] Duplicate signing request detected, returning existing:", existingRequestId);
+      // Return the existing promise by creating a new one that resolves when the original does
+      return new Promise((resolve, reject) => {
+        const existing = this.pendingSigningRequests.get(existingRequestId);
+        if (existing) {
+          // Chain onto the existing request
+          const originalResolve = existing.resolve;
+          const originalReject = existing.reject;
+          existing.resolve = (result: string) => {
+            originalResolve(result);
+            resolve(result);
+          };
+          existing.reject = (error: Error) => {
+            originalReject(error);
+            reject(error);
+          };
+        } else {
+          reject(new Error("Request not found"));
+        }
+      });
+    }
+
+    const requestId = this.generateRequestId();
+
+    console.log("[DappManager] Requesting signing approval:", params.method, "from", params.origin);
+
+    return new Promise((resolve, reject) => {
+      const request: SigningRequest = {
+        requestId,
+        method: params.method,
+        params: params.params,
+        origin: params.origin,
+        accountAddress: params.accountAddress,
+        chainId: params.chainId,
+        timestamp: Date.now(),
+        metadata: params.metadata,
+      };
+
+      // Set timeout
+      const timeout = setTimeout(() => {
+        if (this.pendingSigningRequests.has(requestId)) {
+          this.pendingSigningRequests.delete(requestId);
+          this.signingDedupeKeys.delete(dedupeKey);
+          reject(new Error("Signing request timed out"));
+        }
+      }, this.signingRequestTimeout);
+
+      // Store pending request and dedupe key
+      this.pendingSigningRequests.set(requestId, {
+        request,
+        resolve,
+        reject,
+        timeout,
+      });
+      this.signingDedupeKeys.set(dedupeKey, requestId);
+
+      // Open popup with signing request
+      this.openSigningPopup(request);
+    });
+  }
+
+  /**
+   * Generate deduplication key for signing requests
+   */
+  private generateDedupeKey(method: string, origin: string, params: any[]): string {
+    // Create a simple hash of the params
+    const paramsStr = JSON.stringify(params);
+    let hash = 0;
+    for (let i = 0; i < paramsStr.length; i++) {
+      const char = paramsStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return `${method}:${origin}:${hash}`;
+  }
+
+  /**
+   * Get a pending signing request by ID
+   * @param requestId - Request ID
+   * @returns SigningRequest or undefined
+   */
+  getPendingSigningRequest(requestId: string): SigningRequest | undefined {
+    return this.pendingSigningRequests.get(requestId)?.request;
+  }
+
+  /**
+   * Get all pending signing requests
+   * @returns Array of SigningRequests
+   */
+  getAllPendingSigningRequests(): SigningRequest[] {
+    return Array.from(this.pendingSigningRequests.values()).map(p => p.request);
+  }
+
+  /**
+   * Approve a pending signing request
+   * @param requestId - Request ID
+   * @param result - Signed result (tx hash or signature)
+   */
+  approveSigning(requestId: string, result: string): void {
+    const pending = this.pendingSigningRequests.get(requestId);
+
+    if (pending) {
+      console.log("[DappManager] Signing approved:", requestId);
+      clearTimeout(pending.timeout);
+      this.pendingSigningRequests.delete(requestId);
+
+      // Clean up dedupe key
+      this.cleanupDedupeKey(requestId);
+
+      pending.resolve(result);
+    } else {
+      console.warn("[DappManager] No pending signing request found for:", requestId);
+    }
+  }
+
+  /**
+   * Clean up dedupe key for a request ID
+   */
+  private cleanupDedupeKey(requestId: string): void {
+    for (const [key, value] of this.signingDedupeKeys.entries()) {
+      if (value === requestId) {
+        this.signingDedupeKeys.delete(key);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Reject a pending signing request
+   * @param requestId - Request ID
+   */
+  rejectSigning(requestId: string): void {
+    const pending = this.pendingSigningRequests.get(requestId);
+
+    if (pending) {
+      console.log("[DappManager] Signing rejected:", requestId);
+      clearTimeout(pending.timeout);
+      this.pendingSigningRequests.delete(requestId);
+
+      // Clean up dedupe key
+      this.cleanupDedupeKey(requestId);
+
+      pending.reject(new Error("User rejected the signing request"));
+    }
+  }
+
+  /**
+   * Open popup with signing approval UI
+   * @param request - Signing request
+   */
+  private openSigningPopup(request: SigningRequest): void {
+    try {
+      // Determine view based on method
+      const view = request.method === "eth_sendTransaction" ? "transaction" : "sign";
+
+      // Build popup URL with query parameters
+      const params = new URLSearchParams({
+        view,
+        requestId: request.requestId,
+      });
+
+      // Open popup and capture window ID
+      chrome.windows.create({
+        url: `src/popup/popup.html?${params.toString()}`,
+        type: "popup",
+        width: 400,
+        height: 600,
+        focused: true,
+      }, (window) => {
+        if (window?.id) {
+          this.windowToRequest.set(window.id, {
+            type: "signing",
+            id: request.requestId,
+          });
+          console.log("[DappManager] Opened signing popup for:", request.method, "windowId:", window.id);
+        } else {
+          console.log("[DappManager] Opened signing popup for:", request.method);
+        }
+      });
+    } catch (error) {
+      console.error("[DappManager] Failed to open signing popup:", error);
+      // Reject the request if popup fails to open
+      this.rejectSigning(request.requestId);
+    }
+  }
+
+  /**
+   * Handle window closed event
+   * Cleans up any pending requests associated with the closed window
+   * @param windowId - ID of the closed window
+   */
+  handleWindowClosed(windowId: number): void {
+    const requestInfo = this.windowToRequest.get(windowId);
+    if (!requestInfo) {
+      return; // Not a popup we're tracking
+    }
+
+    console.log("[DappManager] Window closed:", windowId, requestInfo.type, requestInfo.id);
+    this.windowToRequest.delete(windowId);
+
+    if (requestInfo.type === "signing") {
+      // Reject the signing request
+      this.rejectSigning(requestInfo.id);
+    } else if (requestInfo.type === "connection") {
+      // Reject the connection request
+      const [origin, accountAddress] = requestInfo.id.split(":");
+      if (origin && accountAddress) {
+        this.rejectConnection(origin, accountAddress);
+      }
+    }
+  }
+
+  /**
+   * Generate unique request ID
+   */
+  private generateRequestId(): string {
+    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 }
 
