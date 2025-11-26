@@ -16,6 +16,20 @@ interface AccountState {
 }
 
 /**
+ * Balance cache entry
+ */
+interface BalanceCacheEntry {
+  balance: string;
+  timestamp: number;
+}
+
+/**
+ * Balance cache with TTL (30 seconds)
+ */
+const BALANCE_CACHE_TTL = 30_000;
+const balanceCache = new Map<string, BalanceCacheEntry>();
+
+/**
  * Wallet state interface with multi-account support
  */
 interface WalletState {
@@ -163,6 +177,22 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 }));
 
 /**
+ * Background state response type
+ */
+interface BackgroundStateResponse {
+  accounts?: Record<string, {
+    address: string;
+    displayName?: string;
+    accountIndex?: number;
+  }>;
+  accountOrder?: string[];
+  activeAddress?: string | null;
+  isAuthenticated?: boolean;
+  chainId?: number;
+  accountCount?: number;
+}
+
+/**
  * Helper to sync store with background state (multi-account aware)
  * Call this when popup opens
  */
@@ -172,25 +202,25 @@ export async function syncStoreWithBackground(): Promise<void> {
       type: "GET_STATE",
     });
 
-    if (response.success) {
+    if (response.success && response.data) {
+      const data = response.data as BackgroundStateResponse;
       const {
         accounts,
         accountOrder,
         activeAddress,
         isAuthenticated,
         chainId,
-      } = response.data;
+      } = data;
 
       // Convert accounts to UI format with balance placeholder
       const accountsWithBalance: Record<string, AccountState> = {};
       if (accounts) {
         for (const [addr, acc] of Object.entries(accounts)) {
-          const typedAcc = acc as { address: string; displayName?: string; accountIndex?: number };
           accountsWithBalance[addr] = {
-            address: typedAcc.address,
-            displayName: typedAcc.displayName || "Account",
+            address: acc.address,
+            displayName: acc.displayName || "Account",
             balance: "0", // Will be fetched separately
-            accountIndex: typedAcc.accountIndex,
+            accountIndex: acc.accountIndex,
           };
         }
       }
@@ -244,4 +274,112 @@ export function getOrderedAccounts(): AccountState[] {
 export function getActiveAccount(): AccountState | null {
   const { accounts, activeAddress } = useWalletStore.getState();
   return activeAddress ? accounts[activeAddress] || null : null;
+}
+
+/**
+ * Fetch balance with stale-while-revalidate caching
+ * Returns cached value immediately while fetching fresh data
+ */
+export async function fetchBalanceWithCache(
+  address: string,
+  forceRefresh = false
+): Promise<string> {
+  const now = Date.now();
+  const cached = balanceCache.get(address);
+  const store = useWalletStore.getState();
+
+  // Return cached value if fresh (and not forcing refresh)
+  if (cached && !forceRefresh && now - cached.timestamp < BALANCE_CACHE_TTL) {
+    return cached.balance;
+  }
+
+  // If we have a stale cached value, update UI immediately and fetch in background
+  if (cached && !forceRefresh) {
+    // Update store with cached value immediately
+    store.updateAccount(address, { balance: cached.balance });
+
+    // Fetch fresh data in background (don't await)
+    fetchAndUpdateBalance(address).catch(console.error);
+
+    return cached.balance;
+  }
+
+  // No cache or forced refresh - fetch and wait
+  return fetchAndUpdateBalance(address);
+}
+
+// Track in-flight balance requests to prevent race conditions
+const balanceFetchPromises = new Map<string, Promise<string>>();
+
+/**
+ * Internal: Fetch balance from RPC and update cache/store
+ */
+async function fetchAndUpdateBalance(address: string): Promise<string> {
+  // Check if there's already a fetch in progress for this address
+  const existingPromise = balanceFetchPromises.get(address);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "DAPP_REQUEST",
+        payload: {
+          method: "eth_getBalance",
+          params: [address, "latest"],
+          origin: "popup://porto-wallet",
+        },
+      });
+
+      if (response.success && response.data) {
+        const balanceWei = BigInt(response.data);
+        const balanceEth = (Number(balanceWei) / 1e18).toFixed(4);
+
+        // Update cache
+        balanceCache.set(address, {
+          balance: balanceEth,
+          timestamp: Date.now(),
+        });
+
+        // Update store
+        useWalletStore.getState().updateAccount(address, { balance: balanceEth });
+
+        return balanceEth;
+      }
+    } catch (error) {
+      console.error("[Store] Failed to fetch balance:", error);
+    } finally {
+      // Clean up the in-flight promise
+      balanceFetchPromises.delete(address);
+    }
+
+    return "0";
+  })();
+
+  balanceFetchPromises.set(address, fetchPromise);
+  return fetchPromise;
+}
+
+/**
+ * Fetch balances for all accounts
+ */
+export async function fetchAllBalances(): Promise<void> {
+  const { accountOrder } = useWalletStore.getState();
+
+  // Fetch all balances in parallel
+  await Promise.all(
+    accountOrder.map((address) => fetchBalanceWithCache(address, true))
+  );
+}
+
+/**
+ * Clear balance cache (call on account removal)
+ */
+export function clearBalanceCache(address?: string): void {
+  if (address) {
+    balanceCache.delete(address);
+  } else {
+    balanceCache.clear();
+  }
 }
