@@ -21,7 +21,6 @@ import type {
   GetPendingSigningPayload,
   ApproveSigningPayload,
   RejectSigningPayload,
-  SigningRequest,
 } from "../types/messages";
 import { TransactionStatus, type Transaction } from "../types/account";
 import { PortoService } from "./portoService";
