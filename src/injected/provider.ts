@@ -4,9 +4,7 @@
  * Runs in page context and communicates with content script via postMessage
  */
 
-/**
- * EIP-1193 Provider interface
- */
+// Extend Window interface for TypeScript (this gets stripped in build)
 interface EthereumProvider {
   isPorto: boolean;
   isMetaMask: boolean;
@@ -14,6 +12,10 @@ interface EthereumProvider {
   on(event: string, handler: (...args: any[]) => void): void;
   removeListener(event: string, handler: (...args: any[]) => void): void;
   emit(event: string, ...args: any[]): void;
+}
+
+interface Window {
+  ethereum?: EthereumProvider;
 }
 
 /**
@@ -68,7 +70,7 @@ class PortoProvider implements EthereumProvider {
       // Store pending request
       this.pendingRequests.set(requestId, { resolve, reject, timeout });
 
-      // Send request to content script via postMessage
+      // Send request to content script via postMessage (use specific origin for security)
       window.postMessage(
         {
           type: "PORTO_REQUEST",
@@ -76,7 +78,7 @@ class PortoProvider implements EthereumProvider {
           method: args.method,
           params: args.params || [],
         },
-        "*"
+        window.location.origin
       );
     });
   }
@@ -124,6 +126,11 @@ class PortoProvider implements EthereumProvider {
     window.addEventListener("message", (event: MessageEvent) => {
       // Only accept messages from same window
       if (event.source !== window) {
+        return;
+      }
+
+      // Validate message origin for defense-in-depth
+      if (event.origin !== window.location.origin) {
         return;
       }
 
@@ -182,20 +189,30 @@ class PortoProvider implements EthereumProvider {
       rdns: "sh.porto.wallet",
     };
 
-    window.dispatchEvent(
-      new CustomEvent("eip6963:announceProvider", {
-        detail: Object.freeze({ info, provider: this }),
-      })
-    );
-
-    // Listen for discovery requests
-    window.addEventListener("eip6963:requestProvider", () => {
+    const announce = () => {
       window.dispatchEvent(
         new CustomEvent("eip6963:announceProvider", {
           detail: Object.freeze({ info, provider: this }),
         })
       );
-    });
+    };
+
+    // Announce immediately
+    announce();
+
+    // Listen for discovery requests from dApps
+    window.addEventListener("eip6963:requestProvider", announce);
+
+    // Re-announce on DOMContentLoaded in case dApps check then
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", announce);
+    } else {
+      // DOM already loaded, announce again
+      announce();
+    }
+
+    // Re-announce on window load for late-initializing dApps
+    window.addEventListener("load", announce);
   }
 }
 
@@ -209,11 +226,24 @@ class PortoProvider implements EthereumProvider {
 
     // Inject as window.ethereum if not already present
     if (!window.ethereum) {
-      window.ethereum = provider;
+      (window as any).ethereum = provider;
       console.log("[PortoProvider] Set as window.ethereum");
     } else {
-      console.log("[PortoProvider] window.ethereum already exists, using EIP-6963 only");
-      // Still announce via EIP-6963 for multi-wallet support
+      console.log("[PortoProvider] window.ethereum already exists, registering as additional provider");
+
+      // Register in providers array (multi-wallet pattern used by some dApps)
+      const existingEthereum = (window as any).ethereum;
+
+      // Initialize providers array if needed
+      if (!existingEthereum.providers) {
+        existingEthereum.providers = [existingEthereum];
+      }
+
+      // Add our provider to the array
+      if (!existingEthereum.providers.includes(provider)) {
+        existingEthereum.providers.push(provider);
+        console.log("[PortoProvider] Added to providers array");
+      }
     }
 
     // Dispatch initialization event

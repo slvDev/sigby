@@ -11,8 +11,6 @@ import { MessageType } from "../types/messages";
  * Handles bidirectional communication between page and extension
  */
 class DappBridge {
-  private port: chrome.runtime.Port | null = null;
-
   constructor() {
     console.log("[DappBridge] Initializing dApp bridge...");
     this.setupMessageListeners();
@@ -30,6 +28,11 @@ class DappBridge {
         return;
       }
 
+      // Validate message origin for defense-in-depth
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
       // Only handle Porto provider requests
       if (event.data.type === "PORTO_REQUEST") {
         await this.handleProviderRequest(event.data);
@@ -37,7 +40,7 @@ class DappBridge {
     });
 
     // Listen to messages from background script
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       // Handle events that should be emitted to page
       if (message.type === MessageType.EMIT_EVENT) {
         this.emitEvent(message.event, message.data);
@@ -87,7 +90,7 @@ class DappBridge {
 
       console.log("[DappBridge] Received response from background:", response.success);
 
-      // Send response back to page
+      // Send response back to page (use specific origin for security)
       window.postMessage(
         {
           type: "PORTO_RESPONSE",
@@ -95,19 +98,19 @@ class DappBridge {
           result: response.data,
           error: response.error,
         },
-        "*"
+        window.location.origin
       );
     } catch (error) {
       console.error("[DappBridge] Failed to handle provider request:", error);
 
-      // Send error back to page
+      // Send error back to page (use specific origin for security)
       window.postMessage(
         {
           type: "PORTO_RESPONSE",
           requestId,
           error: error instanceof Error ? error.message : "Request failed",
         },
-        "*"
+        window.location.origin
       );
     }
   }
@@ -119,13 +122,14 @@ class DappBridge {
   public emitEvent(event: string, data: any): void {
     console.log("[DappBridge] Emitting event to page:", event);
 
+    // Use specific origin for security
     window.postMessage(
       {
         type: "PORTO_EVENT",
         event,
         data,
       },
-      "*"
+      window.location.origin
     );
   }
 

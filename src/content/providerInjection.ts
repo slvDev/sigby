@@ -7,6 +7,7 @@
 /**
  * Inject provider script into page DOM
  * Creates and injects a script tag that will run in page context
+ * Uses synchronous injection for earliest possible execution
  */
 export function injectProvider(): void {
   try {
@@ -16,33 +17,36 @@ export function injectProvider(): void {
     const script = document.createElement("script");
 
     // Get injected script URL from extension
+    // Built separately as IIFE for page context
     script.src = chrome.runtime.getURL("injected.js");
 
-    // Set script attributes
+    // Set script attributes for earliest execution
     script.type = "text/javascript";
+    script.async = false; // Execute in order
 
     // Remove script tag after execution to clean up DOM
-    script.onload = function (this: HTMLScriptElement) {
-      this.remove();
+    script.onload = function () {
+      script.remove();
       console.log("[ProviderInjection] Provider script injected and cleaned up");
     };
 
     // Handle injection errors
-    script.onerror = function (this: HTMLScriptElement) {
+    script.onerror = function () {
       console.error("[ProviderInjection] Failed to inject provider script");
-      this.remove();
+      script.remove();
     };
 
-    // Inject into page as early as possible
-    // Prefer document.head, fallback to documentElement
-    const target = document.head || document.documentElement;
+    // Inject into documentElement as FIRST child for earliest execution
+    // This runs before head is even created in most cases
+    const target = document.documentElement;
 
     if (target) {
-      target.appendChild(script);
-      console.log("[ProviderInjection] Provider script tag added to DOM");
+      // Prepend to ensure it runs before other scripts
+      target.insertBefore(script, target.firstChild);
+      console.log("[ProviderInjection] Provider script tag prepended to documentElement");
     } else {
       console.error(
-        "[ProviderInjection] No injection target found (head or documentElement)"
+        "[ProviderInjection] No injection target found (documentElement)"
       );
     }
   } catch (error) {
