@@ -87,10 +87,10 @@ export const UI_CONFIG = {
 export const TRANSACTION_CONFIG = {
   /** Max transactions to store in history */
   MAX_HISTORY_SIZE: 100,
-  /** Transaction status polling interval (ms) */
-  STATUS_POLL_INTERVAL: 2000,
+  /** Transaction status polling interval (ms) - 1 minute (chrome.alarms minimum) */
+  STATUS_POLL_INTERVAL: 60000,
   /** Max polling attempts before giving up */
-  MAX_POLL_ATTEMPTS: 150, // 5 minutes at 2s intervals
+  MAX_POLL_ATTEMPTS: 10, // 10 minutes at 1 minute intervals
 } as const;
 
 /**
@@ -138,6 +138,24 @@ export const ERROR_MESSAGES = {
   QUOTE_EXPIRED: "Fee quote expired. Please retry transaction.",
   INTENT_SIMULATION_FAILED: "Transaction simulation failed.",
   INTENT_SUBMISSION_FAILED: "Transaction submission failed.",
+
+  // Validation errors
+  INVALID_TX_OBJECT: "Invalid transaction object.",
+  INVALID_TO_ADDRESS: "Invalid 'to' address format.",
+  INVALID_FROM_ADDRESS: "Invalid 'from' address format.",
+  INVALID_VALUE_FORMAT: "Invalid value format (must be hex).",
+  INVALID_DATA_FORMAT: "Invalid data format (must be hex).",
+  INVALID_GAS_FORMAT: "Invalid gas format (must be hex).",
+  INVALID_NONCE_FORMAT: "Invalid nonce format (must be hex).",
+  INVALID_MESSAGE_FORMAT: "Invalid message format.",
+  INVALID_TYPED_DATA: "Invalid typed data format.",
+  INVALID_ORIGIN: "Invalid or missing dApp origin.",
+
+  // Signing errors
+  SIGNING_REJECTED: "User rejected the signing request.",
+  SIGNING_TIMEOUT: "Signing request timed out.",
+  SIGNING_FAILED: "Signing operation failed.",
+  SIGNING_REQUEST_NOT_FOUND: "Signing request not found or expired.",
 
   // Network errors
   NETWORK_ERROR: "Network request failed. Please check your connection.",
