@@ -72,6 +72,11 @@ export enum MessageType {
   APPROVE_CONNECTION = "APPROVE_CONNECTION",
   REJECT_CONNECTION = "REJECT_CONNECTION",
   DISCONNECT_DAPP = "DISCONNECT_DAPP",
+
+  // Signing Request Management (Phase 4)
+  GET_PENDING_SIGNING = "GET_PENDING_SIGNING",
+  APPROVE_SIGNING = "APPROVE_SIGNING",
+  REJECT_SIGNING = "REJECT_SIGNING",
 }
 
 /**
@@ -286,4 +291,57 @@ export interface RejectConnectionPayload {
   origin: string;
   /** Account address */
   accountAddress: string;
+}
+
+// ==================== SIGNING REQUEST PAYLOADS (Phase 4) ====================
+
+/**
+ * Signing request data stored by DappManager
+ */
+export interface SigningRequest {
+  /** Unique request identifier */
+  requestId: string;
+  /** Signing method (eth_sendTransaction, personal_sign, eth_signTypedData_v4) */
+  method: string;
+  /** Method parameters from dApp */
+  params: any[];
+  /** dApp origin */
+  origin: string;
+  /** Account address to sign with */
+  accountAddress: string;
+  /** Chain ID for the request */
+  chainId: number;
+  /** Timestamp when request was created */
+  timestamp: number;
+  /** dApp metadata */
+  metadata?: {
+    favicon?: string;
+    title?: string;
+  };
+}
+
+/**
+ * Get pending signing request payload
+ */
+export interface GetPendingSigningPayload {
+  /** Request ID to fetch */
+  requestId: string;
+}
+
+/**
+ * Approve signing request payload (from popup)
+ */
+export interface ApproveSigningPayload {
+  /** Request ID */
+  requestId: string;
+  /** Signed result (transaction hash or signature) */
+  result: string;
+}
+
+/**
+ * Reject signing request payload (from popup)
+ */
+export interface RejectSigningPayload {
+  /** Request ID */
+  requestId: string;
 }
