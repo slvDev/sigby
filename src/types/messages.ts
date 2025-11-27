@@ -45,6 +45,8 @@ export enum MessageType {
   // Network/Chain Management
   SWITCH_CHAIN = "SWITCH_CHAIN",
   ADD_CHAIN = "ADD_CHAIN",
+  GET_CHAIN_FOR_ORIGIN = "GET_CHAIN_FOR_ORIGIN",
+  GET_SUPPORTED_CHAINS = "GET_SUPPORTED_CHAINS",
 
   // State Management
   GET_STATE = "GET_STATE",
@@ -134,11 +136,21 @@ export interface AccountPayload {
 }
 
 /**
- * Chain switch payload
+ * Chain switch payload (for wallet_switchEthereumChain)
  */
 export interface ChainSwitchPayload {
   /** Chain ID to switch to */
   chainId: number;
+  /** Origin requesting the switch (for per-origin chain context) */
+  origin?: string;
+}
+
+/**
+ * Get chain for origin payload
+ */
+export interface GetChainForOriginPayload {
+  /** dApp origin */
+  origin: string;
 }
 
 /**

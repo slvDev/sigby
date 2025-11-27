@@ -18,18 +18,163 @@ export const PORTO_CONFIG = {
  * Supported chain IDs
  */
 export const CHAIN_IDS = {
+  // Mainnets
   ETHEREUM: 1,
-  GOERLI: 5,
-  SEPOLIA: 11155111,
   BASE: 8453,
-  BASE_GOERLI: 84531,
   ARBITRUM: 42161,
-  ARBITRUM_GOERLI: 421613,
   OPTIMISM: 10,
-  OPTIMISM_GOERLI: 420,
   POLYGON: 137,
-  POLYGON_MUMBAI: 80001,
+  // Testnets
+  SEPOLIA: 11155111,
+  BASE_SEPOLIA: 84532,
+  ARBITRUM_SEPOLIA: 421614,
+  OPTIMISM_SEPOLIA: 11155420,
+  POLYGON_AMOY: 80002,
+  HOLESKY: 17000,
 } as const;
+
+/**
+ * Chain configuration interface
+ */
+export interface ChainConfig {
+  id: number;
+  name: string;
+  shortName: string;
+  nativeCurrency: { name: string; symbol: string; decimals: number };
+  rpcUrls: string[];
+  blockExplorerUrls: string[];
+  isTestnet: boolean;
+}
+
+/**
+ * Full chain configurations for all supported chains
+ */
+export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
+  // Mainnets
+  [CHAIN_IDS.ETHEREUM]: {
+    id: 1,
+    name: "Ethereum",
+    shortName: "ETH",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://eth.llamarpc.com", "https://ethereum.publicnode.com"],
+    blockExplorerUrls: ["https://etherscan.io"],
+    isTestnet: false,
+  },
+  [CHAIN_IDS.BASE]: {
+    id: 8453,
+    name: "Base",
+    shortName: "Base",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://mainnet.base.org", "https://base.llamarpc.com"],
+    blockExplorerUrls: ["https://basescan.org"],
+    isTestnet: false,
+  },
+  [CHAIN_IDS.ARBITRUM]: {
+    id: 42161,
+    name: "Arbitrum One",
+    shortName: "ARB",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://arb1.arbitrum.io/rpc", "https://arbitrum.llamarpc.com"],
+    blockExplorerUrls: ["https://arbiscan.io"],
+    isTestnet: false,
+  },
+  [CHAIN_IDS.OPTIMISM]: {
+    id: 10,
+    name: "Optimism",
+    shortName: "OP",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://mainnet.optimism.io", "https://optimism.llamarpc.com"],
+    blockExplorerUrls: ["https://optimistic.etherscan.io"],
+    isTestnet: false,
+  },
+  [CHAIN_IDS.POLYGON]: {
+    id: 137,
+    name: "Polygon",
+    shortName: "MATIC",
+    nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+    rpcUrls: ["https://polygon-rpc.com", "https://polygon.llamarpc.com"],
+    blockExplorerUrls: ["https://polygonscan.com"],
+    isTestnet: false,
+  },
+  // Testnets
+  [CHAIN_IDS.SEPOLIA]: {
+    id: 11155111,
+    name: "Sepolia",
+    shortName: "SEP",
+    nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://rpc.sepolia.org", "https://ethereum-sepolia.publicnode.com"],
+    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+    isTestnet: true,
+  },
+  [CHAIN_IDS.BASE_SEPOLIA]: {
+    id: 84532,
+    name: "Base Sepolia",
+    shortName: "BSEP",
+    nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://sepolia.base.org"],
+    blockExplorerUrls: ["https://sepolia.basescan.org"],
+    isTestnet: true,
+  },
+  [CHAIN_IDS.ARBITRUM_SEPOLIA]: {
+    id: 421614,
+    name: "Arbitrum Sepolia",
+    shortName: "ASEP",
+    nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://sepolia-rollup.arbitrum.io/rpc"],
+    blockExplorerUrls: ["https://sepolia.arbiscan.io"],
+    isTestnet: true,
+  },
+  [CHAIN_IDS.OPTIMISM_SEPOLIA]: {
+    id: 11155420,
+    name: "Optimism Sepolia",
+    shortName: "OSEP",
+    nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://sepolia.optimism.io"],
+    blockExplorerUrls: ["https://sepolia-optimism.etherscan.io"],
+    isTestnet: true,
+  },
+  [CHAIN_IDS.POLYGON_AMOY]: {
+    id: 80002,
+    name: "Polygon Amoy",
+    shortName: "AMOY",
+    nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+    rpcUrls: ["https://rpc-amoy.polygon.technology"],
+    blockExplorerUrls: ["https://amoy.polygonscan.com"],
+    isTestnet: true,
+  },
+  [CHAIN_IDS.HOLESKY]: {
+    id: 17000,
+    name: "Holesky",
+    shortName: "HOL",
+    nativeCurrency: { name: "Holesky Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://ethereum-holesky.publicnode.com"],
+    blockExplorerUrls: ["https://holesky.etherscan.io"],
+    isTestnet: true,
+  },
+};
+
+/**
+ * Mainnet chain IDs array
+ */
+export const MAINNET_CHAIN_IDS = [
+  CHAIN_IDS.ETHEREUM,
+  CHAIN_IDS.BASE,
+  CHAIN_IDS.ARBITRUM,
+  CHAIN_IDS.OPTIMISM,
+  CHAIN_IDS.POLYGON,
+] as const;
+
+/**
+ * Testnet chain IDs array
+ */
+export const TESTNET_CHAIN_IDS = [
+  CHAIN_IDS.SEPOLIA,
+  CHAIN_IDS.BASE_SEPOLIA,
+  CHAIN_IDS.ARBITRUM_SEPOLIA,
+  CHAIN_IDS.OPTIMISM_SEPOLIA,
+  CHAIN_IDS.POLYGON_AMOY,
+  CHAIN_IDS.HOLESKY,
+] as const;
 
 /**
  * Default chain ID on first install

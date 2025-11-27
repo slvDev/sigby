@@ -38,6 +38,8 @@ export interface ConnectedDapp {
   lastInteractionAt?: number;
   /** Which account this connection is for */
   accountAddress: string;
+  /** Per-origin chain context (defaults to settings.defaultChain if not set) */
+  chainId?: number;
   /** dApp metadata */
   metadata?: {
     name?: string;
