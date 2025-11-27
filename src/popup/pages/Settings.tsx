@@ -4,13 +4,13 @@
  */
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useWalletStore, syncStoreWithBackground } from "../store";
 import { popupPortoService } from "../portoService";
-import { Toggle } from "../components/common";
+import { Toggle, ConfirmModal, Button } from "../components/common";
+import { Header } from "../components/layout/Header";
+import { BottomNav } from "../components/layout/BottomNav";
 
 export function Settings() {
-  const navigate = useNavigate();
   const {
     accounts,
     accountOrder,
@@ -26,6 +26,7 @@ export function Settings() {
   const [walletName, setWalletName] = useState("");
   const [accountCount, setAccountCount] = useState(0);
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const activeAccount = activeAddress ? accounts[activeAddress] : null;
 
@@ -102,13 +103,19 @@ export function Settings() {
 
   const handleDeleteAccount = async () => {
     if (!activeAddress) return;
-
-    if (!confirm("Delete this account?\n\nYour passkey will remain in your keychain.")) {
-      return;
-    }
-
+    setShowDeleteConfirm(false);
     setLoading(true);
     try {
+      // Call Porto's wallet_disconnect first to clean up SDK state
+      try {
+        await popupPortoService.disconnect();
+        console.log("[Settings] Porto disconnect successful");
+      } catch (disconnectErr) {
+        // Log but continue - local deletion should still proceed
+        console.warn("[Settings] Porto disconnect failed:", disconnectErr);
+      }
+
+      // Then remove from local extension storage
       const response = await chrome.runtime.sendMessage({
         type: "DELETE_ACCOUNT",
         payload: { address: activeAddress },
@@ -126,16 +133,21 @@ export function Settings() {
 
   return (
     <div className="flex flex-col flex-1">
-      {/* Header */}
-      <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          ← Back
-        </button>
-        <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
-      </div>
+      {/* Header with account switcher and chain selector */}
+      <Header />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteAccount}
+        title="Remove Account"
+        message="Remove this account from the wallet?\n\nYour passkey will remain in your keychain and can be reconnected later."
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isLoading}
+      />
 
       <div className="p-4 space-y-6 overflow-y-auto flex-1">
         {/* Active Account Section */}
@@ -271,18 +283,22 @@ export function Settings() {
           <h3 className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-3">
             Danger Zone
           </h3>
-          <button
-            onClick={handleDeleteAccount}
-            className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+          <Button
+            variant="danger"
+            fullWidth
+            onClick={() => setShowDeleteConfirm(true)}
             disabled={!activeAddress}
           >
             Remove Current Account
-          </button>
+          </Button>
           <p className="text-xs text-gray-400 mt-2">
             Your passkey will remain in your keychain and can be reconnected.
           </p>
         </section>
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWalletStore, syncStoreWithBackground } from "../../store";
 import { ChainSelector } from "../chain";
+import { ConfirmModal, IconButton } from "../common";
 
 export function Header() {
   const {
@@ -21,6 +22,7 @@ export function Header() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [deleteAddress, setDeleteAddress] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const orderedAccounts = accountOrder
@@ -110,10 +112,7 @@ export function Header() {
   };
 
   const handleDeleteAccount = async (address: string) => {
-    if (!confirm("Delete this account?\n\nYour passkey will remain in your keychain.")) {
-      return;
-    }
-
+    setDeleteAddress(null);
     setLoading(true);
     try {
       const response = await chrome.runtime.sendMessage({
@@ -137,11 +136,26 @@ export function Header() {
 
   return (
     <header className="flex items-center justify-between p-4 border-b border-gray-100">
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteAddress}
+        onClose={() => setDeleteAddress(null)}
+        onConfirm={() => deleteAddress && handleDeleteAccount(deleteAddress)}
+        title="Remove Account"
+        message="Remove this account from the wallet?\n\nYour passkey will remain in your keychain and can be reconnected later."
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
       {/* Account Switcher */}
       <div className="relative" ref={dropdownRef}>
         <button
-          className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          aria-label="Switch account"
+          aria-expanded={isDropdownOpen}
+          aria-haspopup="listbox"
         >
           <span className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
             {activeAccount.displayName?.charAt(0) || "A"}
@@ -207,20 +221,17 @@ export function Header() {
                         )}
                       </div>
                       <div className="flex gap-1 pr-2">
-                        <button
+                        <IconButton
+                          icon={<span className="text-sm">✎</span>}
+                          aria-label={`Rename ${acc.displayName}`}
                           onClick={() => handleStartRename(acc.address, acc.displayName)}
-                          className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
-                          title="Rename"
-                        >
-                          ✎
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAccount(acc.address)}
-                          className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete"
-                        >
-                          ×
-                        </button>
+                        />
+                        <IconButton
+                          icon={<span className="text-base">×</span>}
+                          aria-label={`Remove ${acc.displayName}`}
+                          variant="danger"
+                          onClick={() => setDeleteAddress(acc.address)}
+                        />
                       </div>
                     </div>
                   )}
