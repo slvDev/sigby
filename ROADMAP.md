@@ -2229,7 +2229,6 @@ export class PortfolioService {
 - Add token management
 - Implement NFT support
 - Add transaction history
-- Build swap integration
 
 ### Tasks
 
@@ -2254,19 +2253,11 @@ export class PortfolioService {
 - Filter by type/status
 - Export history
 
-#### 7.4 Swap Integration
-
-- Integrate with DEX aggregator (1inch, 0x)
-- Quote fetching
-- Swap execution
-- Slippage protection
-
 **Deliverables:**
 
 - ✅ Token management complete
 - ✅ NFT viewing functional
 - ✅ Transaction history working
-- ✅ Swap feature integrated
 
 ---
 
