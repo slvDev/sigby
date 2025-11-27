@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useWalletStore, syncStoreWithBackground } from "./store";
 import { popupPortoService } from "./portoService";
+import { ToastProvider } from "./components/common";
+import { useTransactionWatcher } from "./hooks";
 
 /**
  * LegacyParamHandler
@@ -35,6 +37,15 @@ function LegacyParamHandler() {
     }
   }, [navigate]);
 
+  return null;
+}
+
+/**
+ * TransactionWatcher
+ * Watches pending transactions and triggers balance refresh on confirmation
+ */
+function TransactionWatcher() {
+  useTransactionWatcher();
   return null;
 }
 
@@ -102,11 +113,14 @@ export function App() {
   }
 
   return (
-    <div className="w-[400px] min-h-[600px] bg-white flex flex-col">
-      <LegacyParamHandler />
-      <AuthGuard>
-        <Outlet />
-      </AuthGuard>
-    </div>
+    <ToastProvider>
+      <TransactionWatcher />
+      <div className="w-[400px] min-h-[600px] bg-white flex flex-col">
+        <LegacyParamHandler />
+        <AuthGuard>
+          <Outlet />
+        </AuthGuard>
+      </div>
+    </ToastProvider>
   );
 }
