@@ -9,9 +9,12 @@ import { App } from "./App";
 // Pages
 import { Home } from "./pages/Home";
 import { Send } from "./pages/Send";
+import { SendToken } from "./pages/SendToken";
 import { Receive } from "./pages/Receive";
 import { Settings } from "./pages/Settings";
 import { History } from "./pages/History";
+import { Tokens } from "./pages/Tokens";
+import { TokenDetail } from "./pages/TokenDetail";
 
 // Approval pages
 import { ConnectionApproval } from "./pages/approval/ConnectionApproval";
@@ -26,6 +29,9 @@ export const router = createHashRouter([
       { index: true, element: <Home /> },
       { path: "send", element: <Send /> },
       { path: "receive", element: <Receive /> },
+      { path: "tokens", element: <Tokens /> },
+      { path: "token/:address", element: <TokenDetail /> },
+      { path: "send-token/:address", element: <SendToken /> },
       { path: "history", element: <History /> },
       { path: "settings", element: <Settings /> },
       { path: "connect", element: <ConnectionApproval /> },
