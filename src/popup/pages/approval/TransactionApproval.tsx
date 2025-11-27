@@ -72,6 +72,7 @@ export function TransactionApproval() {
       const tx = request.params?.[0] || {};
 
       const result = await popupPortoService.sendTransaction({
+        from: tx.from,
         to: tx.to,
         value: tx.value,
         data: tx.data,

@@ -7,11 +7,16 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWalletStore } from "../store";
 import { popupPortoService } from "../portoService";
+import { CHAIN_CONFIGS } from "../../utils/constants";
+import { useToast } from "../components/common";
 
 export function Send() {
   const navigate = useNavigate();
-  const { activeAddress, accounts } = useWalletStore();
+  const { showToast } = useToast();
+  const { activeAddress, accounts, chainId, addPendingTransaction } = useWalletStore();
   const activeAccount = activeAddress ? accounts[activeAddress] : null;
+  const chainConfig = CHAIN_CONFIGS[chainId];
+  const currencySymbol = chainConfig?.nativeCurrency?.symbol || "ETH";
 
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
@@ -41,7 +46,7 @@ export function Send() {
 
     // Check if user has sufficient balance
     if (amountNum > userBalance) {
-      setError(`Insufficient balance. You have ${userBalance} ETH`);
+      setError(`Insufficient balance. You have ${userBalance} ${currencySymbol}`);
       return;
     }
 
@@ -59,19 +64,34 @@ export function Send() {
       const valueWei = BigInt(Math.floor(amountNum * 1e18));
       const valueHex = "0x" + valueWei.toString(16);
 
-      // Send via Porto SDK
-      const result = await popupPortoService.sendTransaction({
+      // Send via Porto SDK using selected chain and account
+      // Returns bundle ID from wallet_sendCalls
+      const bundleId = await popupPortoService.sendTransaction({
+        from: activeAddress!,
         to: recipient,
         value: valueHex,
         data: "0x",
-        chainId: 8453, // Base
+        chainId: chainId,
       });
 
-      console.log("[Send] Transaction sent:", result);
+      console.log("[Send] Transaction bundle ID:", bundleId);
 
-      // Show success and navigate back
-      alert("Transaction sent!");
-      navigate("/");
+      // Ensure bundleId is a string
+      const bundleIdStr = typeof bundleId === 'string' ? bundleId : String(bundleId);
+
+      // Add to pending transactions for watching
+      addPendingTransaction({
+        id: bundleIdStr,
+        chainId: chainId,
+        timestamp: Date.now(),
+      });
+
+      // Show success toast and navigate to history
+      showToast({
+        type: "success",
+        message: "Transaction submitted!",
+      });
+      navigate("/history");
     } catch (err) {
       console.error("[Send] Failed:", err);
       setError(err instanceof Error ? err.message : "Transaction failed");
@@ -109,7 +129,10 @@ export function Send() {
         >
           &larr; Back
         </button>
-        <h2 className="text-lg font-semibold text-gray-900">Send ETH</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Send {currencySymbol}</h2>
+          <p className="text-xs text-gray-400">{chainConfig?.name || "Unknown Network"}</p>
+        </div>
       </div>
 
       {/* Form */}
@@ -143,7 +166,7 @@ export function Send() {
             htmlFor="amount"
             className="text-sm font-medium text-gray-700"
           >
-            Amount (ETH)
+            Amount ({currencySymbol})
           </label>
           <input
             id="amount"
@@ -161,7 +184,7 @@ export function Send() {
                        transition-colors"
           />
           <p className="text-xs text-gray-500">
-            Available: {userBalance.toFixed(4)} ETH
+            Available: {userBalance.toFixed(7)} {currencySymbol}
           </p>
         </div>
 

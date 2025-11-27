@@ -1,19 +1,29 @@
 /**
  * History Page
- * Transaction history display
+ * Transaction history display using Porto SDK's wallet_getCallsHistory
  */
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { useWalletStore } from "../store";
-import type { Transaction } from "../../types/account";
+import { BottomNav } from "../components/layout/BottomNav";
+import { popupPortoService } from "../portoService";
+import { portoStatusToString } from "../../types/porto";
+import type { PortoHistoryEntry } from "../../types/porto";
+import { CHAIN_CONFIGS } from "../../utils/constants";
+
+interface DisplayTransaction {
+  id: string;
+  chainId: number;
+  status: 'pending' | 'confirmed' | 'failed';
+  hash?: string;
+}
 
 export function History() {
-  const navigate = useNavigate();
-  const { activeAddress } = useWalletStore();
+  const { activeAddress, pendingTransactions, historyRefreshTrigger } = useWalletStore();
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<DisplayTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchHistory() {
@@ -23,37 +33,46 @@ export function History() {
       }
 
       try {
-        const response = await chrome.runtime.sendMessage({
-          type: "GET_STATE",
+        // Initialize Porto if needed
+        if (!popupPortoService.isReady()) {
+          await popupPortoService.initialize();
+        }
+
+        // Fetch history from Porto SDK
+        const history = await popupPortoService.getCallsHistory(activeAddress);
+        console.log('[History] Raw history from Porto:', JSON.stringify(history, null, 2));
+
+        // Transform Porto format to display format
+        const displayTxs: DisplayTransaction[] = history.map((entry: PortoHistoryEntry) => {
+          // Porto returns chainId inside transactions array as hex string (e.g., "0x2105")
+          const txChainId = entry.transactions?.[0]?.chainId;
+          const chainIdNum = typeof txChainId === 'string'
+            ? parseInt(txChainId, 16)
+            : (typeof entry.chainId === 'string' ? parseInt(entry.chainId, 16) : entry.chainId) || 0;
+
+          // Transaction hash is also inside transactions array
+          const txHash = entry.transactions?.[0]?.transactionHash || entry.receipts?.[0]?.transactionHash;
+
+          return {
+            id: entry.id,
+            chainId: chainIdNum,
+            status: portoStatusToString(entry.status),
+            hash: txHash,
+          };
         });
 
-        // Filter transactions for active account (simplified - in production would be per-account)
-        const allTx = response.data?.transactions || [];
-        setTransactions(allTx);
+        setTransactions(displayTxs);
+        setError(null);
       } catch (err) {
-        console.error("Failed to fetch history:", err);
+        setError(err instanceof Error ? err.message : "Failed to load transaction history");
+        setTransactions([]);
       } finally {
         setIsLoading(false);
       }
     }
 
     fetchHistory();
-  }, [activeAddress]);
-
-  const formatTimestamp = (ts: number) => {
-    const date = new Date(ts);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
-  };
-
-  const formatValue = (value: string) => {
-    try {
-      const wei = BigInt(value);
-      const eth = Number(wei) / 1e18;
-      return eth.toFixed(4) + " ETH";
-    } catch {
-      return value;
-    }
-  };
+  }, [activeAddress, historyRefreshTrigger]);
 
   const getStatusClasses = (status: string) => {
     switch (status) {
@@ -68,23 +87,40 @@ export function History() {
     }
   };
 
+  const getChainName = (txChainId: number) => {
+    return CHAIN_CONFIGS[txChainId]?.name || `Chain ${txChainId}`;
+  };
+
+  const truncateHash = (hash?: string) => {
+    if (!hash) return "Pending...";
+    return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+  };
+
   return (
     <div className="flex flex-col flex-1">
       {/* Header */}
-      <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          ← Back
-        </button>
+      <div className="p-4 border-b border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900">Transaction History</h2>
+        {pendingTransactions.length > 0 && (
+          <div className="flex items-center gap-2 mt-2 text-sm text-yellow-700">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+            </span>
+            Watching {pendingTransactions.length} pending transaction{pendingTransactions.length > 1 ? 's' : ''}...
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="flex-1 p-4 overflow-y-auto">
         {isLoading ? (
           <div className="text-center text-gray-400 py-8">Loading transactions...</div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-red-600 font-medium">{error}</p>
+            <p className="text-sm text-gray-400 mt-1">Please try again later</p>
+          </div>
         ) : transactions.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-600 font-medium">No transactions yet</p>
@@ -97,25 +133,37 @@ export function History() {
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <div className="font-medium text-gray-900">
-                      {tx.to ? "Send" : "Contract"}
+                      Transaction
                     </div>
                     <div className="text-xs text-gray-500 font-mono mt-0.5">
-                      To: {tx.to?.slice(0, 8)}...{tx.to?.slice(-6) || "Contract"}
+                      {truncateHash(tx.hash)}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium text-gray-900">{formatValue(tx.value)}</div>
+                    <div className="text-sm text-gray-600">{getChainName(tx.chainId)}</div>
                     <span className={`text-xs px-2 py-0.5 rounded-full inline-block mt-1 ${getStatusClasses(tx.status)}`}>
                       {tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
                     </span>
                   </div>
                 </div>
-                <div className="text-xs text-gray-400">{formatTimestamp(tx.timestamp)}</div>
+                {tx.hash && (
+                  <a
+                    href={`${CHAIN_CONFIGS[tx.chainId]?.blockExplorerUrls?.[0] || 'https://etherscan.io'}/tx/${tx.hash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary-600 hover:underline"
+                  >
+                    View on Explorer
+                  </a>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }

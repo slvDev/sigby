@@ -5,9 +5,10 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useWalletStore, syncStoreWithBackground, fetchBalanceWithCache } from "../store";
+import { useWalletStore, syncStoreWithBackground } from "../store";
 import { popupPortoService } from "../portoService";
 import { Header } from "../components/layout/Header";
+import { BottomNav } from "../components/layout/BottomNav";
 
 export function Home() {
   const navigate = useNavigate();
@@ -15,6 +16,10 @@ export function Home() {
     accounts,
     accountOrder,
     activeAddress,
+    chainId,
+    assets,
+    assetsLoading,
+    refreshAssets,
     isLoading,
     error,
     setLoading,
@@ -23,8 +28,12 @@ export function Home() {
 
   const [walletName, setWalletName] = useState("");
   const [accountCount, setAccountCount] = useState(0);
-  const [balance, setBalance] = useState<string | null>(null);
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+
+  // Get native balance from assets
+  const nativeAsset = assets.find((a) => a.type === "native");
+  const balance = nativeAsset
+    ? (Number(BigInt(nativeAsset.balance)) / 1e18).toFixed(7)
+    : "0";
 
   // Get account count on mount
   useEffect(() => {
@@ -39,24 +48,12 @@ export function Home() {
     getAccountCount();
   }, []);
 
-  // Fetch balance when active account changes (with caching)
+  // Refresh assets when active account or chain changes
   useEffect(() => {
-    async function fetchBalance() {
-      if (!activeAddress) return;
-
-      setIsLoadingBalance(true);
-      try {
-        const balanceEth = await fetchBalanceWithCache(activeAddress);
-        setBalance(balanceEth);
-      } catch (e) {
-        console.error("Failed to fetch balance:", e);
-      } finally {
-        setIsLoadingBalance(false);
-      }
+    if (activeAddress) {
+      refreshAssets();
     }
-
-    fetchBalance();
-  }, [activeAddress]);
+  }, [activeAddress, chainId]);
 
   // Handle account creation
   const handleCreateAccount = async () => {
@@ -190,71 +187,60 @@ export function Home() {
       <Header />
 
       {activeAccount ? (
-        <div className="p-6 flex flex-col gap-6">
-          {/* Address */}
-          <div className="flex items-center justify-center gap-2">
-            <span className="font-mono text-sm text-gray-500">
-              {activeAccount.address.slice(0, 6)}...{activeAccount.address.slice(-4)}
-            </span>
-            <button
-              className="text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors"
-              onClick={() => navigator.clipboard.writeText(activeAccount.address)}
-              title="Copy address"
-              aria-label="Copy wallet address to clipboard"
-            >
-              Copy
-            </button>
-          </div>
-
-          {/* Balance */}
-          <div className="text-center py-6">
-            <div className="text-xs uppercase tracking-wider text-gray-400 mb-2">Balance</div>
-            <div className="text-4xl font-bold text-gray-900">
-              {isLoadingBalance ? "..." : balance || "0"} ETH
+        <div className="flex-1 flex flex-col">
+          <div className="p-6 flex flex-col gap-6 flex-1">
+            {/* Address */}
+            <div className="flex items-center justify-center gap-2">
+              <span className="font-mono text-sm text-gray-500">
+                {activeAccount.address.slice(0, 6)}...{activeAccount.address.slice(-4)}
+              </span>
+              <button
+                className="text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors"
+                onClick={() => navigator.clipboard.writeText(activeAccount.address)}
+                title="Copy address"
+                aria-label="Copy wallet address to clipboard"
+              >
+                Copy
+              </button>
             </div>
+
+            {/* Balance */}
+            <div className="text-center py-6">
+              <div className="text-xs uppercase tracking-wider text-gray-400 mb-2">Balance</div>
+              <div className="text-4xl font-bold text-gray-900">
+                {assetsLoading ? "..." : balance} ETH
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex gap-3">
+              <button
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                onClick={() => navigate("/send")}
+              >
+                Send
+              </button>
+              <button
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                onClick={() => navigate("/receive")}
+              >
+                Receive
+              </button>
+            </div>
+
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+                {error}
+              </div>
+            )}
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-              onClick={() => navigate("/send")}
-            >
-              Send
-            </button>
-            <button
-              className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-              onClick={() => navigate("/receive")}
-            >
-              Receive
-            </button>
-            <button
-              className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-              onClick={() => navigate("/history")}
-            >
-              History
-            </button>
-          </div>
-
-          {/* Settings link */}
-          <div className="text-center pt-4">
-            <button
-              onClick={() => navigate("/settings")}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              Settings
-            </button>
-          </div>
+          {/* Bottom Navigation */}
+          <BottomNav />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center p-6 text-gray-500">
           Select an account from the dropdown above
-        </div>
-      )}
-
-      {error && (
-        <div className="mx-6 mb-6 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-          {error}
         </div>
       )}
     </div>
