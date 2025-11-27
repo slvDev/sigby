@@ -30,7 +30,7 @@ import { RpcHandler } from "./rpcHandler";
 import { DappManager } from "./dappManager";
 import { TransactionMonitor } from "./transactionMonitor";
 import { eventBroadcaster } from "./eventBroadcaster";
-import { ERROR_MESSAGES } from "../utils/constants";
+import { ERROR_MESSAGES, CHAIN_CONFIGS } from "../utils/constants";
 import { MessageType as MT } from "../types/messages";
 import {
   validateTransactionParams,
@@ -363,9 +363,14 @@ export class MessageHandler {
 
       console.log("[MessageHandler] dApp request:", method, "from", origin);
 
-      // Get current chain ID for RPC calls
-      const settings = await this.storageManager.getSettings();
-      const chainId = settings.defaultChain;
+      // Get the active account
+      const account = await this.accountManager.getAccount();
+      const accountAddress = account?.address || "";
+
+      // Get per-origin chain ID for RPC calls
+      const chainId = origin && accountAddress
+        ? await this.dappManager.getChainIdForOrigin(origin, accountAddress)
+        : (await this.storageManager.getSettings()).defaultChain;
 
       // Route based on method
       switch (method) {
@@ -381,10 +386,10 @@ export class MessageHandler {
 
         // Chain/Network methods
         case "eth_chainId":
-          return await this.handleGetChainId();
+          return await this.handleGetChainIdForOrigin(origin);
 
         case "net_version":
-          return await this.handleNetVersion();
+          return await this.handleNetVersionForOrigin(origin);
 
         // Read methods (via RPC)
         case "eth_getBalance":
@@ -437,11 +442,10 @@ export class MessageHandler {
 
         // Wallet methods
         case "wallet_switchEthereumChain":
-          return await this.handleWalletSwitchChain(params || []);
+          return await this.handleWalletSwitchChainForOrigin(params || [], origin);
 
         case "wallet_addEthereumChain":
-          // TODO: Implement chain addition
-          return { success: false, error: "Adding new chains not yet supported" };
+          return await this.handleWalletAddChain(params || [], origin);
 
         case "wallet_requestPermissions":
           return await this.handleWalletRequestPermissions(params || [], sender, origin);
@@ -582,7 +586,7 @@ export class MessageHandler {
   }
 
   /**
-   * Handle eth_chainId
+   * Handle eth_chainId (global, for popup use)
    */
   private async handleGetChainId(): Promise<MessageResponse> {
     try {
@@ -592,6 +596,61 @@ export class MessageHandler {
       return {
         success: true,
         data: chainId,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle eth_chainId for a specific origin (per-origin chain context)
+   */
+  private async handleGetChainIdForOrigin(origin?: string): Promise<MessageResponse> {
+    try {
+      const account = await this.accountManager.getAccount();
+
+      // If no origin or no account, fall back to global setting
+      if (!origin || !account) {
+        return await this.handleGetChainId();
+      }
+
+      // Get per-origin chain ID
+      const chainId = await this.dappManager.getChainIdForOrigin(origin, account.address);
+      const chainIdHex = `0x${chainId.toString(16)}`;
+
+      return {
+        success: true,
+        data: chainIdHex,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle net_version for a specific origin (per-origin chain context)
+   */
+  private async handleNetVersionForOrigin(origin?: string): Promise<MessageResponse> {
+    try {
+      const account = await this.accountManager.getAccount();
+
+      // If no origin or no account, fall back to global setting
+      if (!origin || !account) {
+        return await this.handleNetVersion();
+      }
+
+      // Get per-origin chain ID
+      const chainId = await this.dappManager.getChainIdForOrigin(origin, account.address);
+
+      return {
+        success: true,
+        data: chainId.toString(),
       };
     } catch (error) {
       return {
@@ -1150,7 +1209,7 @@ export class MessageHandler {
   }
 
   /**
-   * Handle wallet_switchEthereumChain
+   * Handle wallet_switchEthereumChain (global, for popup use)
    */
   private async handleWalletSwitchChain(params: any[]): Promise<MessageResponse> {
     try {
@@ -1170,6 +1229,108 @@ export class MessageHandler {
       return {
         success: true,
         data: null, // wallet_switchEthereumChain returns null on success
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle wallet_switchEthereumChain for a specific origin (per-origin chain context)
+   * Per EIP-3326: only affects the requesting origin
+   */
+  private async handleWalletSwitchChainForOrigin(
+    params: any[],
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      if (!params || params.length < 1 || !params[0].chainId) {
+        throw new Error("Missing chainId parameter");
+      }
+
+      const chainIdHex = params[0].chainId;
+      const chainId = parseInt(chainIdHex, 16);
+
+      // Validate chain is supported
+      if (!CHAIN_CONFIGS[chainId]) {
+        return {
+          success: false,
+          error: "Unrecognized chain ID",
+          // EIP-3326 error code for unrecognized chain
+          data: { code: 4902, message: "Unrecognized chain ID" },
+        };
+      }
+
+      const account = await this.accountManager.getAccount();
+
+      // If no origin or account, fall back to global switch
+      if (!origin || !account) {
+        return await this.handleWalletSwitchChain(params);
+      }
+
+      // Check if dApp is connected
+      const isConnected = await this.dappManager.isConnected(origin, account.address);
+      if (!isConnected) {
+        return {
+          success: false,
+          error: ERROR_MESSAGES.PERMISSION_DENIED,
+        };
+      }
+
+      // Update chain for this origin only
+      await this.dappManager.setChainIdForOrigin(origin, account.address, chainId);
+
+      // Broadcast chainChanged event to this origin only
+      await eventBroadcaster.chainChangedForOrigin(chainId, origin);
+
+      console.log(`[MessageHandler] Switched chain for ${origin} to ${chainId}`);
+
+      return {
+        success: true,
+        data: null, // wallet_switchEthereumChain returns null on success
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle wallet_addEthereumChain (EIP-3085)
+   * For built-in chains, just switch to them
+   * Custom chains are not yet supported
+   */
+  private async handleWalletAddChain(
+    params: any[],
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      if (!params || params.length < 1 || !params[0].chainId) {
+        throw new Error("Missing chainId parameter");
+      }
+
+      const chainIdHex = params[0].chainId;
+      const chainId = parseInt(chainIdHex, 16);
+
+      // Check if it's a built-in chain
+      if (CHAIN_CONFIGS[chainId]) {
+        // Just switch to it (built-in chains are already added)
+        return await this.handleWalletSwitchChainForOrigin(
+          [{ chainId: chainIdHex }],
+          origin
+        );
+      }
+
+      // Custom chains not supported yet
+      return {
+        success: false,
+        error: "Custom chains not yet supported. Only built-in chains are available.",
+        data: { code: 4902, message: "Custom chains not yet supported" },
       };
     } catch (error) {
       return {
@@ -1361,8 +1522,8 @@ export class MessageHandler {
         return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
       }
 
-      // Get current chain ID
-      const settings = await this.storageManager.getSettings();
+      // Get per-origin chain ID
+      const chainId = await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
 
       // Request signing approval (this opens popup and waits)
       const txHash = await this.dappManager.requestSigning({
@@ -1370,7 +1531,7 @@ export class MessageHandler {
         params,
         origin: dappOrigin,
         accountAddress: account.address,
-        chainId: settings.defaultChain,
+        chainId,
         metadata: {
           favicon: sender.tab?.favIconUrl,
           title: sender.tab?.title,
@@ -1421,8 +1582,8 @@ export class MessageHandler {
         return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
       }
 
-      // Get current chain ID
-      const settings = await this.storageManager.getSettings();
+      // Get per-origin chain ID
+      const chainId = await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
 
       // Request signing approval (this opens popup and waits)
       const signature = await this.dappManager.requestSigning({
@@ -1430,7 +1591,7 @@ export class MessageHandler {
         params,
         origin: dappOrigin,
         accountAddress: account.address,
-        chainId: settings.defaultChain,
+        chainId,
         metadata: {
           favicon: sender.tab?.favIconUrl,
           title: sender.tab?.title,
@@ -1481,8 +1642,8 @@ export class MessageHandler {
         return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
       }
 
-      // Get current chain ID
-      const settings = await this.storageManager.getSettings();
+      // Get per-origin chain ID
+      const chainId = await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
 
       // Request signing approval (this opens popup and waits)
       const signature = await this.dappManager.requestSigning({
@@ -1490,7 +1651,7 @@ export class MessageHandler {
         params,
         origin: dappOrigin,
         accountAddress: account.address,
-        chainId: settings.defaultChain,
+        chainId,
         metadata: {
           favicon: sender.tab?.favIconUrl,
           title: sender.tab?.title,
