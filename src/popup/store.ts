@@ -4,7 +4,9 @@
  */
 
 import { create } from "zustand";
-import { CHAIN_IDS, DEFAULT_CHAIN_ID } from "../utils/constants";
+import { DEFAULT_CHAIN_ID } from "../utils/constants";
+import { popupPortoService } from "./portoService";
+import type { PortoAsset } from "../types/porto";
 
 /**
  * Account state (simplified for UI)
@@ -21,6 +23,15 @@ interface AccountState {
  */
 interface BalanceCacheEntry {
   balance: string;
+  timestamp: number;
+}
+
+/**
+ * Pending transaction being watched for confirmation
+ */
+interface PendingTransaction {
+  id: string;        // Bundle ID from wallet_sendCalls
+  chainId: number;
   timestamp: number;
 }
 
@@ -50,6 +61,17 @@ interface WalletState {
   // Network state
   chainId: number;
 
+  // Asset state (from wallet_getAssets)
+  assets: PortoAsset[];
+  assetsLoading: boolean;
+  assetsLastFetched: number | null;
+
+  // Pending transactions being watched
+  pendingTransactions: PendingTransaction[];
+
+  // History refresh trigger (incremented when tx confirmed to trigger refetch)
+  historyRefreshTrigger: number;
+
   // UI state
   isLoading: boolean;
   error: string | null;
@@ -69,6 +91,17 @@ interface WalletState {
   addAccount: (account: AccountState) => void;
   updateAccount: (address: string, updates: Partial<AccountState>) => void;
   removeAccount: (address: string) => void;
+
+  // Asset actions
+  setAssets: (assets: PortoAsset[]) => void;
+  setAssetsLoading: (loading: boolean) => void;
+  refreshAssets: (force?: boolean) => Promise<void>;
+
+  // Pending transaction actions
+  addPendingTransaction: (tx: PendingTransaction) => void;
+  removePendingTransaction: (id: string) => void;
+  clearPendingTransactions: () => void;
+  triggerHistoryRefresh: () => void;
 
   // UI actions
   setChainId: (chainId: number) => void;
@@ -96,6 +129,17 @@ const initialState = {
 
   // Network - selected chain for popup UI
   chainId: DEFAULT_CHAIN_ID,
+
+  // Assets (from wallet_getAssets)
+  assets: [] as PortoAsset[],
+  assetsLoading: false,
+  assetsLastFetched: null as number | null,
+
+  // Pending transactions
+  pendingTransactions: [] as PendingTransaction[],
+
+  // History refresh trigger
+  historyRefreshTrigger: 0,
 
   // UI
   isLoading: false,
@@ -129,6 +173,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       activeAddress,
       // Update legacy account for backward compatibility
       account: activeAddress ? accounts[activeAddress] || null : null,
+      // Reset assets cache when switching accounts
+      assets: [],
+      assetsLastFetched: null,
     });
   },
 
@@ -168,9 +215,75 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       };
     }),
 
+  // ==================== ASSET ACTIONS ====================
+
+  setAssets: (assets) => set({ assets }),
+
+  setAssetsLoading: (assetsLoading) => set({ assetsLoading }),
+
+  refreshAssets: async (force = false) => {
+    const { activeAddress, chainId, assetsLastFetched, assetsLoading } = get();
+    if (!activeAddress) return;
+
+    // Skip if already loading
+    if (assetsLoading) return;
+
+    // Skip if data is fresh (less than 30 seconds old) unless forced
+    const ASSETS_CACHE_TTL = 30_000;
+    if (!force && assetsLastFetched && Date.now() - assetsLastFetched < ASSETS_CACHE_TTL) {
+      return;
+    }
+
+    set({ assetsLoading: true });
+
+    try {
+      if (!popupPortoService.isReady()) {
+        await popupPortoService.initialize();
+      }
+
+      const allAssets = await popupPortoService.getAssets(activeAddress, [chainId]);
+      const chainKeyHex = `0x${chainId.toString(16)}`;
+      const assets = allAssets[chainKeyHex] || [];
+
+      // Extract native balance and update account
+      const nativeAsset = assets.find((a: PortoAsset) => a.type === 'native');
+      if (nativeAsset) {
+        const balanceWei = BigInt(nativeAsset.balance);
+        const balanceEth = (Number(balanceWei) / 1e18).toFixed(7);
+        get().updateAccount(activeAddress, { balance: balanceEth });
+      }
+
+      set({
+        assets,
+        assetsLastFetched: Date.now(),
+        assetsLoading: false,
+      });
+    } catch (error) {
+      console.error('[Store] Failed to refresh assets:', error);
+      set({ assetsLoading: false });
+    }
+  },
+
+  // ==================== PENDING TRANSACTION ACTIONS ====================
+
+  addPendingTransaction: (tx) =>
+    set((state) => ({
+      pendingTransactions: [...state.pendingTransactions, tx],
+    })),
+
+  removePendingTransaction: (id) =>
+    set((state) => ({
+      pendingTransactions: state.pendingTransactions.filter((tx) => tx.id !== id),
+    })),
+
+  clearPendingTransactions: () => set({ pendingTransactions: [] }),
+
+  triggerHistoryRefresh: () =>
+    set((state) => ({ historyRefreshTrigger: state.historyRefreshTrigger + 1 })),
+
   // ==================== UI ACTIONS ====================
 
-  setChainId: (chainId) => set({ chainId }),
+  setChainId: (chainId) => set({ chainId, assets: [], assetsLastFetched: null }),
 
   setLoading: (isLoading) => set({ isLoading }),
 
@@ -242,6 +355,11 @@ export async function syncStoreWithBackground(): Promise<void> {
       // Get active account for UI
       const activeAccount = activeAddress ? accountsWithBalance[activeAddress] : null;
 
+      // Check if active address changed - need to reset assets cache
+      const currentState = useWalletStore.getState();
+      const addressChanged = currentState.activeAddress !== activeAddress;
+      const chainChanged = currentState.chainId !== (chainId || DEFAULT_CHAIN_ID);
+
       useWalletStore.setState({
         // Multi-account state
         accounts: accountsWithBalance,
@@ -255,6 +373,9 @@ export async function syncStoreWithBackground(): Promise<void> {
         isAuthenticated: isAuthenticated || false,
         chainId: chainId || DEFAULT_CHAIN_ID,
         error: null,
+
+        // Reset assets cache if address or chain changed
+        ...(addressChanged || chainChanged ? { assets: [], assetsLastFetched: null } : {}),
       });
     }
   } catch (error) {
@@ -361,7 +482,7 @@ async function fetchAndUpdateBalance(address: string, chainId: number): Promise<
 
       if (response.success && response.data) {
         const balanceWei = BigInt(response.data);
-        const balanceEth = (Number(balanceWei) / 1e18).toFixed(4);
+        const balanceEth = (Number(balanceWei) / 1e18).toFixed(7);
 
         // Update cache with chain-specific key
         balanceCache.set(cacheKey, {
