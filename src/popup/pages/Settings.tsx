@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWalletStore, syncStoreWithBackground } from "../store";
 import { popupPortoService } from "../portoService";
+import { Toggle } from "../components/common";
 
 export function Settings() {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ export function Settings() {
     setLoading,
     setError,
     error,
+    showTestnets,
+    setShowTestnets,
   } = useWalletStore();
 
   const [walletName, setWalletName] = useState("");
@@ -247,6 +250,21 @@ export function Settings() {
             {error}
           </div>
         )}
+
+        {/* Network Settings */}
+        <section>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Network
+          </h3>
+          <div className="p-4 bg-gray-50 rounded-xl">
+            <Toggle
+              checked={showTestnets}
+              onChange={setShowTestnets}
+              label="Show test networks"
+              description="Display Sepolia, Holesky, and other testnets"
+            />
+          </div>
+        </section>
 
         {/* Danger Zone */}
         <section className="pt-4 border-t border-gray-200">

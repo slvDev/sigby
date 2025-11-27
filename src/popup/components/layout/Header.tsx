@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWalletStore, syncStoreWithBackground } from "../../store";
+import { ChainSelector } from "../chain";
 
 export function Header() {
   const {
@@ -243,10 +244,8 @@ export function Header() {
         )}
       </div>
 
-      {/* Chain Badge */}
-      <div className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-lg">
-        Base
-      </div>
+      {/* Chain Selector */}
+      <ChainSelector />
     </header>
   );
 }

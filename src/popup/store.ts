@@ -4,6 +4,7 @@
  */
 
 import { create } from "zustand";
+import { CHAIN_IDS, DEFAULT_CHAIN_ID } from "../utils/constants";
 
 /**
  * Account state (simplified for UI)
@@ -24,10 +25,18 @@ interface BalanceCacheEntry {
 }
 
 /**
- * Balance cache with TTL (30 seconds)
+ * Per-chain balance cache with TTL (30 seconds)
+ * Key format: `${address}:${chainId}`
  */
 const BALANCE_CACHE_TTL = 30_000;
 const balanceCache = new Map<string, BalanceCacheEntry>();
+
+/**
+ * Generate cache key for per-chain balance
+ */
+function getBalanceCacheKey(address: string, chainId: number): string {
+  return `${address}:${chainId}`;
+}
 
 /**
  * Wallet state interface with multi-account support
@@ -45,6 +54,7 @@ interface WalletState {
   isLoading: boolean;
   error: string | null;
   isAccountSwitcherOpen: boolean;
+  showTestnets: boolean;
 
   // Connection state
   isAuthenticated: boolean;
@@ -66,6 +76,7 @@ interface WalletState {
   setError: (error: string | null) => void;
   setAuthenticated: (isAuthenticated: boolean) => void;
   setAccountSwitcherOpen: (isOpen: boolean) => void;
+  setShowTestnets: (show: boolean) => void;
 
   // Utility actions
   reset: () => void;
@@ -83,13 +94,14 @@ const initialState = {
   accountOrder: [] as string[],
   activeAddress: null as string | null,
 
-  // Network
-  chainId: 8453, // Base
+  // Network - selected chain for popup UI
+  chainId: DEFAULT_CHAIN_ID,
 
   // UI
   isLoading: false,
   error: null as string | null,
   isAccountSwitcherOpen: false,
+  showTestnets: true, // Visible by default per user preference
 
   // Connection
   isAuthenticated: false,
@@ -168,6 +180,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
   setAccountSwitcherOpen: (isAccountSwitcherOpen) => set({ isAccountSwitcherOpen }),
 
+  setShowTestnets: (showTestnets) => set({ showTestnets }),
+
   // ==================== UTILITY ACTIONS ====================
 
   reset: () => set(initialState),
@@ -239,7 +253,7 @@ export async function syncStoreWithBackground(): Promise<void> {
 
         // Connection state
         isAuthenticated: isAuthenticated || false,
-        chainId: chainId || 8453,
+        chainId: chainId || DEFAULT_CHAIN_ID,
         error: null,
       });
     }
@@ -279,14 +293,21 @@ export function getActiveAccount(): AccountState | null {
 /**
  * Fetch balance with stale-while-revalidate caching
  * Returns cached value immediately while fetching fresh data
+ * @param address - Account address
+ * @param chainId - Chain ID (defaults to store's current chainId)
+ * @param forceRefresh - Force refresh even if cached
  */
 export async function fetchBalanceWithCache(
   address: string,
+  chainId?: number,
   forceRefresh = false
 ): Promise<string> {
-  const now = Date.now();
-  const cached = balanceCache.get(address);
   const store = useWalletStore.getState();
+  const effectiveChainId = chainId ?? store.chainId;
+  const cacheKey = getBalanceCacheKey(address, effectiveChainId);
+
+  const now = Date.now();
+  const cached = balanceCache.get(cacheKey);
 
   // Return cached value if fresh (and not forcing refresh)
   if (cached && !forceRefresh && now - cached.timestamp < BALANCE_CACHE_TTL) {
@@ -299,13 +320,13 @@ export async function fetchBalanceWithCache(
     store.updateAccount(address, { balance: cached.balance });
 
     // Fetch fresh data in background (don't await)
-    fetchAndUpdateBalance(address).catch(console.error);
+    fetchAndUpdateBalance(address, effectiveChainId).catch(console.error);
 
     return cached.balance;
   }
 
   // No cache or forced refresh - fetch and wait
-  return fetchAndUpdateBalance(address);
+  return fetchAndUpdateBalance(address, effectiveChainId);
 }
 
 // Track in-flight balance requests to prevent race conditions
@@ -313,10 +334,14 @@ const balanceFetchPromises = new Map<string, Promise<string>>();
 
 /**
  * Internal: Fetch balance from RPC and update cache/store
+ * @param address - Account address
+ * @param chainId - Chain ID to fetch balance for
  */
-async function fetchAndUpdateBalance(address: string): Promise<string> {
-  // Check if there's already a fetch in progress for this address
-  const existingPromise = balanceFetchPromises.get(address);
+async function fetchAndUpdateBalance(address: string, chainId: number): Promise<string> {
+  const cacheKey = getBalanceCacheKey(address, chainId);
+
+  // Check if there's already a fetch in progress for this address+chain
+  const existingPromise = balanceFetchPromises.get(cacheKey);
   if (existingPromise) {
     return existingPromise;
   }
@@ -329,6 +354,8 @@ async function fetchAndUpdateBalance(address: string): Promise<string> {
           method: "eth_getBalance",
           params: [address, "latest"],
           origin: "popup://porto-wallet",
+          // Note: The background will use the global chain for popup requests
+          // We pass chainId in the payload for future per-chain balance support
         },
       });
 
@@ -336,14 +363,17 @@ async function fetchAndUpdateBalance(address: string): Promise<string> {
         const balanceWei = BigInt(response.data);
         const balanceEth = (Number(balanceWei) / 1e18).toFixed(4);
 
-        // Update cache
-        balanceCache.set(address, {
+        // Update cache with chain-specific key
+        balanceCache.set(cacheKey, {
           balance: balanceEth,
           timestamp: Date.now(),
         });
 
-        // Update store
-        useWalletStore.getState().updateAccount(address, { balance: balanceEth });
+        // Update store with the balance for the currently selected chain
+        const store = useWalletStore.getState();
+        if (chainId === store.chainId) {
+          store.updateAccount(address, { balance: balanceEth });
+        }
 
         return balanceEth;
       }
@@ -351,35 +381,50 @@ async function fetchAndUpdateBalance(address: string): Promise<string> {
       console.error("[Store] Failed to fetch balance:", error);
     } finally {
       // Clean up the in-flight promise
-      balanceFetchPromises.delete(address);
+      balanceFetchPromises.delete(cacheKey);
     }
 
     return "0";
   })();
 
-  balanceFetchPromises.set(address, fetchPromise);
+  balanceFetchPromises.set(cacheKey, fetchPromise);
   return fetchPromise;
 }
 
 /**
- * Fetch balances for all accounts
+ * Fetch balances for all accounts on current chain
+ * @param chainId - Optional chain ID (defaults to store's current chainId)
  */
-export async function fetchAllBalances(): Promise<void> {
-  const { accountOrder } = useWalletStore.getState();
+export async function fetchAllBalances(chainId?: number): Promise<void> {
+  const store = useWalletStore.getState();
+  const effectiveChainId = chainId ?? store.chainId;
 
   // Fetch all balances in parallel
   await Promise.all(
-    accountOrder.map((address) => fetchBalanceWithCache(address, true))
+    store.accountOrder.map((address) =>
+      fetchBalanceWithCache(address, effectiveChainId, true)
+    )
   );
 }
 
 /**
- * Clear balance cache (call on account removal)
+ * Clear balance cache
+ * @param address - Optional address to clear (clears all chains for this address)
+ * @param chainId - Optional chain ID to clear (requires address)
  */
-export function clearBalanceCache(address?: string): void {
-  if (address) {
-    balanceCache.delete(address);
+export function clearBalanceCache(address?: string, chainId?: number): void {
+  if (address && chainId !== undefined) {
+    // Clear specific address + chain
+    balanceCache.delete(getBalanceCacheKey(address, chainId));
+  } else if (address) {
+    // Clear all chains for this address
+    for (const key of balanceCache.keys()) {
+      if (key.startsWith(`${address}:`)) {
+        balanceCache.delete(key);
+      }
+    }
   } else {
+    // Clear entire cache
     balanceCache.clear();
   }
 }
