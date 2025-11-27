@@ -6,6 +6,7 @@
 import { StorageManager } from "../utils/storage";
 import type { ConnectedDapp } from "../types/account";
 import type { SigningRequest } from "../types/messages";
+import { CHAIN_CONFIGS, DEFAULT_CHAIN_ID } from "../utils/constants";
 
 /**
  * Pending connection request
@@ -245,6 +246,95 @@ export class DappManager {
    */
   getAllPendingRequests(): PendingConnectionRequest[] {
     return Array.from(this.pendingRequests.values());
+  }
+
+  // ==================== PER-ORIGIN CHAIN CONTEXT ====================
+
+  /**
+   * Get chainId for a specific origin
+   * Falls back to settings.defaultChain if not set
+   * @param origin - dApp origin
+   * @param accountAddress - Account address
+   * @returns Chain ID for this origin
+   */
+  async getChainIdForOrigin(origin: string, accountAddress: string): Promise<number> {
+    const dapps = await this.storageManager.getAccountDapps(accountAddress);
+    const normalizedOrigin = this.normalizeOrigin(origin);
+
+    const dapp = dapps[normalizedOrigin];
+    if (dapp?.chainId !== undefined) {
+      return dapp.chainId;
+    }
+
+    // Fall back to settings default chain
+    const settings = await this.storageManager.getSettings();
+    return settings?.defaultChain ?? DEFAULT_CHAIN_ID;
+  }
+
+  /**
+   * Set chainId for a specific origin
+   * Validates chain is supported before setting
+   * @param origin - dApp origin
+   * @param accountAddress - Account address
+   * @param chainId - Chain ID to set
+   */
+  async setChainIdForOrigin(
+    origin: string,
+    accountAddress: string,
+    chainId: number
+  ): Promise<void> {
+    // Validate chain is supported
+    if (!CHAIN_CONFIGS[chainId]) {
+      throw new Error(`Unsupported chain: ${chainId}`);
+    }
+
+    const dapps = await this.storageManager.getAccountDapps(accountAddress);
+    const normalizedOrigin = this.normalizeOrigin(origin);
+
+    if (dapps[normalizedOrigin]) {
+      dapps[normalizedOrigin].chainId = chainId;
+      await this.storageManager.setAccountDapps(accountAddress, dapps);
+      console.log("[DappManager] Set chainId for origin:", normalizedOrigin, "->", chainId);
+    } else {
+      console.warn("[DappManager] Cannot set chainId - dApp not connected:", normalizedOrigin);
+    }
+  }
+
+  /**
+   * Get all unique chainIds currently in use by connected dApps
+   * @param accountAddress - Account address
+   * @returns Array of unique chain IDs
+   */
+  async getActiveChains(accountAddress: string): Promise<number[]> {
+    const dapps = await this.storageManager.getAccountDapps(accountAddress);
+    const chains = new Set<number>();
+
+    // Collect all chainIds from connected dApps
+    Object.values(dapps).forEach(dapp => {
+      if (dapp.chainId !== undefined) {
+        chains.add(dapp.chainId);
+      }
+    });
+
+    // Always include the default chain
+    const settings = await this.storageManager.getSettings();
+    chains.add(settings?.defaultChain ?? DEFAULT_CHAIN_ID);
+
+    return Array.from(chains);
+  }
+
+  /**
+   * Normalize origin string for consistent key lookup
+   * @param origin - Origin string (e.g., https://example.com/)
+   * @returns Normalized origin
+   */
+  private normalizeOrigin(origin: string): string {
+    try {
+      const url = new URL(origin);
+      return url.origin;
+    } catch {
+      return origin.toLowerCase().replace(/\/$/, "");
+    }
   }
 
   /**

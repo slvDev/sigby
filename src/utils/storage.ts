@@ -4,7 +4,7 @@
  */
 
 import type { Account, ConnectedDapp, Settings, Transaction } from "../types/account";
-import { STORAGE_KEYS } from "./constants";
+import { STORAGE_KEYS, DEFAULT_CHAIN_ID } from "./constants";
 
 /**
  * Storage schema definition
@@ -364,6 +364,73 @@ export class StorageManager {
     return connectedAddresses;
   }
 
+  /**
+   * Set all dApp connections for a specific account
+   * @param address - Account address
+   * @param dapps - Record of origin -> ConnectedDapp
+   */
+  async setAccountDapps(
+    address: string,
+    dapps: Record<string, ConnectedDapp>
+  ): Promise<void> {
+    const allAccountDapps = (await this.get(STORAGE_KEYS.ACCOUNT_DAPPS)) || {};
+    allAccountDapps[address] = dapps;
+    await this.set(STORAGE_KEYS.ACCOUNT_DAPPS, allAccountDapps);
+  }
+
+  // ==================== PER-ORIGIN CHAIN CONTEXT METHODS ====================
+
+  /**
+   * Get chainId for a dApp connection
+   * @param address - Account address
+   * @param origin - dApp origin
+   * @returns Promise resolving to chainId or null
+   */
+  async getDappChainId(address: string, origin: string): Promise<number | null> {
+    const dapps = await this.getAccountDapps(address);
+    return dapps[origin]?.chainId ?? null;
+  }
+
+  /**
+   * Set chainId for a dApp connection
+   * @param address - Account address
+   * @param origin - dApp origin
+   * @param chainId - Chain ID to set
+   */
+  async setDappChainId(
+    address: string,
+    origin: string,
+    chainId: number
+  ): Promise<void> {
+    const dapps = await this.getAccountDapps(address);
+    if (dapps[origin]) {
+      dapps[origin].chainId = chainId;
+      await this.setAccountDapps(address, dapps);
+    }
+  }
+
+  /**
+   * Get all unique chainIds in use by connected dApps for an account
+   * @param address - Account address
+   * @returns Promise resolving to array of chainIds
+   */
+  async getAccountActiveChains(address: string): Promise<number[]> {
+    const dapps = await this.getAccountDapps(address);
+    const chains = new Set<number>();
+
+    for (const dapp of Object.values(dapps)) {
+      if (dapp.chainId !== undefined) {
+        chains.add(dapp.chainId);
+      }
+    }
+
+    // Always include the default chain
+    const settings = await this.getSettings();
+    chains.add(settings.defaultChain);
+
+    return Array.from(chains);
+  }
+
   // ==================== LEGACY DAPP METHODS (for migration) ====================
 
   /**
@@ -431,9 +498,9 @@ export class StorageManager {
     const settings = await this.get(STORAGE_KEYS.SETTINGS);
     return (
       settings || {
-        defaultChain: 1, // Ethereum mainnet
+        defaultChain: DEFAULT_CHAIN_ID, // Base
         autoLockTimeout: 0, // Disabled
-        showTestNetworks: false,
+        showTestNetworks: false, // Hide testnets by default
         currency: "USD",
         language: "en",
       }
