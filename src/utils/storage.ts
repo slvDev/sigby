@@ -3,7 +3,7 @@
  * Provides structured access to extension storage with TypeScript type safety
  */
 
-import type { Account, ConnectedDapp, Settings, Transaction } from "../types/account";
+import type { Account, ConnectedDapp, Settings, Transaction, TokenMetadata } from "../types/account";
 import { STORAGE_KEYS, DEFAULT_CHAIN_ID } from "./constants";
 
 /**
@@ -28,6 +28,12 @@ export interface StorageData {
   [STORAGE_KEYS.SETTINGS]?: Settings;
   /** Transaction history */
   [STORAGE_KEYS.TRANSACTION_HISTORY]?: Transaction[];
+
+  // Token management (Phase 7)
+  /** Custom tokens per account per chain: address -> chainId -> tokenAddress[] */
+  [STORAGE_KEYS.CUSTOM_TOKENS]?: Record<string, Record<number, string[]>>;
+  /** Token metadata cache: tokenAddress:chainId -> TokenMetadata */
+  [STORAGE_KEYS.TOKEN_METADATA_CACHE]?: Record<string, TokenMetadata>;
 
   // Legacy keys (for migration)
   /** Legacy: Single user account */
@@ -583,6 +589,129 @@ export class StorageManager {
       console.error("Failed to get storage info:", error);
       return { bytesInUse: 0, quota: 0, percentUsed: 0 };
     }
+  }
+
+  // ==================== CUSTOM TOKEN METHODS (Phase 7) ====================
+
+  /**
+   * Get custom token addresses for an account on a specific chain
+   * @param accountAddress - Account address
+   * @param chainId - Chain ID
+   * @returns Promise resolving to array of token addresses
+   */
+  async getCustomTokens(accountAddress: string, chainId: number): Promise<string[]> {
+    const customTokens = await this.get(STORAGE_KEYS.CUSTOM_TOKENS);
+    return customTokens?.[accountAddress]?.[chainId] || [];
+  }
+
+  /**
+   * Add a custom token for an account on a specific chain
+   * @param accountAddress - Account address
+   * @param chainId - Chain ID
+   * @param tokenAddress - Token contract address to add
+   */
+  async addCustomToken(
+    accountAddress: string,
+    chainId: number,
+    tokenAddress: string
+  ): Promise<void> {
+    const normalizedToken = tokenAddress.toLowerCase();
+    const customTokens = (await this.get(STORAGE_KEYS.CUSTOM_TOKENS)) || {};
+
+    if (!customTokens[accountAddress]) {
+      customTokens[accountAddress] = {};
+    }
+    if (!customTokens[accountAddress][chainId]) {
+      customTokens[accountAddress][chainId] = [];
+    }
+
+    // Don't add duplicates
+    if (!customTokens[accountAddress][chainId].includes(normalizedToken)) {
+      customTokens[accountAddress][chainId].push(normalizedToken);
+      await this.set(STORAGE_KEYS.CUSTOM_TOKENS, customTokens);
+    }
+  }
+
+  /**
+   * Remove a custom token for an account on a specific chain
+   * @param accountAddress - Account address
+   * @param chainId - Chain ID
+   * @param tokenAddress - Token contract address to remove
+   */
+  async removeCustomToken(
+    accountAddress: string,
+    chainId: number,
+    tokenAddress: string
+  ): Promise<void> {
+    const normalizedToken = tokenAddress.toLowerCase();
+    const customTokens = (await this.get(STORAGE_KEYS.CUSTOM_TOKENS)) || {};
+
+    if (customTokens[accountAddress]?.[chainId]) {
+      customTokens[accountAddress][chainId] = customTokens[accountAddress][chainId].filter(
+        (addr) => addr !== normalizedToken
+      );
+      await this.set(STORAGE_KEYS.CUSTOM_TOKENS, customTokens);
+    }
+  }
+
+  /**
+   * Get all custom tokens for an account across all chains
+   * @param accountAddress - Account address
+   * @returns Promise resolving to Record<chainId, tokenAddress[]>
+   */
+  async getAllCustomTokensForAccount(
+    accountAddress: string
+  ): Promise<Record<number, string[]>> {
+    const customTokens = await this.get(STORAGE_KEYS.CUSTOM_TOKENS);
+    return customTokens?.[accountAddress] || {};
+  }
+
+  // ==================== TOKEN METADATA CACHE METHODS (Phase 7) ====================
+
+  /**
+   * Get cached token metadata
+   * @param tokenAddress - Token contract address
+   * @param chainId - Chain ID
+   * @returns Promise resolving to TokenMetadata or null
+   */
+  async getTokenMetadataCache(
+    tokenAddress: string,
+    chainId: number
+  ): Promise<TokenMetadata | null> {
+    const cacheKey = `${tokenAddress.toLowerCase()}:${chainId}`;
+    const cache = await this.get(STORAGE_KEYS.TOKEN_METADATA_CACHE);
+    return cache?.[cacheKey] || null;
+  }
+
+  /**
+   * Set token metadata in cache
+   * @param tokenAddress - Token contract address
+   * @param chainId - Chain ID
+   * @param metadata - Token metadata to cache
+   */
+  async setTokenMetadataCache(
+    tokenAddress: string,
+    chainId: number,
+    metadata: Omit<TokenMetadata, "cachedAt">
+  ): Promise<void> {
+    const cacheKey = `${tokenAddress.toLowerCase()}:${chainId}`;
+    const cache = (await this.get(STORAGE_KEYS.TOKEN_METADATA_CACHE)) || {};
+
+    cache[cacheKey] = {
+      ...metadata,
+      address: tokenAddress.toLowerCase(),
+      chainId,
+      cachedAt: Date.now(),
+    };
+
+    await this.set(STORAGE_KEYS.TOKEN_METADATA_CACHE, cache);
+  }
+
+  /**
+   * Clear token metadata cache (useful for debugging or storage cleanup)
+   */
+  async clearTokenMetadataCache(): Promise<void> {
+    await this.remove(STORAGE_KEYS.TOKEN_METADATA_CACHE);
   }
 
   // ==================== MIGRATION ====================

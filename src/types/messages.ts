@@ -79,6 +79,13 @@ export enum MessageType {
   GET_PENDING_SIGNING = "GET_PENDING_SIGNING",
   APPROVE_SIGNING = "APPROVE_SIGNING",
   REJECT_SIGNING = "REJECT_SIGNING",
+
+  // Token Management (Phase 7)
+  GET_TOKEN_BALANCES = "GET_TOKEN_BALANCES",
+  GET_TOKEN_BALANCE = "GET_TOKEN_BALANCE",
+  ADD_CUSTOM_TOKEN = "ADD_CUSTOM_TOKEN",
+  REMOVE_CUSTOM_TOKEN = "REMOVE_CUSTOM_TOKEN",
+  GET_CUSTOM_TOKENS = "GET_CUSTOM_TOKENS",
 }
 
 /**
@@ -356,4 +363,72 @@ export interface ApproveSigningPayload {
 export interface RejectSigningPayload {
   /** Request ID */
   requestId: string;
+}
+
+// ==================== TOKEN MANAGEMENT PAYLOADS (Phase 7) ====================
+
+/**
+ * Get token balances payload
+ */
+export interface GetTokenBalancesPayload {
+  /** Account address */
+  address: string;
+  /** Chain ID */
+  chainId: number;
+}
+
+/**
+ * Get single token balance payload
+ */
+export interface GetTokenBalancePayload {
+  /** Account address */
+  ownerAddress: string;
+  /** Token contract address */
+  tokenAddress: string;
+  /** Chain ID */
+  chainId: number;
+}
+
+/**
+ * Add custom token payload
+ */
+export interface AddCustomTokenPayload {
+  /** Account address */
+  accountAddress: string;
+  /** Token contract address */
+  tokenAddress: string;
+  /** Chain ID */
+  chainId: number;
+}
+
+/**
+ * Remove custom token payload
+ */
+export interface RemoveCustomTokenPayload {
+  /** Account address */
+  accountAddress: string;
+  /** Token contract address */
+  tokenAddress: string;
+  /** Chain ID */
+  chainId: number;
+}
+
+/**
+ * Get custom tokens payload
+ */
+export interface GetCustomTokensPayload {
+  /** Account address */
+  accountAddress: string;
+  /** Chain ID (optional, if omitted returns all chains) */
+  chainId?: number;
+}
+
+/**
+ * Get portfolio payload (already defined, ensuring it has correct structure)
+ */
+export interface GetPortfolioPayload {
+  /** Account address */
+  address: string;
+  /** Chain IDs to include (optional, if omitted uses all chains) */
+  chainIds?: number[];
 }

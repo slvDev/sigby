@@ -198,6 +198,10 @@ export const STORAGE_KEYS = {
   SETTINGS: "settings",
   TRANSACTION_HISTORY: "transactionHistory",
 
+  // Token management (Phase 7)
+  CUSTOM_TOKENS: "customTokens", // Record<address, Record<chainId, string[]>>
+  TOKEN_METADATA_CACHE: "tokenMetadataCache", // Record<tokenAddress, TokenMetadata>
+
   // Legacy keys (kept for migration)
   ACCOUNT: "account",
   CONNECTED_DAPPS: "connectedDapps",

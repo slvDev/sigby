@@ -141,10 +141,12 @@ export interface TokenBalance {
   balance: string;
   /** Formatted balance (human readable) */
   formatted: string;
-  /** Value in USD */
-  valueUSD?: number;
+  /** USD value as string from Porto (e.g., "1.00") */
+  usdValue?: string;
   /** Token logo URL */
   logoUrl?: string;
+  /** Whether this is a user-added custom token (not from Porto) */
+  isCustom?: boolean;
 }
 
 /**
@@ -165,4 +167,22 @@ export interface NFT {
   collectionName?: string;
   /** Chain ID */
   chainId: number;
+}
+
+/**
+ * Cached token metadata (doesn't change)
+ */
+export interface TokenMetadata {
+  /** Token contract address */
+  address: string;
+  /** Token symbol */
+  symbol: string;
+  /** Token name */
+  name: string;
+  /** Token decimals */
+  decimals: number;
+  /** Chain ID where this token exists */
+  chainId: number;
+  /** Cache timestamp */
+  cachedAt: number;
 }

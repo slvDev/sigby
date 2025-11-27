@@ -21,6 +21,12 @@ import type {
   GetPendingSigningPayload,
   ApproveSigningPayload,
   RejectSigningPayload,
+  GetTokenBalancesPayload,
+  GetTokenBalancePayload,
+  AddCustomTokenPayload,
+  RemoveCustomTokenPayload,
+  GetCustomTokensPayload,
+  GetPortfolioPayload,
 } from "../types/messages";
 import { TransactionStatus, type Transaction } from "../types/account";
 import { PortoService } from "./portoService";
@@ -28,8 +34,10 @@ import { AccountManager } from "./accountManager";
 import { StorageManager } from "../utils/storage";
 import { RpcHandler } from "./rpcHandler";
 import { DappManager } from "./dappManager";
-import { TransactionMonitor } from "./transactionMonitor";
 import { eventBroadcaster } from "./eventBroadcaster";
+import { tokenService } from "./tokenService";
+// portfolioService removed - using Porto's wallet_getAssets instead
+// TransactionMonitor removed - using Porto's wallet_getCallsStatus instead
 import { ERROR_MESSAGES, CHAIN_CONFIGS } from "../utils/constants";
 import { MessageType as MT } from "../types/messages";
 import {
@@ -77,7 +85,6 @@ function mapPortoError(error: Error): string {
 export class MessageHandler {
   private rpcHandler: RpcHandler;
   private portoService: PortoService;
-  private transactionMonitor: TransactionMonitor | null = null;
 
   constructor(
     portoService: PortoService,
@@ -88,13 +95,6 @@ export class MessageHandler {
     // Store for Phase 4 transaction signing
     this.portoService = portoService;
     this.rpcHandler = new RpcHandler();
-  }
-
-  /**
-   * Set the transaction monitor (injected from index.ts after initialization)
-   */
-  setTransactionMonitor(monitor: TransactionMonitor): void {
-    this.transactionMonitor = monitor;
   }
 
   /**
@@ -228,7 +228,28 @@ export class MessageHandler {
           break;
 
         case MT.GET_PORTFOLIO:
-          response = await this.handleGetPortfolio(message.payload);
+          response = await this.handleGetPortfolio(message.payload as GetPortfolioPayload);
+          break;
+
+        // Token management (Phase 7)
+        case MT.GET_TOKEN_BALANCES:
+          response = await this.handleGetTokenBalances(message.payload as GetTokenBalancesPayload);
+          break;
+
+        case MT.GET_TOKEN_BALANCE:
+          response = await this.handleGetTokenBalance(message.payload as GetTokenBalancePayload);
+          break;
+
+        case MT.ADD_CUSTOM_TOKEN:
+          response = await this.handleAddCustomToken(message.payload as AddCustomTokenPayload);
+          break;
+
+        case MT.REMOVE_CUSTOM_TOKEN:
+          response = await this.handleRemoveCustomToken(message.payload as RemoveCustomTokenPayload);
+          break;
+
+        case MT.GET_CUSTOM_TOKENS:
+          response = await this.handleGetCustomTokens(message.payload as GetCustomTokensPayload);
           break;
 
         // Network management
@@ -751,12 +772,139 @@ export class MessageHandler {
   /**
    * Handle get portfolio request
    */
-  private async handleGetPortfolio(_payload: any): Promise<MessageResponse> {
-    // TODO: Implement in Phase 5/6
+  private async handleGetPortfolio(_payload: GetPortfolioPayload): Promise<MessageResponse> {
+    // portfolioService removed - use wallet_getAssets from popup via Porto SDK
+    console.warn("[MessageHandler] GET_PORTFOLIO deprecated - use wallet_getAssets via popup");
     return {
       success: false,
-      error: "Not implemented yet",
+      error: "GET_PORTFOLIO is deprecated. Use wallet_getAssets via Porto SDK in popup context.",
     };
+  }
+
+  // ==================== TOKEN MANAGEMENT HANDLERS (Phase 7) ====================
+
+  /**
+   * Handle get token balances request
+   */
+  private async handleGetTokenBalances(payload: GetTokenBalancesPayload): Promise<MessageResponse> {
+    try {
+      console.log("[MessageHandler] Getting token balances for:", payload.address);
+
+      const tokens = await tokenService.getTokenBalances(payload.address, payload.chainId);
+
+      return {
+        success: true,
+        data: tokens,
+      };
+    } catch (error) {
+      console.error("[MessageHandler] Get token balances error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle get single token balance request
+   */
+  private async handleGetTokenBalance(payload: GetTokenBalancePayload): Promise<MessageResponse> {
+    try {
+      console.log("[MessageHandler] Getting token balance:", payload.tokenAddress);
+
+      const token = await tokenService.getTokenBalance(
+        payload.ownerAddress,
+        payload.tokenAddress,
+        payload.chainId
+      );
+
+      return {
+        success: true,
+        data: token,
+      };
+    } catch (error) {
+      console.error("[MessageHandler] Get token balance error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle add custom token request
+   */
+  private async handleAddCustomToken(payload: AddCustomTokenPayload): Promise<MessageResponse> {
+    try {
+      console.log("[MessageHandler] Adding custom token:", payload.tokenAddress);
+
+      const token = await tokenService.addCustomToken(
+        payload.accountAddress,
+        payload.tokenAddress,
+        payload.chainId
+      );
+
+      return {
+        success: true,
+        data: token,
+      };
+    } catch (error) {
+      console.error("[MessageHandler] Add custom token error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to add token. Make sure the address is a valid ERC-20 token contract.",
+      };
+    }
+  }
+
+  /**
+   * Handle remove custom token request
+   */
+  private async handleRemoveCustomToken(payload: RemoveCustomTokenPayload): Promise<MessageResponse> {
+    try {
+      console.log("[MessageHandler] Removing custom token:", payload.tokenAddress);
+
+      await tokenService.removeCustomToken(
+        payload.accountAddress,
+        payload.tokenAddress,
+        payload.chainId
+      );
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      console.error("[MessageHandler] Remove custom token error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  /**
+   * Handle get custom tokens request
+   */
+  private async handleGetCustomTokens(payload: GetCustomTokensPayload): Promise<MessageResponse> {
+    try {
+      console.log("[MessageHandler] Getting custom tokens for:", payload.accountAddress);
+
+      const tokens = await tokenService.getCustomTokenAddresses(
+        payload.accountAddress,
+        payload.chainId
+      );
+
+      return {
+        success: true,
+        data: tokens,
+      };
+    } catch (error) {
+      console.error("[MessageHandler] Get custom tokens error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
   }
 
   /**
@@ -1730,17 +1878,7 @@ export class MessageHandler {
 
         await this.storageManager.addTransaction(transaction);
         console.log("[MessageHandler] Transaction saved to history:", payload.result);
-
-        // Start monitoring transaction status using alarm-based monitor (survives SW restart)
-        if (this.transactionMonitor) {
-          await this.transactionMonitor.startMonitoring(
-            payload.result,
-            request.chainId,
-            payload.requestId
-          );
-        } else {
-          console.warn("[MessageHandler] TransactionMonitor not set, skipping monitoring");
-        }
+        // Note: Transaction monitoring removed - Porto handles this via wallet_getCallsStatus
       }
 
       return { success: true, data: { requestId: payload.requestId } };
