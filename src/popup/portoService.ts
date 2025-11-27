@@ -4,7 +4,46 @@
  */
 
 import * as Porto from "porto";
-import { base } from "viem/chains";
+import {
+  mainnet,
+  base,
+  arbitrum,
+  optimism,
+  polygon,
+  sepolia,
+  baseSepolia,
+  arbitrumSepolia,
+  optimismSepolia,
+  polygonAmoy,
+  holesky,
+} from "viem/chains";
+import { CHAIN_IDS, MAINNET_CHAIN_IDS } from "../utils/constants";
+
+/**
+ * All supported chains for Porto SDK
+ */
+const SUPPORTED_CHAINS = [
+  // Mainnets
+  mainnet,
+  base,
+  arbitrum,
+  optimism,
+  polygon,
+  // Testnets
+  sepolia,
+  baseSepolia,
+  arbitrumSepolia,
+  optimismSepolia,
+  polygonAmoy,
+  holesky,
+];
+
+/**
+ * Chain ID hex strings for all supported chains
+ */
+const SUPPORTED_CHAIN_IDS_HEX = Object.values(CHAIN_IDS).map(
+  (id) => `0x${id.toString(16)}`
+);
 
 class PopupPortoService {
   private porto: ReturnType<typeof Porto.Porto.create> | null = null;
@@ -22,10 +61,11 @@ class PopupPortoService {
 
     try {
       console.log('[PopupPorto] Initializing Porto SDK in popup...');
+      console.log('[PopupPorto] Configuring with', SUPPORTED_CHAINS.length, 'chains');
 
       this.porto = Porto.Porto.create({
-        // Supported chains
-        chains: [base],
+        // All supported chains
+        chains: SUPPORTED_CHAINS,
 
         // Use relay mode (no iframe, direct WebAuthn)
         mode: Porto.Mode.relay({
@@ -60,10 +100,10 @@ class PopupPortoService {
     }
 
     try {
-      // Try to get existing accounts from Porto
+      // Try to get existing accounts from Porto using all supported chains
       await this.provider.request({
         method: 'wallet_getCapabilities',
-        params: [['0x2105']], // Base chain
+        params: [SUPPORTED_CHAIN_IDS_HEX],
       });
 
       // This is a rough estimate - Porto doesn't expose account count directly
@@ -107,7 +147,7 @@ class PopupPortoService {
               label: keychainLabel, // Immutable - shows in Touch ID prompts
             },
           },
-          chainIds: ['0x2105'], // Base chain ID in hex
+          chainIds: SUPPORTED_CHAIN_IDS_HEX, // All supported chains
         }],
       });
 
@@ -154,7 +194,7 @@ class PopupPortoService {
           capabilities: {
             selectAccount: true,
           },
-          chainIds: ['0x2105'], // Base chain ID in hex
+          chainIds: SUPPORTED_CHAIN_IDS_HEX, // All supported chains
         }],
       });
 

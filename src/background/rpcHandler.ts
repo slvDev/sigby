@@ -20,24 +20,29 @@ import {
   baseSepolia,
   arbitrumSepolia,
   optimismSepolia,
-  polygonMumbai,
+  polygonAmoy,
+  holesky,
 } from "viem/chains";
-import { CHAIN_IDS } from "../utils/constants";
+import { CHAIN_IDS, CHAIN_CONFIGS } from "../utils/constants";
 
 /**
- * Chain configuration with RPC URLs
+ * Chain configuration with viem chain objects
+ * Maps CHAIN_IDS to viem chain definitions
  */
 const CHAIN_CONFIG: Record<number, { chain: any; rpcUrl?: string }> = {
-  [CHAIN_IDS.ETHEREUM]: { chain: mainnet },
-  [CHAIN_IDS.BASE]: { chain: base },
-  [CHAIN_IDS.ARBITRUM]: { chain: arbitrum },
-  [CHAIN_IDS.OPTIMISM]: { chain: optimism },
-  [CHAIN_IDS.POLYGON]: { chain: polygon },
-  [CHAIN_IDS.SEPOLIA]: { chain: sepolia },
-  [CHAIN_IDS.BASE_GOERLI]: { chain: baseSepolia }, // Using Sepolia as Goerli is deprecated
-  [CHAIN_IDS.ARBITRUM_GOERLI]: { chain: arbitrumSepolia },
-  [CHAIN_IDS.OPTIMISM_GOERLI]: { chain: optimismSepolia },
-  [CHAIN_IDS.POLYGON_MUMBAI]: { chain: polygonMumbai },
+  // Mainnets
+  [CHAIN_IDS.ETHEREUM]: { chain: mainnet, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.ETHEREUM]?.rpcUrls[0] },
+  [CHAIN_IDS.BASE]: { chain: base, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.BASE]?.rpcUrls[0] },
+  [CHAIN_IDS.ARBITRUM]: { chain: arbitrum, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.ARBITRUM]?.rpcUrls[0] },
+  [CHAIN_IDS.OPTIMISM]: { chain: optimism, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.OPTIMISM]?.rpcUrls[0] },
+  [CHAIN_IDS.POLYGON]: { chain: polygon, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.POLYGON]?.rpcUrls[0] },
+  // Testnets
+  [CHAIN_IDS.SEPOLIA]: { chain: sepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.SEPOLIA]?.rpcUrls[0] },
+  [CHAIN_IDS.BASE_SEPOLIA]: { chain: baseSepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.BASE_SEPOLIA]?.rpcUrls[0] },
+  [CHAIN_IDS.ARBITRUM_SEPOLIA]: { chain: arbitrumSepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.ARBITRUM_SEPOLIA]?.rpcUrls[0] },
+  [CHAIN_IDS.OPTIMISM_SEPOLIA]: { chain: optimismSepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.OPTIMISM_SEPOLIA]?.rpcUrls[0] },
+  [CHAIN_IDS.POLYGON_AMOY]: { chain: polygonAmoy, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.POLYGON_AMOY]?.rpcUrls[0] },
+  [CHAIN_IDS.HOLESKY]: { chain: holesky, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.HOLESKY]?.rpcUrls[0] },
 };
 
 /**
