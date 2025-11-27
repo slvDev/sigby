@@ -7,14 +7,60 @@
 import { MessageType } from "../types/messages";
 
 /**
+ * Check if the extension context is still valid
+ * Returns false if extension was reloaded/updated and this content script is orphaned
+ */
+function isExtensionContextValid(): boolean {
+  try {
+    // chrome.runtime.id is undefined if context is invalidated
+    return typeof chrome !== "undefined" &&
+           typeof chrome.runtime !== "undefined" &&
+           typeof chrome.runtime.id !== "undefined" &&
+           chrome.runtime.id !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * dApp Bridge class
  * Handles bidirectional communication between page and extension
  */
 class DappBridge {
+  private contextValid: boolean = true;
+  private contextCheckInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor() {
     console.log("[DappBridge] Initializing dApp bridge...");
     this.setupMessageListeners();
     this.connectToBackground();
+    this.startContextMonitor();
+  }
+
+  /**
+   * Start periodic context validity check
+   * Emits disconnect event if context becomes invalid
+   */
+  private startContextMonitor(): void {
+    // Check every 5 seconds if context is still valid
+    this.contextCheckInterval = setInterval(() => {
+      if (this.contextValid && !isExtensionContextValid()) {
+        console.warn("[DappBridge] Extension context became invalid");
+        this.contextValid = false;
+
+        // Emit disconnect event to page so dApp knows wallet is disconnected
+        this.emitEvent("disconnect", {
+          code: 4900,
+          message: "Extension was updated or reloaded. Please refresh the page.",
+        });
+
+        // Stop checking since context is dead
+        if (this.contextCheckInterval) {
+          clearInterval(this.contextCheckInterval);
+          this.contextCheckInterval = null;
+        }
+      }
+    }, 5000);
   }
 
   /**
@@ -40,15 +86,27 @@ class DappBridge {
     });
 
     // Listen to messages from background script
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      // Handle events that should be emitted to page
-      if (message.type === MessageType.EMIT_EVENT) {
-        this.emitEvent(message.event, message.data);
-      }
+    // Guard against context invalidation when setting up listener
+    if (isExtensionContextValid()) {
+      try {
+        chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+          // Handle events that should be emitted to page
+          if (message.type === MessageType.EMIT_EVENT) {
+            console.log("[DappBridge] Received EMIT_EVENT from background:", message.event);
+            this.emitEvent(message.event, message.data);
+          }
 
-      sendResponse({ success: true });
-      return false;
-    });
+          sendResponse({ success: true });
+          return false;
+        });
+      } catch (error) {
+        console.error("[DappBridge] Failed to add message listener:", error);
+        this.contextValid = false;
+      }
+    } else {
+      console.warn("[DappBridge] Extension context invalid, cannot listen for background messages");
+      this.contextValid = false;
+    }
 
     console.log("[DappBridge] Message listeners set up");
   }
@@ -77,6 +135,23 @@ class DappBridge {
     try {
       console.log("[DappBridge] Forwarding request to background:", method);
 
+      // Check if extension context is still valid before sending message
+      if (!isExtensionContextValid()) {
+        this.contextValid = false;
+        console.error("[DappBridge] Extension context invalidated - please refresh the page");
+
+        // Notify the page that extension needs refresh
+        window.postMessage(
+          {
+            type: "PORTO_RESPONSE",
+            requestId,
+            error: "Extension was updated or reloaded. Please refresh the page to reconnect.",
+          },
+          window.location.origin
+        );
+        return;
+      }
+
       // Forward request to background script
       const response = await chrome.runtime.sendMessage({
         type: MessageType.DAPP_REQUEST,
@@ -87,6 +162,11 @@ class DappBridge {
         },
         requestId,
       });
+
+      // Handle case where response is undefined (background script not responding)
+      if (response === undefined) {
+        throw new Error("No response from extension. Please refresh the page.");
+      }
 
       console.log("[DappBridge] Received response from background:", response.success);
 
@@ -103,12 +183,25 @@ class DappBridge {
     } catch (error) {
       console.error("[DappBridge] Failed to handle provider request:", error);
 
+      // Check if this is a context invalidation error
+      const errorMessage = error instanceof Error ? error.message : "Request failed";
+      const isContextError = errorMessage.includes("Extension context invalidated") ||
+                             errorMessage.includes("message port closed") ||
+                             errorMessage.includes("Receiving end does not exist");
+
+      if (isContextError) {
+        this.contextValid = false;
+      }
+
       // Send error back to page (use specific origin for security)
+      // Provide a user-friendly message for context errors
       window.postMessage(
         {
           type: "PORTO_RESPONSE",
           requestId,
-          error: error instanceof Error ? error.message : "Request failed",
+          error: isContextError
+            ? "Extension was updated or reloaded. Please refresh the page to reconnect."
+            : errorMessage,
         },
         window.location.origin
       );
@@ -134,12 +227,13 @@ class DappBridge {
   }
 
   /**
-   * Check if bridge is ready
+   * Check if bridge is ready and context is valid
    */
   public isReady(): boolean {
-    return true;
+    return this.contextValid && isExtensionContextValid();
   }
 }
+
 
 // Initialize bridge
 const bridge = new DappBridge();
