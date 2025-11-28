@@ -9,6 +9,8 @@ import { popupPortoService } from "../portoService";
 import { Toggle, ConfirmModal, Button } from "../components/common";
 import { Header } from "../components/layout/Header";
 import { BottomNav } from "../components/layout/BottomNav";
+import { RelayStatusCard } from "../components/relay";
+import { AccountKeysCard } from "../components/keys";
 
 export function Settings() {
   const {
@@ -268,14 +270,25 @@ export function Settings() {
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Network
           </h3>
-          <div className="p-4 bg-gray-50 rounded-xl">
-            <Toggle
-              checked={showTestnets}
-              onChange={setShowTestnets}
-              label="Show test networks"
-              description="Display Sepolia, Holesky, and other testnets"
-            />
+          <div className="space-y-3">
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <Toggle
+                checked={showTestnets}
+                onChange={setShowTestnets}
+                label="Show test networks"
+                description="Display Sepolia, Holesky, and other testnets"
+              />
+            </div>
+            <RelayStatusCard />
           </div>
+        </section>
+
+        {/* Account Keys - Combined session keys and authorized keys */}
+        <section>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Account Keys
+          </h3>
+          <AccountKeysCard />
         </section>
 
         {/* Danger Zone */}
