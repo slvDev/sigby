@@ -198,22 +198,22 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 - **Description:** Allow dApps limited access to sign transactions without user approval each time
 - **Porto Methods:** `wallet_connect` with `capabilities.grantPermissions`, `wallet_grantPermissions`
 - **Priority:** P1
-- **Status:** [ ] Not Implemented
-- **Implementation Notes:** Enables "approve once, use many times" UX for games, trading, etc.
+- **Status:** [x] Implemented (dApp-initiated)
+- **Implementation Notes:** `popupPortoService.grantPermissions()` method ready. Session keys are granted when dApps request them (not created manually from wallet). UI shows informational modal explaining how session keys work. Permissions page at `/permissions` shows active permissions.
 
 ### 5.2 Get Active Permissions
 - **Description:** View currently active session key permissions
 - **Porto Methods:** `wallet_getPermissions`
 - **Priority:** P1
-- **Status:** [ ] Not Implemented (basic EIP-2255 only)
-- **Implementation Notes:** Currently only returns basic connection permissions, not Porto session keys.
+- **Status:** [x] Implemented
+- **Implementation Notes:** `popupPortoService.getPermissions()` fetches active permissions. Displayed in Settings (PermissionsSummary) and dedicated Permissions page with PermissionCard components.
 
 ### 5.3 Revoke Permissions
 - **Description:** Revoke previously granted session key permissions
 - **Porto Methods:** `wallet_revokePermissions`
 - **Priority:** P1
-- **Status:** [ ] Not Implemented
-- **Implementation Notes:** Users should be able to revoke any active permissions from settings.
+- **Status:** [x] Implemented
+- **Implementation Notes:** `popupPortoService.revokePermissions()` revokes by ID. Revoke button on each PermissionCard with loading state.
 
 ### 5.4 Spend Limits
 - **Description:** Set spend limits on session keys
@@ -226,8 +226,8 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 - **Description:** View all authorized keys on the smart account
 - **Porto Methods:** `wallet_getKeys` (Relay)
 - **Priority:** P2
-- **Status:** [ ] Not Implemented
-- **Implementation Notes:** Shows all WebAuthn keys, session keys, etc. authorized on the account.
+- **Status:** [x] Implemented
+- **Implementation Notes:** `popupPortoService.getKeys()` fetches authorized keys. AuthorizedKeysList component in Settings shows all keys with type (Passkey, Ethereum Key, etc.) and role (Admin/Session) badges.
 
 ---
 
@@ -287,8 +287,8 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 - **Description:** Check if Porto relay is healthy and operational
 - **Porto Methods:** `health` (Relay)
 - **Priority:** P1
-- **Status:** [ ] Not Implemented
-- **Implementation Notes:** Useful for showing connection status and debugging.
+- **Status:** [x] Implemented
+- **Implementation Notes:** `popupPortoService.getRelayHealth()` calls `health` RPC. RelayStatusCard component in Settings shows online/offline/degraded status with latency (ms) and version. Green pulsing dot for online status.
 
 ---
 
@@ -335,15 +335,16 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 - [x] dApp connection management
 - [x] EIP-1193/EIP-6963 provider
 
-### Phase 2: Production Ready (P1 Features) - MOSTLY COMPLETE
+### Phase 2: Production Ready (P1 Features) - COMPLETE
 - [x] wallet_disconnect integration
 - [x] wallet_getCallsHistory for complete transaction history
 - [x] wallet_getAssets integration (unified balance fetching)
 - [x] Gas fee token selection (via wallet_getCapabilities)
 - [x] wallet_getCapabilities implementation
 - [x] Token sending UI (ERC-20 transfers)
-- [ ] Session key permissions (wallet_grantPermissions)
-- [ ] Relay health monitoring
+- [x] Session key permissions (wallet_grantPermissions, wallet_getPermissions, wallet_revokePermissions)
+- [x] Relay health monitoring (health RPC)
+- [x] Account keys viewing (wallet_getKeys)
 
 ### Phase 3: Advanced Features (P2 Features)
 - [ ] EOA upgrade to smart account
@@ -352,7 +353,7 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 - [ ] Cross-chain funding
 - [ ] NFT display and transfer
 - [ ] Custom chain addition
-- [ ] Full key management (wallet_getKeys)
+- [ ] Spend limits for session keys
 
 ---
 
@@ -373,9 +374,9 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 | `wallet_getCapabilities` | Capabilities | P1 | Implemented |
 | `wallet_getCallsStatus` | Transaction | P0 | Implemented |
 | `wallet_getCallsHistory` | Transaction | P1 | Implemented |
-| `wallet_getPermissions` | Permissions | P1 | Partial |
-| `wallet_grantPermissions` | Permissions | P1 | Not Implemented |
-| `wallet_revokePermissions` | Permissions | P1 | Not Implemented |
+| `wallet_getPermissions` | Permissions | P1 | Implemented |
+| `wallet_grantPermissions` | Permissions | P1 | Implemented |
+| `wallet_revokePermissions` | Permissions | P1 | Implemented |
 | `wallet_prepareUpgradeAccount` | Account | P2 | Not Implemented |
 | `wallet_prepareCalls` | Transaction | P2 | Not Implemented |
 | `wallet_sendCalls` | Transaction | P0 | Implemented |
@@ -387,7 +388,7 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 | Method | Category | Priority | Status |
 |--------|----------|----------|--------|
 | `wallet_getCapabilities` | Capabilities | P1 | Implemented |
-| `wallet_getKeys` | Account | P2 | Not Implemented |
+| `wallet_getKeys` | Account | P2 | Implemented |
 | `wallet_getAssets` | Assets | P1 | Implemented |
 | `wallet_prepareCalls` | Transaction | P2 | Not Implemented |
 | `wallet_sendPreparedCalls` | Transaction | P2 | Not Implemented |
@@ -395,7 +396,7 @@ This document maps Porto SDK RPC methods and Relay methods to wallet features, o
 | `wallet_upgradeAccount` | Account | P2 | Not Implemented |
 | `wallet_getCallsStatus` | Transaction | P0 | Implemented |
 | `wallet_getCallsHistory` | Transaction | P1 | Implemented |
-| `health` | Status | P1 | Not Implemented |
+| `health` | Status | P1 | Implemented |
 
 ---
 
@@ -430,12 +431,12 @@ Advanced Features (sponsorship, cross-chain)
 
 ---
 
-*Document Version: 1.1*
+*Document Version: 1.2*
 *Last Updated: November 2024*
 
 ---
 
-## Recent Implementation Summary (v1.1)
+## Recent Implementation Summary (v1.2)
 
 ### Porto SDK Methods Now Implemented:
 1. **`wallet_getAssets`** - Unified balance fetching for native + ERC-20 tokens
@@ -443,9 +444,35 @@ Advanced Features (sponsorship, cross-chain)
 3. **`wallet_getCallsStatus`** - Transaction status polling with auto-refresh
 4. **`wallet_getCapabilities`** - Fee token discovery for gas payment options
 5. **`wallet_disconnect`** - Proper session cleanup
+6. **`wallet_grantPermissions`** - Create session keys with expiry options
+7. **`wallet_getPermissions`** - Fetch active permissions for account
+8. **`wallet_revokePermissions`** - Revoke session keys by ID
+9. **`wallet_getKeys`** - View authorized keys on smart account
+10. **`health`** - Relay health check with latency and version
 
 ### Key Architecture Changes:
 - **Zustand Store**: Centralized asset state with 30-second cache TTL
 - **Transaction Watcher**: `useTransactionWatcher` hook polls pending transactions
 - **Auto-Refresh**: Balances refresh on account/chain switch and transaction confirmation
 - **History Sync**: `historyRefreshTrigger` keeps History page in sync with confirmations
+
+### New UI Components (v1.2):
+- **RelayStatusCard** - Shows relay online/offline status with latency
+- **AuthorizedKeysList** - Displays all keys with type and role badges
+- **PermissionsSummary** - Quick view of active session keys in Settings
+- **PermissionCard** - Individual permission with details and revoke button
+- **GrantPermissionModal** - Create new session keys with expiry selection
+- **Permissions Page** - Full session key management at `/permissions`
+
+### New Files Created:
+```
+src/popup/components/relay/RelayStatusCard.tsx
+src/popup/components/relay/index.ts
+src/popup/components/keys/AuthorizedKeysList.tsx
+src/popup/components/keys/index.ts
+src/popup/components/permissions/PermissionsSummary.tsx
+src/popup/components/permissions/PermissionCard.tsx
+src/popup/components/permissions/GrantPermissionModal.tsx
+src/popup/components/permissions/index.ts
+src/popup/pages/Permissions.tsx
+```
