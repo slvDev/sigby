@@ -129,3 +129,106 @@ export interface ChainCapabilities {
     supported: boolean;
   };
 }
+
+// ==================== PERMISSION TYPES ====================
+
+/**
+ * Permission call restriction
+ */
+export interface PermissionCall {
+  to: string;                    // Contract address
+  signature?: string;            // Function signature (e.g., "transfer(address,uint256)")
+  selector?: string;             // Function selector (4 bytes)
+}
+
+/**
+ * Spend limit for permissions
+ */
+export interface SpendLimit {
+  token: string;                 // Token address (or 'native')
+  limit: string;                 // Max amount (hex)
+  period: 'transaction' | 'day' | 'week' | 'month' | 'total';
+}
+
+/**
+ * Fee token for permission request
+ */
+export interface PermissionFeeToken {
+  address?: string;              // Token address (omit for native)
+  native?: boolean;              // True to use native token (ETH)
+}
+
+/**
+ * Permission request structure
+ * Note: When calling wallet_grantPermissions, Porto requires:
+ * - At least 1 call in permissions.calls
+ * - feeToken with a limit
+ */
+export interface PermissionRequest {
+  expiry: number;                // Unix timestamp
+  permissions: {
+    calls?: PermissionCall[];    // Allowed contract calls
+    spend?: SpendLimit[];        // Spend limits
+  };
+  feeToken?: PermissionFeeToken; // Fee token for gas
+  key?: {                        // Optional custom key
+    publicKey: string;
+    type: 'secp256k1' | 'p256' | 'webauthn-p256';
+  };
+}
+
+/**
+ * Granted permission (response from wallet_grantPermissions)
+ */
+export interface GrantedPermission {
+  id: string;                    // Permission ID
+  expiry: number;
+  key: {
+    publicKey: string;
+    type: string;
+  };
+  permissions: {
+    calls?: PermissionCall[];
+    spend?: SpendLimit[];
+  };
+  createdAt: number;
+}
+
+/**
+ * Active permission (from wallet_getPermissions)
+ */
+export interface Permission extends GrantedPermission {
+  isActive: boolean;
+  usageCount?: number;
+  lastUsed?: number;
+}
+
+// ==================== KEY TYPES ====================
+
+/**
+ * Account key (from wallet_getKeys)
+ */
+export interface AccountKey {
+  id: string;
+  publicKey: string;
+  type: 'address' | 'p256' | 'secp256k1' | 'webauthn-p256';
+  role: 'admin' | 'session';
+  prehash?: boolean;
+  createdAt?: number;
+  permissions?: {
+    calls?: PermissionCall[];
+    spend?: SpendLimit[];
+  };
+}
+
+// ==================== RELAY HEALTH ====================
+
+/**
+ * Relay health status
+ */
+export interface RelayHealth {
+  status: 'online' | 'offline' | 'degraded';
+  latency: number | null;
+  version?: string;
+  error?: string;
+}
