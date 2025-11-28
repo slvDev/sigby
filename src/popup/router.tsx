@@ -15,6 +15,7 @@ import { Settings } from "./pages/Settings";
 import { History } from "./pages/History";
 import { Tokens } from "./pages/Tokens";
 import { TokenDetail } from "./pages/TokenDetail";
+import { Permissions } from "./pages/Permissions";
 
 // Approval pages
 import { ConnectionApproval } from "./pages/approval/ConnectionApproval";
@@ -34,6 +35,7 @@ export const router = createHashRouter([
       { path: "send-token/:address", element: <SendToken /> },
       { path: "history", element: <History /> },
       { path: "settings", element: <Settings /> },
+      { path: "permissions", element: <Permissions /> },
       { path: "connect", element: <ConnectionApproval /> },
       { path: "transaction", element: <TransactionApproval /> },
       { path: "sign", element: <SigningApproval /> },
