@@ -42,10 +42,10 @@ class DappBridge {
    * Emits disconnect event if context becomes invalid
    */
   private startContextMonitor(): void {
-    // Check every 5 seconds if context is still valid
+    // Check every 30 seconds if context is still valid (less aggressive)
     this.contextCheckInterval = setInterval(() => {
       if (this.contextValid && !isExtensionContextValid()) {
-        console.warn("[DappBridge] Extension context became invalid");
+        console.warn("[DappBridge] Extension context became invalid - extension was reloaded");
         this.contextValid = false;
 
         // Emit disconnect event to page so dApp knows wallet is disconnected
@@ -60,7 +60,7 @@ class DappBridge {
           this.contextCheckInterval = null;
         }
       }
-    }, 5000);
+    }, 30000);
   }
 
   /**
@@ -133,7 +133,7 @@ class DappBridge {
     const { requestId, method, params } = data;
 
     try {
-      console.log("[DappBridge] Forwarding request to background:", method);
+      console.log("[DappBridge] Forwarding request to background:", method, "requestId:", requestId);
 
       // Check if extension context is still valid before sending message
       if (!isExtensionContextValid()) {
@@ -168,9 +168,10 @@ class DappBridge {
         throw new Error("No response from extension. Please refresh the page.");
       }
 
-      console.log("[DappBridge] Received response from background:", response.success);
+      console.log("[DappBridge] Received response from background:", method, "requestId:", requestId, "success:", response.success, "data:", response.data, "error:", response.error);
 
       // Send response back to page (use specific origin for security)
+      console.log("[DappBridge] Posting response to page:", requestId);
       window.postMessage(
         {
           type: "PORTO_RESPONSE",
