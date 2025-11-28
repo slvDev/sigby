@@ -337,7 +337,7 @@ class PopupPortoService {
           }],
           chainId: chainIdHex,
           from: params.from, // Specify which account to send from
-          // Add capabilities if feeToken specified
+          // Add feeToken capability if specified
           ...(params.feeToken && {
             capabilities: {
               feeToken: params.feeToken,
@@ -346,16 +346,75 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[PopupPorto] Transaction sent, result:', result);
+      console.log('[PopupPorto] Transaction sent, bundle result:', result);
 
       // wallet_sendCalls returns { id: "0x..." } - extract the bundle ID
-      // The actual tx hash can be retrieved via wallet_getCallsStatus if needed
       const bundleId = typeof result === 'string' ? result : result?.id || result;
-      return bundleId;
+
+      // Wait for the actual transaction hash by polling wallet_getCallsStatus
+      // DApps expect a real tx hash that works with eth_getTransactionReceipt
+      const txHash = await this.waitForTransactionHash(bundleId);
+      console.log('[PopupPorto] Got actual transaction hash:', txHash);
+
+      return txHash;
     } catch (error: any) {
       console.error('[PopupPorto] Transaction failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Wait for the actual transaction hash from a bundle ID
+   * Polls wallet_getCallsStatus until we get the transaction hash
+   */
+  private async waitForTransactionHash(bundleId: string, maxAttempts = 30, intervalMs = 2000): Promise<string> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Waiting for transaction hash for bundle:', bundleId);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const status = await this.provider.request({
+          method: 'wallet_getCallsStatus',
+          params: [bundleId],
+        });
+
+        console.log('[PopupPorto] Bundle status:', status);
+
+        // Check if we have receipts with transaction hash
+        if (status?.receipts && status.receipts.length > 0) {
+          const receipt = status.receipts[0];
+          if (receipt?.transactionHash) {
+            return receipt.transactionHash;
+          }
+        }
+
+        // If status is 'CONFIRMED' but no receipts, the bundleId might be the tx hash
+        if (status?.status === 'CONFIRMED') {
+          // Some implementations return the tx hash as the bundle ID
+          return bundleId;
+        }
+
+        // If pending, wait and retry
+        if (status?.status === 'PENDING') {
+          await new Promise(resolve => setTimeout(resolve, intervalMs));
+          continue;
+        }
+
+        // If we got an unknown status, try next attempt
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+      } catch (error) {
+        console.warn('[PopupPorto] Error getting bundle status:', error);
+        // Some error occurred, wait and retry
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+      }
+    }
+
+    // If we couldn't get the tx hash, return the bundle ID as fallback
+    console.warn('[PopupPorto] Could not get tx hash, returning bundle ID:', bundleId);
+    return bundleId;
   }
 
   /**

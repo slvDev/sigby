@@ -6,7 +6,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageType, SigningRequest } from "../../../types/messages";
+import type { FeeToken } from "../../../types/porto";
 import { popupPortoService } from "../../portoService";
+import { FeeTokenDropdown } from "../../components/token/FeeTokenDropdown";
 
 export function TransactionApproval() {
   const [searchParams] = useSearchParams();
@@ -17,6 +19,8 @@ export function TransactionApproval() {
   const [error, setError] = useState<string | null>(null);
   const [request, setRequest] = useState<SigningRequest | null>(null);
   const [gasEstimate, setGasEstimate] = useState<string | null>(null);
+  const [feeTokens, setFeeTokens] = useState<FeeToken[]>([]);
+  const [selectedFeeToken, setSelectedFeeToken] = useState<string>("");
 
   useEffect(() => {
     async function fetchRequest() {
@@ -49,6 +53,19 @@ export function TransactionApproval() {
               console.warn("Gas estimation failed:", e);
             }
           }
+
+          // Fetch available fee tokens from capabilities
+          try {
+            const capabilities = await popupPortoService.getCapabilities(response.data.chainId);
+            if (capabilities?.feeToken?.supported && capabilities.feeToken.tokens?.length > 0) {
+              const tokens = capabilities.feeToken.tokens;
+              setFeeTokens(tokens);
+              setSelectedFeeToken(tokens[0].symbol); // Default to first token
+              console.log("[TransactionApproval] Fee tokens available:", tokens);
+            }
+          } catch (e) {
+            console.warn("Failed to fetch fee tokens:", e);
+          }
         } else {
           setError(response.error || "Request not found");
         }
@@ -69,15 +86,54 @@ export function TransactionApproval() {
     setError(null);
 
     try {
-      const tx = request.params?.[0] || {};
+      let result: string;
 
-      const result = await popupPortoService.sendTransaction({
-        from: tx.from,
-        to: tx.to,
-        value: tx.value,
-        data: tx.data,
-        chainId: request.chainId,
-      });
+      // Use selected fee token (from capabilities)
+      const feeToken = selectedFeeToken || feeTokens[0]?.symbol;
+
+      if (request.method === "wallet_sendCalls") {
+        // EIP-5792: wallet_sendCalls - return bundleId immediately
+        // Porto SDK returns { id: bundleId } or just bundleId string
+        const provider = (popupPortoService as any).provider;
+        if (!provider) {
+          throw new Error("Porto provider not initialized");
+        }
+
+        // Ensure account is authorized before sending
+        await popupPortoService.ensureAccountAuthorized(request.accountAddress);
+
+        // Build params with fee token capability
+        // User's selection overrides whatever the dApp requested
+        const callsParam = request.params[0] || {};
+        const { feeToken: _dappFeeToken, ...otherCapabilities } = callsParam.capabilities || {};
+        const paramsWithFeeToken = [{
+          ...callsParam,
+          capabilities: {
+            ...otherCapabilities,
+            feeToken, // Always pass user's selection (including "native" for ETH)
+          },
+        }];
+
+        const sendResult = await provider.request({
+          method: "wallet_sendCalls",
+          params: paramsWithFeeToken,
+        });
+
+        // Extract bundleId from result
+        result = typeof sendResult === "string" ? sendResult : sendResult?.id || sendResult;
+        console.log("[TransactionApproval] wallet_sendCalls bundleId:", result, "feeToken:", feeToken);
+      } else {
+        // Legacy eth_sendTransaction - waits for txHash
+        const tx = request.params?.[0] || {};
+        result = await popupPortoService.sendTransaction({
+          from: tx.from,
+          to: tx.to,
+          value: tx.value,
+          data: tx.data,
+          chainId: request.chainId,
+          feeToken, // Pass selected fee token (including "native" for ETH)
+        });
+      }
 
       await chrome.runtime.sendMessage({
         type: MessageType.APPROVE_SIGNING,
@@ -130,18 +186,35 @@ export function TransactionApproval() {
     );
   }
 
-  const tx = request.params?.[0] || {};
+  // Handle both eth_sendTransaction (single tx) and wallet_sendCalls (calls array)
+  const isWalletSendCalls = request.method === "wallet_sendCalls";
+  const requestParams = request.params?.[0] || {};
+
+  // For wallet_sendCalls: { calls: [...], chainId, from, capabilities }
+  // For eth_sendTransaction: { to, value, data, ... }
+  const calls = isWalletSendCalls ? (requestParams.calls || []) : [requestParams];
   const displayOrigin = request.origin?.replace(/^https?:\/\//, "").replace(/\/$/, "") || "Unknown";
-  const shortTo = tx.to ? `${tx.to.slice(0, 10)}...${tx.to.slice(-8)}` : "Contract creation";
-  const valueInEth = tx.value ? (parseInt(tx.value, 16) / 1e18).toFixed(6) : "0";
-  const gasHex = gasEstimate || tx.gas || tx.gasLimit;
+
+  // Helper function to format a single call
+  const formatCall = (call: any) => {
+    const shortTo = call.to ? `${call.to.slice(0, 10)}...${call.to.slice(-8)}` : "Contract creation";
+    const valueInEth = call.value ? (parseInt(call.value, 16) / 1e18).toFixed(6) : "0";
+    return { shortTo, valueInEth, data: call.data };
+  };
+
+  const gasHex = gasEstimate || requestParams.gas || requestParams.gasLimit;
   const gasDecimal = gasHex ? parseInt(gasHex, 16).toLocaleString() : "Unknown";
 
   return (
     <div className="flex flex-col min-h-[600px] p-6 gap-4">
       {/* Header */}
       <div className="text-center pb-3 border-b border-gray-100">
-        <h2 className="text-xl font-semibold text-gray-900">Transaction Request</h2>
+        <h2 className="text-xl font-semibold text-gray-900">
+          {isWalletSendCalls && calls.length > 1 ? "Batch Transaction" : "Transaction Request"}
+        </h2>
+        {isWalletSendCalls && calls.length > 1 && (
+          <p className="text-sm text-gray-500 mt-1">{calls.length} transactions</p>
+        )}
       </div>
 
       {/* dApp Info */}
@@ -160,30 +233,56 @@ export function TransactionApproval() {
       </div>
 
       {/* Transaction Details */}
-      <div className="p-4 bg-gray-50 rounded-xl space-y-3">
-        <div className="flex justify-between items-start gap-3">
-          <span className="text-sm text-gray-500">To:</span>
-          <span className="font-medium text-gray-900 font-mono text-sm text-right">
-            {shortTo}
-          </span>
-        </div>
-        <div className="flex justify-between items-start gap-3">
-          <span className="text-sm text-gray-500">Value:</span>
-          <span className="font-medium text-gray-900">{valueInEth} ETH</span>
-        </div>
-        {tx.data && tx.data !== "0x" && (
-          <div className="flex justify-between items-start gap-3">
-            <span className="text-sm text-gray-500">Data:</span>
-            <span className="font-mono text-xs text-gray-600 text-right max-w-[200px] truncate">
-              {tx.data.length > 20 ? `${tx.data.slice(0, 20)}...` : tx.data}
-            </span>
+      <div className="flex-1 overflow-auto space-y-3">
+        {calls.map((call: any, index: number) => {
+          const { shortTo, valueInEth, data } = formatCall(call);
+          return (
+            <div key={index} className="p-4 bg-gray-50 rounded-xl space-y-3">
+              {calls.length > 1 && (
+                <div className="text-xs font-medium text-gray-400 uppercase">
+                  Transaction {index + 1}
+                </div>
+              )}
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-sm text-gray-500">To:</span>
+                <span className="font-medium text-gray-900 font-mono text-sm text-right">
+                  {shortTo}
+                </span>
+              </div>
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-sm text-gray-500">Value:</span>
+                <span className="font-medium text-gray-900">{valueInEth} ETH</span>
+              </div>
+              {data && data !== "0x" && (
+                <div className="flex justify-between items-start gap-3">
+                  <span className="text-sm text-gray-500">Data:</span>
+                  <span className="font-mono text-xs text-gray-600 text-right max-w-[200px] truncate">
+                    {data.length > 20 ? `${data.slice(0, 20)}...` : data}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {!isWalletSendCalls && (
+          <div className="p-4 bg-gray-50 rounded-xl">
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-sm text-gray-500">Est. Gas:</span>
+              <span className="font-medium text-gray-900">{gasDecimal}</span>
+            </div>
           </div>
         )}
-        <div className="flex justify-between items-start gap-3">
-          <span className="text-sm text-gray-500">Est. Gas:</span>
-          <span className="font-medium text-gray-900">{gasDecimal}</span>
-        </div>
       </div>
+
+      {/* Fee Token Selector */}
+      {feeTokens.length > 0 && (
+        <FeeTokenDropdown
+          tokens={feeTokens}
+          selected={selectedFeeToken}
+          onChange={setSelectedFeeToken}
+          disabled={isLoading}
+        />
+      )}
 
       {/* Error */}
       {error && (
