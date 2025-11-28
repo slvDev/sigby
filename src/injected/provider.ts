@@ -27,6 +27,13 @@ class PortoProvider implements EthereumProvider {
   readonly isPorto = true;
   readonly isMetaMask = true; // Compatibility flag for dApps that check for MetaMask
 
+  // State properties (MetaMask compatibility)
+  // These are updated via events from the extension
+  public chainId: string | null = null;
+  public selectedAddress: string | null = null;
+  public networkVersion: string | null = null;
+  public isConnected: boolean = true;
+
   // Event listeners storage
   private eventListeners = new Map<string, Set<Function>>();
 
@@ -37,7 +44,8 @@ class PortoProvider implements EthereumProvider {
     {
       resolve: (value: any) => void;
       reject: (reason: any) => void;
-      timeout: NodeJS.Timeout;
+      timeout: ReturnType<typeof setTimeout>;
+      method?: string;
     }
   >();
 
@@ -61,14 +69,15 @@ class PortoProvider implements EthereumProvider {
     const requestId = `req_${++this.requestId}_${Date.now()}`;
 
     return new Promise((resolve, reject) => {
-      // Set up timeout (30 seconds)
+      // Set up timeout (2 minutes for signing requests)
       const timeout = setTimeout(() => {
+        console.warn("[PortoProvider] Request timeout:", requestId, args.method);
         this.pendingRequests.delete(requestId);
         reject(new Error("Request timeout"));
-      }, 30000);
+      }, 120000);
 
-      // Store pending request
-      this.pendingRequests.set(requestId, { resolve, reject, timeout });
+      // Store pending request with method for state updates
+      this.pendingRequests.set(requestId, { resolve, reject, timeout, method: args.method });
 
       // Send request to content script via postMessage (use specific origin for security)
       window.postMessage(
@@ -152,16 +161,53 @@ class PortoProvider implements EthereumProvider {
   private handleResponse(data: any): void {
     const { requestId, result, error } = data;
 
+    console.log("[PortoProvider] Handling response:", requestId, "result:", result, "error:", error);
+
     const pending = this.pendingRequests.get(requestId);
     if (pending) {
+      console.log("[PortoProvider] Found pending request, resolving:", requestId);
       clearTimeout(pending.timeout);
+
+      // Update state properties based on method (MetaMask compatibility)
+      if (!error && result !== undefined) {
+        this.updateStateFromResponse(pending.method, result);
+      }
+
       this.pendingRequests.delete(requestId);
 
       if (error) {
+        console.log("[PortoProvider] Rejecting with error:", error);
         pending.reject(new Error(error));
       } else {
+        console.log("[PortoProvider] Resolving with result:", result);
         pending.resolve(result);
       }
+    } else {
+      console.warn("[PortoProvider] No pending request found for:", requestId);
+    }
+  }
+
+  /**
+   * Update state properties from RPC responses (MetaMask compatibility)
+   */
+  private updateStateFromResponse(method: string | undefined, result: any): void {
+    switch (method) {
+      case "eth_chainId":
+        this.chainId = result;
+        // networkVersion is decimal string of chainId
+        this.networkVersion = result ? String(parseInt(result, 16)) : null;
+        console.log("[PortoProvider] Updated chainId:", this.chainId, "networkVersion:", this.networkVersion);
+        break;
+      case "eth_accounts":
+      case "eth_requestAccounts":
+        if (Array.isArray(result) && result.length > 0) {
+          this.selectedAddress = result[0];
+          console.log("[PortoProvider] Updated selectedAddress:", this.selectedAddress);
+        }
+        break;
+      case "net_version":
+        this.networkVersion = result;
+        break;
     }
   }
 
@@ -173,9 +219,106 @@ class PortoProvider implements EthereumProvider {
 
     console.log("[PortoProvider] Emitting event:", event, eventData);
 
+    // Update state properties from events (MetaMask compatibility)
+    switch (event) {
+      case "chainChanged":
+        this.chainId = eventData;
+        this.networkVersion = eventData ? String(parseInt(eventData, 16)) : null;
+        break;
+      case "accountsChanged":
+        if (Array.isArray(eventData) && eventData.length > 0) {
+          this.selectedAddress = eventData[0];
+        } else {
+          this.selectedAddress = null;
+        }
+        break;
+      case "connect":
+        this.isConnected = true;
+        if (eventData?.chainId) {
+          this.chainId = eventData.chainId;
+          this.networkVersion = String(parseInt(eventData.chainId, 16));
+        }
+        break;
+      case "disconnect":
+        this.isConnected = false;
+        break;
+    }
+
     // Emit to all listeners
     this.emit(event, eventData);
   }
+
+  // Legacy methods for backwards compatibility
+
+  /**
+   * Legacy enable() method (deprecated, use request({method: 'eth_requestAccounts'}))
+   */
+  async enable(): Promise<string[]> {
+    console.warn("[PortoProvider] enable() is deprecated, use request({ method: 'eth_requestAccounts' })");
+    return this.request({ method: "eth_requestAccounts" });
+  }
+
+  /**
+   * Legacy send() method (deprecated)
+   */
+  send(methodOrPayload: string | any, paramsOrCallback?: any[] | Function): any {
+    console.warn("[PortoProvider] send() is deprecated, use request()");
+
+    // Handle callback style: send(payload, callback)
+    if (typeof paramsOrCallback === "function") {
+      const callback = paramsOrCallback;
+      const payload = methodOrPayload;
+      this.request({ method: payload.method, params: payload.params })
+        .then((result) => callback(null, { id: payload.id, jsonrpc: "2.0", result }))
+        .catch((error) => callback(error, null));
+      return;
+    }
+
+    // Handle sync style for specific methods
+    if (typeof methodOrPayload === "string") {
+      const method = methodOrPayload;
+      const params = paramsOrCallback || [];
+
+      // Some methods can return sync (though deprecated)
+      if (method === "eth_accounts") {
+        return { result: this.selectedAddress ? [this.selectedAddress] : [] };
+      }
+      if (method === "eth_coinbase") {
+        return { result: this.selectedAddress };
+      }
+      if (method === "net_version") {
+        return { result: this.networkVersion };
+      }
+      if (method === "eth_chainId") {
+        return { result: this.chainId };
+      }
+
+      // For async methods, return promise
+      return this.request({ method, params });
+    }
+
+    // Handle payload object style
+    return this.request({ method: methodOrPayload.method, params: methodOrPayload.params });
+  }
+
+  /**
+   * Legacy sendAsync() method (deprecated)
+   */
+  sendAsync(payload: any, callback: (error: any, response: any) => void): void {
+    console.warn("[PortoProvider] sendAsync() is deprecated, use request()");
+    this.request({ method: payload.method, params: payload.params })
+      .then((result) => callback(null, { id: payload.id, jsonrpc: "2.0", result }))
+      .catch((error) => callback(error, null));
+  }
+
+  /**
+   * MetaMask-specific API (some dApps check this)
+   */
+  _metamask = {
+    isUnlocked: async (): Promise<boolean> => {
+      return true; // Porto is always "unlocked" when available
+    },
+  };
 
   /**
    * Announce provider via EIP-6963
