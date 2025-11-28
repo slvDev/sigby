@@ -18,7 +18,18 @@ import {
   holesky,
 } from "viem/chains";
 import { CHAIN_IDS } from "../utils/constants";
-import type { PortoHistoryEntry, PortoCallsStatus, PortoAssets, FeeToken, ChainCapabilities } from "../types/porto";
+import type {
+  PortoHistoryEntry,
+  PortoCallsStatus,
+  PortoAssets,
+  FeeToken,
+  ChainCapabilities,
+  PermissionRequest,
+  GrantedPermission,
+  Permission,
+  AccountKey,
+  RelayHealth,
+} from "../types/porto";
 
 /**
  * All supported chains for Porto SDK
@@ -556,6 +567,174 @@ class PopupPortoService {
    */
   isReady(): boolean {
     return this.isInitialized && !!this.provider;
+  }
+
+  // ==================== PERMISSION METHODS ====================
+
+  /**
+   * Grant session key permissions (wallet_grantPermissions)
+   */
+  async grantPermissions(params: {
+    address: string;
+    permissions: PermissionRequest;
+  }): Promise<GrantedPermission> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Granting permissions:', JSON.stringify(params, null, 2));
+
+    try {
+      // Build the permission request
+      const permissionParams: any = {
+        expiry: params.permissions.expiry,
+        permissions: params.permissions.permissions,
+        // feeToken is required - default to native token
+        feeToken: params.permissions.feeToken || { native: true },
+      };
+
+      // Add optional key if provided
+      if (params.permissions.key) {
+        permissionParams.key = params.permissions.key;
+      }
+
+      console.log('[PopupPorto] Sending permission params:', JSON.stringify(permissionParams, null, 2));
+
+      const result = await this.provider.request({
+        method: 'wallet_grantPermissions',
+        params: [permissionParams],
+      });
+
+      console.log('[PopupPorto] Permissions granted:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[PopupPorto] Failed to grant permissions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get active permissions for an account (wallet_getPermissions)
+   */
+  async getPermissions(address: string): Promise<Permission[]> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Getting permissions for:', address);
+
+    try {
+      const result = await this.provider.request({
+        method: 'wallet_getPermissions',
+        params: [{ address }],
+      });
+
+      console.log('[PopupPorto] Permissions retrieved:', result);
+      return result || [];
+    } catch (error: any) {
+      // Unauthorized errors are expected when account not connected - log as info
+      if (error?.name?.includes('Unauthorized') || error?.message?.includes('Unauthorized')) {
+        console.log('[PopupPorto] Permissions unavailable - account not connected');
+      } else {
+        console.error('[PopupPorto] Failed to get permissions:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Revoke a permission (wallet_revokePermissions)
+   */
+  async revokePermissions(permissionId: string): Promise<void> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Revoking permission:', permissionId);
+
+    try {
+      await this.provider.request({
+        method: 'wallet_revokePermissions',
+        params: [{ id: permissionId }],
+      });
+
+      console.log('[PopupPorto] Permission revoked');
+    } catch (error: any) {
+      console.error('[PopupPorto] Failed to revoke permission:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get authorized keys for an account (wallet_getKeys)
+   */
+  async getKeys(address: string): Promise<AccountKey[]> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Getting keys for:', address);
+
+    try {
+      const result = await this.provider.request({
+        method: 'wallet_getKeys',
+        params: [{ address }],
+      });
+
+      console.log('[PopupPorto] Keys retrieved:', result);
+      return result || [];
+    } catch (error: any) {
+      // Unauthorized errors are expected when account not connected - log as info
+      if (error?.name?.includes('Unauthorized') || error?.message?.includes('Unauthorized')) {
+        console.log('[PopupPorto] Keys unavailable - account not connected');
+      } else {
+        console.error('[PopupPorto] Failed to get keys:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Check relay health status (health)
+   */
+  async getRelayHealth(): Promise<RelayHealth> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    console.log('[PopupPorto] Checking relay health...');
+
+    try {
+      const startTime = Date.now();
+      const result = await this.provider.request({
+        method: 'health',
+        params: [],
+      });
+      const latency = Date.now() - startTime;
+
+      // Log the raw response to understand its structure
+      console.log('[PopupPorto] Relay health raw result:', JSON.stringify(result, null, 2));
+      console.log('[PopupPorto] Relay health latency:', latency);
+
+      // Extract version from result (Porto returns { version: "..." } or similar)
+      const version = typeof result === 'object' && result !== null
+        ? (result.version || result.Version || JSON.stringify(result))
+        : String(result);
+
+      // Don't spread result - it might override our status!
+      return {
+        status: 'online',
+        latency,
+        version,
+      };
+    } catch (error: any) {
+      console.error('[PopupPorto] Relay health check failed:', error);
+      return {
+        status: 'offline',
+        latency: null,
+        error: error.message,
+      };
+    }
   }
 }
 

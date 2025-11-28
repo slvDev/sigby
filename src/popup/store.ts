@@ -6,7 +6,7 @@
 import { create } from "zustand";
 import { DEFAULT_CHAIN_ID } from "../utils/constants";
 import { popupPortoService } from "./portoService";
-import type { PortoAsset } from "../types/porto";
+import type { PortoAsset, Permission, AccountKey, RelayHealth } from "../types/porto";
 
 /**
  * Account state (simplified for UI)
@@ -72,6 +72,20 @@ interface WalletState {
   // History refresh trigger (incremented when tx confirmed to trigger refetch)
   historyRefreshTrigger: number;
 
+  // Permissions state
+  permissions: Permission[];
+  permissionsLoading: boolean;
+  permissionsNeedAuth: boolean;
+
+  // Keys state
+  accountKeys: AccountKey[];
+  keysLoading: boolean;
+  keysNeedAuth: boolean;
+
+  // Relay health
+  relayHealth: RelayHealth | null;
+  relayHealthLoading: boolean;
+
   // UI state
   isLoading: boolean;
   error: string | null;
@@ -102,6 +116,12 @@ interface WalletState {
   removePendingTransaction: (id: string) => void;
   clearPendingTransactions: () => void;
   triggerHistoryRefresh: () => void;
+
+  // Permission/Keys/Health actions
+  fetchPermissions: () => Promise<void>;
+  fetchKeys: () => Promise<void>;
+  fetchRelayHealth: () => Promise<void>;
+  connectActiveAccount: () => Promise<boolean>;
 
   // UI actions
   setChainId: (chainId: number) => void;
@@ -141,6 +161,20 @@ const initialState = {
   // History refresh trigger
   historyRefreshTrigger: 0,
 
+  // Permissions
+  permissions: [] as Permission[],
+  permissionsLoading: false,
+  permissionsNeedAuth: false,
+
+  // Keys
+  accountKeys: [] as AccountKey[],
+  keysLoading: false,
+  keysNeedAuth: false,
+
+  // Relay health
+  relayHealth: null as RelayHealth | null,
+  relayHealthLoading: false,
+
   // UI
   isLoading: false,
   error: null as string | null,
@@ -173,9 +207,15 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       activeAddress,
       // Update legacy account for backward compatibility
       account: activeAddress ? accounts[activeAddress] || null : null,
-      // Reset assets cache when switching accounts
+      // Reset caches when switching accounts
       assets: [],
       assetsLastFetched: null,
+      // Clear permissions and keys - they're per-account
+      permissions: [],
+      accountKeys: [],
+      // Reset auth flags
+      permissionsNeedAuth: false,
+      keysNeedAuth: false,
     });
   },
 
@@ -280,6 +320,103 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
   triggerHistoryRefresh: () =>
     set((state) => ({ historyRefreshTrigger: state.historyRefreshTrigger + 1 })),
+
+  // ==================== PERMISSION/KEYS/HEALTH ACTIONS ====================
+
+  fetchPermissions: async () => {
+    const { activeAddress } = get();
+    if (!activeAddress) return;
+
+    set({ permissionsLoading: true, permissionsNeedAuth: false });
+    try {
+      if (!popupPortoService.isReady()) {
+        await popupPortoService.initialize();
+      }
+
+      // wallet_getPermissions is an SDK method that may fail if account not connected
+      // We handle errors gracefully - no auth prompt needed for viewing
+      const permissions = await popupPortoService.getPermissions(activeAddress);
+      set({ permissions, permissionsLoading: false, permissionsNeedAuth: false });
+    } catch (error: any) {
+      // Handle unauthorized errors - set flag so UI can show connect button
+      // Porto SDK may throw if account not "connected" but we don't want to force auth
+      if (error?.message?.includes('Unauthorized') || error?.name?.includes('Unauthorized')) {
+        console.log('[Store] Account not connected in Porto SDK - permissions unavailable');
+        set({ permissions: [], permissionsLoading: false, permissionsNeedAuth: true });
+        return;
+      }
+      console.error('[Store] Failed to fetch permissions:', error);
+      set({ permissions: [], permissionsLoading: false });
+    }
+  },
+
+  fetchKeys: async () => {
+    const { activeAddress } = get();
+    if (!activeAddress) return;
+
+    set({ keysLoading: true, keysNeedAuth: false });
+    try {
+      if (!popupPortoService.isReady()) {
+        await popupPortoService.initialize();
+      }
+
+      // wallet_getKeys is a Relay method - it queries the blockchain directly
+      // No auth needed, just an address parameter
+      const accountKeys = await popupPortoService.getKeys(activeAddress);
+      set({ accountKeys, keysLoading: false, keysNeedAuth: false });
+    } catch (error: any) {
+      // Handle errors gracefully - set flag so UI can show connect button
+      if (error?.message?.includes('Unauthorized') || error?.name?.includes('Unauthorized')) {
+        console.log('[Store] Keys query failed - may need account connection');
+        set({ accountKeys: [], keysLoading: false, keysNeedAuth: true });
+        return;
+      }
+      console.error('[Store] Failed to fetch keys:', error);
+      set({ accountKeys: [], keysLoading: false });
+    }
+  },
+
+  fetchRelayHealth: async () => {
+    set({ relayHealthLoading: true });
+    try {
+      if (!popupPortoService.isReady()) {
+        await popupPortoService.initialize();
+      }
+      const relayHealth = await popupPortoService.getRelayHealth();
+      set({ relayHealth, relayHealthLoading: false });
+    } catch (error) {
+      console.error('[Store] Failed to fetch relay health:', error);
+      set({
+        relayHealth: { status: 'offline', latency: null },
+        relayHealthLoading: false
+      });
+    }
+  },
+
+  connectActiveAccount: async () => {
+    const { activeAddress, fetchPermissions, fetchKeys } = get();
+    if (!activeAddress) return false;
+
+    try {
+      if (!popupPortoService.isReady()) {
+        await popupPortoService.initialize();
+      }
+
+      // This triggers WebAuthn to connect the account
+      const isConnected = await popupPortoService.ensureAccountAuthorized(activeAddress);
+
+      if (isConnected) {
+        // Refetch permissions and keys now that we're connected
+        await fetchPermissions();
+        await fetchKeys();
+      }
+
+      return isConnected;
+    } catch (error) {
+      console.error('[Store] Failed to connect account:', error);
+      return false;
+    }
+  },
 
   // ==================== UI ACTIONS ====================
 
