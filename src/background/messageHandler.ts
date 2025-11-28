@@ -474,6 +474,18 @@ export class MessageHandler {
         case "wallet_getPermissions":
           return await this.handleWalletGetPermissions(origin);
 
+        // EIP-5792: Wallet capabilities
+        case "wallet_getCapabilities":
+          return await this.handleWalletGetCapabilities(params, origin);
+
+        // EIP-5792: Send calls (returns bundleId)
+        case "wallet_sendCalls":
+          return await this.handleWalletSendCalls(params || [], sender, origin);
+
+        // EIP-5792: Get calls status
+        case "wallet_getCallsStatus":
+          return await this.handleWalletGetCallsStatus(params || [], origin);
+
         default:
           console.warn("[MessageHandler] Unsupported method:", method);
           return {
@@ -1635,6 +1647,186 @@ export class MessageHandler {
     }
   }
 
+  /**
+   * Handle wallet_getCapabilities (EIP-5792)
+   * Returns wallet capabilities for smart account features
+   * SECURITY: Only returns capabilities to connected dApps
+   */
+  private async handleWalletGetCapabilities(params?: any[], origin?: string): Promise<MessageResponse> {
+    try {
+      console.log('[MessageHandler] wallet_getCapabilities called, origin:', origin, 'params:', params);
+
+      const account = await this.accountManager.getAccount();
+      console.log('[MessageHandler] wallet_getCapabilities account:', account?.address);
+
+      // If no account or no origin, return empty (don't reveal wallet info)
+      if (!account || !origin) {
+        console.log('[MessageHandler] wallet_getCapabilities: no account or origin, returning empty');
+        return { success: true, data: {} };
+      }
+
+      // Check if dApp is connected - SECURITY: only return capabilities to connected dApps
+      const isConnected = await this.dappManager.isConnected(origin, account.address);
+      console.log('[MessageHandler] wallet_getCapabilities isConnected:', isConnected);
+      if (!isConnected) {
+        console.log('[MessageHandler] wallet_getCapabilities: dApp not connected, returning empty');
+        return { success: true, data: {} };
+      }
+
+      // Get current chain ID (use per-origin chain if available)
+      const chainId = await this.dappManager.getChainIdForOrigin(origin, account.address);
+      const chainIdHex = `0x${chainId.toString(16)}`;
+      console.log('[MessageHandler] wallet_getCapabilities chainId:', chainId, 'hex:', chainIdHex);
+
+      // Call Porto Relay directly to get real capabilities
+      // Relay expects params as array of chain IDs: [[chainId1, chainId2, ...]]
+      const response = await fetch('https://rpc.porto.sh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'wallet_getCapabilities',
+          params: [[chainIdHex]],  // Array of chain IDs
+        }),
+      });
+
+      const data = await response.json();
+      console.log('[MessageHandler] wallet_getCapabilities relay response:', JSON.stringify(data));
+
+      if (data.error) {
+        console.error('[MessageHandler] Relay error:', data.error);
+        return { success: true, data: {} };
+      }
+
+      // Pass through relay response directly - relay already returns EIP-5792 format
+      return { success: true, data: data.result };
+    } catch (error) {
+      console.error('[MessageHandler] wallet_getCapabilities error:', error);
+      // Return empty on error - don't expose internal errors
+      return { success: true, data: {} };
+    }
+  }
+
+  // ==================== EIP-5792 HANDLERS ====================
+
+  /**
+   * Handle wallet_sendCalls (EIP-5792)
+   * Sends a bundle of calls and returns bundleId (not txHash)
+   */
+  private async handleWalletSendCalls(
+    params: any[],
+    sender: chrome.runtime.MessageSender,
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      console.log('[MessageHandler] wallet_sendCalls called, params:', JSON.stringify(params));
+
+      const account = await this.accountManager.getAccount();
+      if (!account) {
+        return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
+      }
+
+      const dappOrigin = extractValidOrigin(sender, origin);
+      if (!dappOrigin) {
+        return { success: false, error: "Could not determine valid dApp origin" };
+      }
+
+      // Verify dApp is connected
+      const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
+      if (!isConnected) {
+        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+      }
+
+      // Get chain ID (from params or per-origin default)
+      const callsParam = params[0] || {};
+      const chainId = callsParam.chainId
+        ? parseInt(callsParam.chainId, 16)
+        : await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
+
+      // Request signing approval via popup
+      // The popup will use Porto SDK's wallet_sendCalls and return bundleId
+      console.log("[MessageHandler] wallet_sendCalls: requesting signing approval...");
+      const bundleId = await this.dappManager.requestSigning({
+        method: "wallet_sendCalls",
+        params,
+        origin: dappOrigin,
+        accountAddress: account.address,
+        chainId,
+        metadata: {
+          favicon: sender.tab?.favIconUrl,
+          title: sender.tab?.title,
+        },
+      });
+
+      console.log("[MessageHandler] wallet_sendCalls completed, bundleId:", bundleId);
+
+      // Return bundleId per EIP-5792 (not txHash!)
+      return { success: true, data: { id: bundleId } };
+    } catch (error) {
+      console.error("[MessageHandler] wallet_sendCalls error:", error);
+      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Handle wallet_getCallsStatus (EIP-5792)
+   * Gets status of a call bundle by bundleId
+   */
+  private async handleWalletGetCallsStatus(
+    params: any[],
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      const bundleId = params[0];
+      if (!bundleId) {
+        return { success: false, error: "Bundle ID is required" };
+      }
+
+      console.log('[MessageHandler] wallet_getCallsStatus called, bundleId:', bundleId);
+
+      const account = await this.accountManager.getAccount();
+      if (!account || !origin) {
+        return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
+      }
+
+      // Verify dApp is connected
+      const isConnected = await this.dappManager.isConnected(origin, account.address);
+      if (!isConnected) {
+        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+      }
+
+      // Call Porto Relay to get bundle status
+      const response = await fetch('https://rpc.porto.sh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'wallet_getCallsStatus',
+          params: [bundleId],
+        }),
+      });
+
+      const data = await response.json();
+      console.log('[MessageHandler] wallet_getCallsStatus relay response:', JSON.stringify(data));
+
+      if (data.error) {
+        return { success: false, error: data.error.message || 'Failed to get calls status' };
+      }
+
+      // Pass through relay response directly
+      return { success: true, data: data.result };
+    } catch (error) {
+      console.error('[MessageHandler] wallet_getCallsStatus error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
   // ==================== SIGNING REQUEST HANDLERS (Phase 4) ====================
 
   /**
@@ -1674,6 +1866,7 @@ export class MessageHandler {
       const chainId = await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
 
       // Request signing approval (this opens popup and waits)
+      console.log("[MessageHandler] Waiting for signing approval...");
       const txHash = await this.dappManager.requestSigning({
         method: "eth_sendTransaction",
         params,
@@ -1686,6 +1879,7 @@ export class MessageHandler {
         },
       });
 
+      console.log("[MessageHandler] eth_sendTransaction completed, txHash:", txHash);
       return { success: true, data: txHash };
     } catch (error) {
       console.error("[MessageHandler] eth_sendTransaction error:", error);

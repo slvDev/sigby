@@ -563,7 +563,10 @@ export class DappManager {
   private openSigningPopup(request: SigningRequest): void {
     try {
       // Determine view based on method
-      const view = request.method === "eth_sendTransaction" ? "transaction" : "sign";
+      // Both eth_sendTransaction and wallet_sendCalls go to transaction view
+      const view = (request.method === "eth_sendTransaction" || request.method === "wallet_sendCalls")
+        ? "transaction"
+        : "sign";
 
       // Build popup URL with query parameters
       const params = new URLSearchParams({
