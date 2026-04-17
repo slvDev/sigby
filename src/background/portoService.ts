@@ -20,7 +20,7 @@ export class PortoService {
    * In background context, this is a no-op since Porto runs in popup
    */
   async initialize(): Promise<void> {
-    console.log("[PortoService] Background stub initialized - Porto SDK runs in popup context");
+    console.log("[Berth:BG] Porto SDK stub initialized — real SDK runs in popup context");
     this.isInitialized = true;
   }
 
@@ -78,7 +78,7 @@ export class PortoService {
    * Get provider instance - not available in background
    */
   getProvider(): null {
-    console.warn("[PortoService] Provider not available in background - Porto runs in popup");
+    console.warn("[Berth:BG] Provider not available in background — Porto SDK runs in popup");
     return null;
   }
 }

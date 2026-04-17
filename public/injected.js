@@ -1,2 +1,2 @@
 // Placeholder - will be overwritten by build
-console.log("[PortoProvider] Placeholder - rebuild required");
+console.log("[Berth] Placeholder - rebuild required");

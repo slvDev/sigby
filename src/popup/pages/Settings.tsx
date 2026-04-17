@@ -48,7 +48,7 @@ export function Settings() {
     setLoading(true);
 
     try {
-      const keychainLabel = `Porto Wallet ${accountCount + 1}`;
+      const keychainLabel = `Berth ${accountCount + 1}`;
       const displayName = walletName.trim() || `Account ${accountCount + 1}`;
 
       const result = await popupPortoService.createAccount({
@@ -223,7 +223,7 @@ export function Settings() {
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none disabled:opacity-50"
               />
               <p className="text-xs text-gray-400">
-                Touch ID: "Porto Wallet {accountCount + 1}"
+                Touch ID: "Berth {accountCount + 1}"
               </p>
             </div>
             <div className="flex flex-col gap-2">

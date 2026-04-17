@@ -61,7 +61,7 @@ export function Home() {
     setError(null);
 
     try {
-      const keychainLabel = `Porto Wallet ${accountCount + 1}`;
+      const keychainLabel = `Berth ${accountCount + 1}`;
       const displayName = walletName.trim() || `Account ${accountCount + 1}`;
 
       const result = await popupPortoService.createAccount({
@@ -123,8 +123,8 @@ export function Home() {
   if (!hasAccounts) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Porto Wallet</h1>
-        <p className="text-sm text-gray-500 mb-8">Next-gen crypto wallet with biometric authentication</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Berth</h1>
+        <p className="text-sm text-gray-500 mb-8">Sign with a passkey. Same account on every chain.</p>
 
         {error && (
           <div className="w-full max-w-xs mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
@@ -147,7 +147,7 @@ export function Home() {
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <p className="text-xs text-gray-400 text-left">
-              In Touch ID prompts, you'll see: "Porto Wallet {accountCount + 1}"
+              In Touch ID prompts, you'll see: "Berth {accountCount + 1}"
               <br />
               <span className="text-gray-300">(Keychain names can't be changed)</span>
             </p>

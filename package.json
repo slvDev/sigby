@@ -1,7 +1,7 @@
 {
-  "name": "porto-wallet-extension",
+  "name": "berth-wallet",
   "version": "0.1.0",
-  "description": "Next-gen crypto wallet with biometric authentication",
+  "description": "A browser wallet that signs with a passkey. Built on Porto.",
   "private": true,
   "type": "module",
   "scripts": {

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Porto Wallet",
+  "name": "Berth",
   "version": "0.1.0",
-  "description": "Next-gen crypto wallet with biometric authentication",
+  "description": "A browser wallet that signs with a passkey. Built on Porto.",
 
   "permissions": [
     "storage",
@@ -44,7 +44,7 @@
       "48": "public/icons/icon48.png",
       "128": "public/icons/icon128.png"
     },
-    "default_title": "Porto Wallet"
+    "default_title": "Berth"
   },
 
   "icons": {

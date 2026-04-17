@@ -249,7 +249,7 @@ export const WEBAUTHN_CONFIG = {
   /** Timeout for WebAuthn operations (ms) */
   TIMEOUT: 60000,
   /** Relying party name */
-  RP_NAME: "Porto Wallet",
+  RP_NAME: "Berth",
   /** Relying party ID - domain for passkey association */
   RP_ID: "porto.sh",
   /** User verification requirement */
@@ -347,9 +347,9 @@ export const PROVIDER_EVENTS = {
  * Extension metadata
  */
 export const EXTENSION_METADATA = {
-  NAME: "Porto Wallet",
+  NAME: "Berth",
   VERSION: "0.1.0",
-  DESCRIPTION: "Next-gen crypto wallet with biometric authentication",
-  PROVIDER_RDNS: "sh.porto.wallet",
-  PROVIDER_UUID: "porto-wallet-extension",
+  DESCRIPTION: "A browser wallet that signs with a passkey. Built on Porto.",
+  PROVIDER_RDNS: "com.berthwallet",
+  PROVIDER_UUID: "e6a4f8b2-9c3d-4a1b-8b5f-7d2c4e6a1f93",
 } as const;

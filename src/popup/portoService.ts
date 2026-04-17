@@ -22,7 +22,6 @@ import type {
   PortoHistoryEntry,
   PortoCallsStatus,
   PortoAssets,
-  FeeToken,
   ChainCapabilities,
   PermissionRequest,
   GrantedPermission,
@@ -67,13 +66,13 @@ class PopupPortoService {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('[PopupPorto] Already initialized');
+      console.log('[Berth:Popup] Already initialized');
       return;
     }
 
     try {
-      console.log('[PopupPorto] Initializing Porto SDK in popup...');
-      console.log('[PopupPorto] Configuring with', SUPPORTED_CHAINS.length, 'chains');
+      console.log('[Berth:Popup] Initializing Porto SDK in popup...');
+      console.log('[Berth:Popup] Configuring with', SUPPORTED_CHAINS.length, 'chains');
 
       this.porto = Porto.Porto.create({
         // All supported chains (cast to satisfy readonly tuple type)
@@ -95,10 +94,10 @@ class PopupPortoService {
       this.provider = this.porto.provider;
       this.isInitialized = true;
 
-      console.log('[PopupPorto] Porto SDK initialized successfully');
-      console.log('[PopupPorto] Provider ready:', !!this.provider);
+      console.log('[Berth:Popup] Porto SDK initialized successfully');
+      console.log('[Berth:Popup] Provider ready:', !!this.provider);
     } catch (error) {
-      console.error('[PopupPorto] Failed to initialize Porto:', error);
+      console.error('[Berth:Popup] Failed to initialize Porto:', error);
       throw error;
     }
   }
@@ -122,7 +121,7 @@ class PopupPortoService {
       // We'll increment based on what we find in storage
       return 0; // Will be calculated from storage instead
     } catch (error) {
-      console.warn('[PopupPorto] Could not count accounts:', error);
+      console.warn('[Berth:Popup] Could not count accounts:', error);
       return 0;
     }
   }
@@ -141,15 +140,15 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Creating new account...');
-    console.log('[PopupPorto] Display name:', options.displayName);
-    console.log('[PopupPorto] Keychain label:', options.keychainLabel);
-    console.log('[PopupPorto] This will trigger WebAuthn prompt in popup window');
+    console.log('[Berth:Popup] Creating new account...');
+    console.log('[Berth:Popup] Display name:', options.displayName);
+    console.log('[Berth:Popup] Keychain label:', options.keychainLabel);
+    console.log('[Berth:Popup] This will trigger WebAuthn prompt in popup window');
 
     try {
       // Use keychainLabel for WebAuthn credential (appears in Touch ID)
       // Use displayName for extension UI (can be changed later)
-      const keychainLabel = options.keychainLabel || options.displayName || 'Porto Wallet';
+      const keychainLabel = options.keychainLabel || options.displayName || 'Berth';
 
       const result = await this.provider.request({
         method: 'wallet_connect',
@@ -163,7 +162,7 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[PopupPorto] Account created successfully:', result);
+      console.log('[Berth:Popup] Account created successfully:', result);
 
       // Extract address from Porto response
       // Porto returns: { accounts: [{ address, capabilities }], chainIds: [...] }
@@ -174,14 +173,14 @@ class PopupPortoService {
 
       // Get the address string from the first account
       const address = accountsArray[0].address;
-      console.log('[PopupPorto] Extracted address:', address);
+      console.log('[Berth:Popup] Extracted address:', address);
 
       return {
         address,
         accounts: accountsArray.map((acc: any) => acc.address),
       };
     } catch (error: any) {
-      console.error('[PopupPorto] Account creation failed:', error);
+      console.error('[Berth:Popup] Account creation failed:', error);
       throw error;
     }
   }
@@ -197,7 +196,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Connecting to existing account...');
+    console.log('[Berth:Popup] Connecting to existing account...');
 
     try {
       const result = await this.provider.request({
@@ -210,7 +209,7 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[PopupPorto] Account connected:', result);
+      console.log('[Berth:Popup] Account connected:', result);
 
       // Extract address from Porto response
       const accountsArray = result.accounts || [];
@@ -220,14 +219,14 @@ class PopupPortoService {
 
       // Get the address string from the first account
       const address = accountsArray[0].address;
-      console.log('[PopupPorto] Extracted address:', address);
+      console.log('[Berth:Popup] Extracted address:', address);
 
       return {
         address,
         accounts: accountsArray.map((acc: any) => acc.address),
       };
     } catch (error: any) {
-      console.error('[PopupPorto] Account connection failed:', error);
+      console.error('[Berth:Popup] Account connection failed:', error);
       throw error;
     }
   }
@@ -248,7 +247,7 @@ class PopupPortoService {
       });
       return accounts || [];
     } catch (error) {
-      console.error('[PopupPorto] Failed to get accounts:', error);
+      console.error('[Berth:Popup] Failed to get accounts:', error);
       return [];
     }
   }
@@ -269,11 +268,11 @@ class PopupPortoService {
     );
 
     if (isAuthorized) {
-      console.log('[PopupPorto] Account already authorized:', address);
+      console.log('[Berth:Popup] Account already authorized:', address);
       return true;
     }
 
-    console.log('[PopupPorto] Account not authorized, connecting:', address);
+    console.log('[Berth:Popup] Account not authorized, connecting:', address);
 
     // Need to connect/authorize the account
     // This will trigger WebAuthn to verify ownership
@@ -292,7 +291,7 @@ class PopupPortoService {
       const newAccounts = result.accounts?.map((acc: any) => acc.address.toLowerCase()) || [];
       return newAccounts.includes(address.toLowerCase());
     } catch (error) {
-      console.error('[PopupPorto] Failed to authorize account:', error);
+      console.error('[Berth:Popup] Failed to authorize account:', error);
       return false;
     }
   }
@@ -315,7 +314,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Sending transaction:', params);
+    console.log('[Berth:Popup] Sending transaction:', params);
 
     // Ensure the account is authorized before sending
     const isAuthorized = await this.ensureAccountAuthorized(params.from);
@@ -346,7 +345,7 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[PopupPorto] Transaction sent, bundle result:', result);
+      console.log('[Berth:Popup] Transaction sent, bundle result:', result);
 
       // wallet_sendCalls returns { id: "0x..." } - extract the bundle ID
       const bundleId = typeof result === 'string' ? result : result?.id || result;
@@ -354,11 +353,11 @@ class PopupPortoService {
       // Wait for the actual transaction hash by polling wallet_getCallsStatus
       // DApps expect a real tx hash that works with eth_getTransactionReceipt
       const txHash = await this.waitForTransactionHash(bundleId);
-      console.log('[PopupPorto] Got actual transaction hash:', txHash);
+      console.log('[Berth:Popup] Got actual transaction hash:', txHash);
 
       return txHash;
     } catch (error: any) {
-      console.error('[PopupPorto] Transaction failed:', error);
+      console.error('[Berth:Popup] Transaction failed:', error);
       throw error;
     }
   }
@@ -372,7 +371,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Waiting for transaction hash for bundle:', bundleId);
+    console.log('[Berth:Popup] Waiting for transaction hash for bundle:', bundleId);
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -381,7 +380,7 @@ class PopupPortoService {
           params: [bundleId],
         });
 
-        console.log('[PopupPorto] Bundle status:', status);
+        console.log('[Berth:Popup] Bundle status:', status);
 
         // Check if we have receipts with transaction hash
         if (status?.receipts && status.receipts.length > 0) {
@@ -406,14 +405,14 @@ class PopupPortoService {
         // If we got an unknown status, try next attempt
         await new Promise(resolve => setTimeout(resolve, intervalMs));
       } catch (error) {
-        console.warn('[PopupPorto] Error getting bundle status:', error);
+        console.warn('[Berth:Popup] Error getting bundle status:', error);
         // Some error occurred, wait and retry
         await new Promise(resolve => setTimeout(resolve, intervalMs));
       }
     }
 
     // If we couldn't get the tx hash, return the bundle ID as fallback
-    console.warn('[PopupPorto] Could not get tx hash, returning bundle ID:', bundleId);
+    console.warn('[Berth:Popup] Could not get tx hash, returning bundle ID:', bundleId);
     return bundleId;
   }
 
@@ -429,7 +428,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Signing message...');
+    console.log('[Berth:Popup] Signing message...');
 
     try {
       // personal_sign params are [message, account]
@@ -438,10 +437,10 @@ class PopupPortoService {
         params: [message, account],
       });
 
-      console.log('[PopupPorto] Message signed successfully');
+      console.log('[Berth:Popup] Message signed successfully');
       return signature;
     } catch (error: any) {
-      console.error('[PopupPorto] Message signing failed:', error);
+      console.error('[Berth:Popup] Message signing failed:', error);
       throw error;
     }
   }
@@ -458,7 +457,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Signing typed data...');
+    console.log('[Berth:Popup] Signing typed data...');
 
     try {
       // eth_signTypedData_v4 params are [account, typedDataJson]
@@ -469,10 +468,10 @@ class PopupPortoService {
         params: [account, typedDataJson],
       });
 
-      console.log('[PopupPorto] Typed data signed successfully');
+      console.log('[Berth:Popup] Typed data signed successfully');
       return signature;
     } catch (error: any) {
-      console.error('[PopupPorto] Typed data signing failed:', error);
+      console.error('[Berth:Popup] Typed data signing failed:', error);
       throw error;
     }
   }
@@ -489,7 +488,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Getting calls history for:', address);
+    console.log('[Berth:Popup] Getting calls history for:', address);
 
     try {
       const history = await this.provider.request({
@@ -501,10 +500,10 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[PopupPorto] Calls history retrieved:', history?.length || 0, 'entries');
+      console.log('[Berth:Popup] Calls history retrieved:', history?.length || 0, 'entries');
       return history || [];
     } catch (error: any) {
-      console.error('[PopupPorto] Failed to get calls history:', error);
+      console.error('[Berth:Popup] Failed to get calls history:', error);
       throw error;
     }
   }
@@ -520,7 +519,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Getting calls status for bundle:', bundleId);
+    console.log('[Berth:Popup] Getting calls status for bundle:', bundleId);
 
     try {
       const status = await this.provider.request({
@@ -528,10 +527,10 @@ class PopupPortoService {
         params: [bundleId],
       });
 
-      console.log('[PopupPorto] Calls status:', status);
+      console.log('[Berth:Popup] Calls status:', status);
       return status;
     } catch (error: any) {
-      console.error('[PopupPorto] Failed to get calls status:', error);
+      console.error('[Berth:Popup] Failed to get calls status:', error);
       throw error;
     }
   }
@@ -547,7 +546,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Getting assets for:', address, 'chains:', chainIds);
+    console.log('[Berth:Popup] Getting assets for:', address, 'chains:', chainIds);
 
     try {
       // Convert chain IDs to hex strings (Porto expects hex format)
@@ -562,10 +561,10 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[PopupPorto] Assets retrieved:', assets);
+      console.log('[Berth:Popup] Assets retrieved:', assets);
       return assets || {};
     } catch (error: any) {
-      console.error('[PopupPorto] Failed to get assets:', error);
+      console.error('[Berth:Popup] Failed to get assets:', error);
       throw error;
     }
   }
@@ -582,7 +581,7 @@ class PopupPortoService {
 
     const chainIdHex = `0x${chainId.toString(16)}`;
 
-    console.log('[PopupPorto] Getting capabilities for chain:', chainIdHex);
+    console.log('[Berth:Popup] Getting capabilities for chain:', chainIdHex);
 
     try {
       const capabilities = await this.provider.request({
@@ -590,10 +589,10 @@ class PopupPortoService {
         params: [undefined, [chainIdHex]],
       });
 
-      console.log('[PopupPorto] Capabilities retrieved:', capabilities);
+      console.log('[Berth:Popup] Capabilities retrieved:', capabilities);
       return capabilities[chainIdHex] || null;
     } catch (error: any) {
-      console.error('[PopupPorto] Failed to get capabilities:', error);
+      console.error('[Berth:Popup] Failed to get capabilities:', error);
       return null;
     }
   }
@@ -604,20 +603,20 @@ class PopupPortoService {
    */
   async disconnect(): Promise<void> {
     if (!this.provider) {
-      console.warn('[PopupPorto] Provider not initialized, skipping disconnect');
+      console.warn('[Berth:Popup] Provider not initialized, skipping disconnect');
       return;
     }
 
-    console.log('[PopupPorto] Disconnecting from Porto...');
+    console.log('[Berth:Popup] Disconnecting from Porto...');
 
     try {
       await this.provider.request({
         method: 'wallet_disconnect',
       });
-      console.log('[PopupPorto] Successfully disconnected from Porto');
+      console.log('[Berth:Popup] Successfully disconnected from Porto');
     } catch (error: any) {
       // Log but don't throw - local deletion should still proceed
-      console.error('[PopupPorto] Disconnect error:', error);
+      console.error('[Berth:Popup] Disconnect error:', error);
     }
   }
 
@@ -641,7 +640,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Granting permissions:', JSON.stringify(params, null, 2));
+    console.log('[Berth:Popup] Granting permissions:', JSON.stringify(params, null, 2));
 
     try {
       // Build the permission request
@@ -657,17 +656,17 @@ class PopupPortoService {
         permissionParams.key = params.permissions.key;
       }
 
-      console.log('[PopupPorto] Sending permission params:', JSON.stringify(permissionParams, null, 2));
+      console.log('[Berth:Popup] Sending permission params:', JSON.stringify(permissionParams, null, 2));
 
       const result = await this.provider.request({
         method: 'wallet_grantPermissions',
         params: [permissionParams],
       });
 
-      console.log('[PopupPorto] Permissions granted:', result);
+      console.log('[Berth:Popup] Permissions granted:', result);
       return result;
     } catch (error: any) {
-      console.error('[PopupPorto] Failed to grant permissions:', error);
+      console.error('[Berth:Popup] Failed to grant permissions:', error);
       throw error;
     }
   }
@@ -680,7 +679,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Getting permissions for:', address);
+    console.log('[Berth:Popup] Getting permissions for:', address);
 
     try {
       const result = await this.provider.request({
@@ -688,14 +687,14 @@ class PopupPortoService {
         params: [{ address }],
       });
 
-      console.log('[PopupPorto] Permissions retrieved:', result);
+      console.log('[Berth:Popup] Permissions retrieved:', result);
       return result || [];
     } catch (error: any) {
       // Unauthorized errors are expected when account not connected - log as info
       if (error?.name?.includes('Unauthorized') || error?.message?.includes('Unauthorized')) {
-        console.log('[PopupPorto] Permissions unavailable - account not connected');
+        console.log('[Berth:Popup] Permissions unavailable - account not connected');
       } else {
-        console.error('[PopupPorto] Failed to get permissions:', error);
+        console.error('[Berth:Popup] Failed to get permissions:', error);
       }
       throw error;
     }
@@ -709,7 +708,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Revoking permission:', permissionId);
+    console.log('[Berth:Popup] Revoking permission:', permissionId);
 
     try {
       await this.provider.request({
@@ -717,9 +716,9 @@ class PopupPortoService {
         params: [{ id: permissionId }],
       });
 
-      console.log('[PopupPorto] Permission revoked');
+      console.log('[Berth:Popup] Permission revoked');
     } catch (error: any) {
-      console.error('[PopupPorto] Failed to revoke permission:', error);
+      console.error('[Berth:Popup] Failed to revoke permission:', error);
       throw error;
     }
   }
@@ -732,7 +731,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Getting keys for:', address);
+    console.log('[Berth:Popup] Getting keys for:', address);
 
     try {
       const result = await this.provider.request({
@@ -740,14 +739,14 @@ class PopupPortoService {
         params: [{ address }],
       });
 
-      console.log('[PopupPorto] Keys retrieved:', result);
+      console.log('[Berth:Popup] Keys retrieved:', result);
       return result || [];
     } catch (error: any) {
       // Unauthorized errors are expected when account not connected - log as info
       if (error?.name?.includes('Unauthorized') || error?.message?.includes('Unauthorized')) {
-        console.log('[PopupPorto] Keys unavailable - account not connected');
+        console.log('[Berth:Popup] Keys unavailable - account not connected');
       } else {
-        console.error('[PopupPorto] Failed to get keys:', error);
+        console.error('[Berth:Popup] Failed to get keys:', error);
       }
       throw error;
     }
@@ -761,7 +760,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[PopupPorto] Checking relay health...');
+    console.log('[Berth:Popup] Checking relay health...');
 
     try {
       const startTime = Date.now();
@@ -772,8 +771,8 @@ class PopupPortoService {
       const latency = Date.now() - startTime;
 
       // Log the raw response to understand its structure
-      console.log('[PopupPorto] Relay health raw result:', JSON.stringify(result, null, 2));
-      console.log('[PopupPorto] Relay health latency:', latency);
+      console.log('[Berth:Popup] Relay health raw result:', JSON.stringify(result, null, 2));
+      console.log('[Berth:Popup] Relay health latency:', latency);
 
       // Extract version from result (Porto returns { version: "..." } or similar)
       const version = typeof result === 'object' && result !== null
@@ -787,7 +786,7 @@ class PopupPortoService {
         version,
       };
     } catch (error: any) {
-      console.error('[PopupPorto] Relay health check failed:', error);
+      console.error('[Berth:Popup] Relay health check failed:', error);
       return {
         status: 'offline',
         latency: null,

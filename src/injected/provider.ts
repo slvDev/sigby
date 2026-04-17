@@ -6,7 +6,7 @@
 
 // Extend Window interface for TypeScript (this gets stripped in build)
 interface EthereumProvider {
-  isPorto: boolean;
+  isBerth: boolean;
   isMetaMask: boolean;
   request(args: { method: string; params?: any[] }): Promise<any>;
   on(event: string, handler: (...args: any[]) => void): void;
@@ -19,12 +19,12 @@ interface Window {
 }
 
 /**
- * Porto Provider implementation
+ * Berth Provider implementation
  * Provides window.ethereum interface for dApps
  */
-class PortoProvider implements EthereumProvider {
+class BerthProvider implements EthereumProvider {
   // Provider identification
-  readonly isPorto = true;
+  readonly isBerth = true;
   readonly isMetaMask = true; // Compatibility flag for dApps that check for MetaMask
 
   // State properties (MetaMask compatibility)
@@ -50,7 +50,7 @@ class PortoProvider implements EthereumProvider {
   >();
 
   constructor() {
-    console.log("[PortoProvider] Initializing Porto Ethereum provider");
+    console.log("[Berth] Initializing Ethereum provider");
 
     // Set up communication with content script
     this.setupMessageBridge();
@@ -64,14 +64,14 @@ class PortoProvider implements EthereumProvider {
    * Main entry point for dApp interactions
    */
   async request(args: { method: string; params?: any[] }): Promise<any> {
-    console.log("[PortoProvider] Request:", args.method);
+    console.log("[Berth] Request:", args.method);
 
     const requestId = `req_${++this.requestId}_${Date.now()}`;
 
     return new Promise((resolve, reject) => {
       // Set up timeout (2 minutes for signing requests)
       const timeout = setTimeout(() => {
-        console.warn("[PortoProvider] Request timeout:", requestId, args.method);
+        console.warn("[Berth] Request timeout:", requestId, args.method);
         this.pendingRequests.delete(requestId);
         reject(new Error("Request timeout"));
       }, 120000);
@@ -122,7 +122,7 @@ class PortoProvider implements EthereumProvider {
         try {
           handler(...args);
         } catch (error) {
-          console.error("[PortoProvider] Event handler error:", error);
+          console.error("[Berth] Event handler error:", error);
         }
       });
     }
@@ -161,11 +161,11 @@ class PortoProvider implements EthereumProvider {
   private handleResponse(data: any): void {
     const { requestId, result, error } = data;
 
-    console.log("[PortoProvider] Handling response:", requestId, "result:", result, "error:", error);
+    console.log("[Berth] Handling response:", requestId, "result:", result, "error:", error);
 
     const pending = this.pendingRequests.get(requestId);
     if (pending) {
-      console.log("[PortoProvider] Found pending request, resolving:", requestId);
+      console.log("[Berth] Found pending request, resolving:", requestId);
       clearTimeout(pending.timeout);
 
       // Update state properties based on method (MetaMask compatibility)
@@ -176,14 +176,14 @@ class PortoProvider implements EthereumProvider {
       this.pendingRequests.delete(requestId);
 
       if (error) {
-        console.log("[PortoProvider] Rejecting with error:", error);
+        console.log("[Berth] Rejecting with error:", error);
         pending.reject(new Error(error));
       } else {
-        console.log("[PortoProvider] Resolving with result:", result);
+        console.log("[Berth] Resolving with result:", result);
         pending.resolve(result);
       }
     } else {
-      console.warn("[PortoProvider] No pending request found for:", requestId);
+      console.warn("[Berth] No pending request found for:", requestId);
     }
   }
 
@@ -196,13 +196,13 @@ class PortoProvider implements EthereumProvider {
         this.chainId = result;
         // networkVersion is decimal string of chainId
         this.networkVersion = result ? String(parseInt(result, 16)) : null;
-        console.log("[PortoProvider] Updated chainId:", this.chainId, "networkVersion:", this.networkVersion);
+        console.log("[Berth] Updated chainId:", this.chainId, "networkVersion:", this.networkVersion);
         break;
       case "eth_accounts":
       case "eth_requestAccounts":
         if (Array.isArray(result) && result.length > 0) {
           this.selectedAddress = result[0];
-          console.log("[PortoProvider] Updated selectedAddress:", this.selectedAddress);
+          console.log("[Berth] Updated selectedAddress:", this.selectedAddress);
         }
         break;
       case "net_version":
@@ -217,7 +217,7 @@ class PortoProvider implements EthereumProvider {
   private handleEvent(data: any): void {
     const { event, data: eventData } = data;
 
-    console.log("[PortoProvider] Emitting event:", event, eventData);
+    console.log("[Berth] Emitting event:", event, eventData);
 
     // Update state properties from events (MetaMask compatibility)
     switch (event) {
@@ -254,7 +254,7 @@ class PortoProvider implements EthereumProvider {
    * Legacy enable() method (deprecated, use request({method: 'eth_requestAccounts'}))
    */
   async enable(): Promise<string[]> {
-    console.warn("[PortoProvider] enable() is deprecated, use request({ method: 'eth_requestAccounts' })");
+    console.warn("[Berth] enable() is deprecated, use request({ method: 'eth_requestAccounts' })");
     return this.request({ method: "eth_requestAccounts" });
   }
 
@@ -262,7 +262,7 @@ class PortoProvider implements EthereumProvider {
    * Legacy send() method (deprecated)
    */
   send(methodOrPayload: string | any, paramsOrCallback?: any[] | Function): any {
-    console.warn("[PortoProvider] send() is deprecated, use request()");
+    console.warn("[Berth] send() is deprecated, use request()");
 
     // Handle callback style: send(payload, callback)
     if (typeof paramsOrCallback === "function") {
@@ -305,7 +305,7 @@ class PortoProvider implements EthereumProvider {
    * Legacy sendAsync() method (deprecated)
    */
   sendAsync(payload: any, callback: (error: any, response: any) => void): void {
-    console.warn("[PortoProvider] sendAsync() is deprecated, use request()");
+    console.warn("[Berth] sendAsync() is deprecated, use request()");
     this.request({ method: payload.method, params: payload.params })
       .then((result) => callback(null, { id: payload.id, jsonrpc: "2.0", result }))
       .catch((error) => callback(error, null));
@@ -326,10 +326,10 @@ class PortoProvider implements EthereumProvider {
    */
   private announceProvider(): void {
     const info = {
-      uuid: "550e8400-e29b-41d4-a716-446655440000", // Porto wallet UUID
-      name: "Porto Wallet",
+      uuid: "e6a4f8b2-9c3d-4a1b-8b5f-7d2c4e6a1f93", // Berth provider UUID
+      name: "Berth",
       icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2MzY2RjEiLz4KPHBhdGggZD0iTTE2IDhDMTEuNTggOCA4IDExLjU4IDggMTZDOCAyMC40MiAxMS41OCAyNCAxNiAyNEMyMC40MiAyNCAyNCwyMC40MiAyNCAxNkMyNCAxMS41OCAyMC40MiA4IDE2IDhaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4=",
-      rdns: "sh.porto.wallet",
+      rdns: "com.berthwallet",
     };
 
     const announce = () => {
@@ -362,20 +362,21 @@ class PortoProvider implements EthereumProvider {
 // Initialize and inject provider
 (function () {
   try {
-    console.log("[PortoProvider] Injecting provider into window");
+    console.log("[Berth] Injecting provider into window");
 
     // Create provider instance
-    const provider = new PortoProvider();
+    const provider = new BerthProvider();
 
     // Inject as window.ethereum if not already present
     if (!window.ethereum) {
       (window as any).ethereum = provider;
-      console.log("[PortoProvider] Set as window.ethereum");
+      console.log("[Berth] Set as window.ethereum");
     } else {
-      console.log("[PortoProvider] window.ethereum already exists, registering as additional provider");
+      console.log("[Berth] window.ethereum already exists, registering as additional provider");
 
       // Register in providers array (multi-wallet pattern used by some dApps)
       const existingEthereum = (window as any).ethereum;
+
 
       // Initialize providers array if needed
       if (!existingEthereum.providers) {
@@ -385,15 +386,15 @@ class PortoProvider implements EthereumProvider {
       // Add our provider to the array
       if (!existingEthereum.providers.includes(provider)) {
         existingEthereum.providers.push(provider);
-        console.log("[PortoProvider] Added to providers array");
+        console.log("[Berth] Added to providers array");
       }
     }
 
     // Dispatch initialization event
     window.dispatchEvent(new Event("ethereum#initialized"));
 
-    console.log("[PortoProvider] Provider injection complete");
+    console.log("[Berth] Provider injection complete");
   } catch (error) {
-    console.error("[PortoProvider] Failed to inject provider:", error);
+    console.error("[Berth] Failed to inject provider:", error);
   }
 })();
