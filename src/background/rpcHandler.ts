@@ -6,6 +6,7 @@
 
 import {
   createPublicClient,
+  fallback,
   http,
   type Address,
   type Hex,
@@ -27,22 +28,24 @@ import { CHAIN_IDS, CHAIN_CONFIGS } from "../utils/constants";
 
 /**
  * Chain configuration with viem chain objects
- * Maps CHAIN_IDS to viem chain definitions
+ * Maps CHAIN_IDS to viem chain definitions + all RPC URLs from CHAIN_CONFIGS
+ * (primary first, secondaries after) so the `fallback()` transport can try
+ * them in order when the primary is unhealthy.
  */
-const CHAIN_CONFIG: Record<number, { chain: any; rpcUrl?: string }> = {
+const CHAIN_CONFIG: Record<number, { chain: any; rpcUrls: string[] }> = {
   // Mainnets
-  [CHAIN_IDS.ETHEREUM]: { chain: mainnet, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.ETHEREUM]?.rpcUrls[0] },
-  [CHAIN_IDS.BASE]: { chain: base, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.BASE]?.rpcUrls[0] },
-  [CHAIN_IDS.ARBITRUM]: { chain: arbitrum, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.ARBITRUM]?.rpcUrls[0] },
-  [CHAIN_IDS.OPTIMISM]: { chain: optimism, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.OPTIMISM]?.rpcUrls[0] },
-  [CHAIN_IDS.POLYGON]: { chain: polygon, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.POLYGON]?.rpcUrls[0] },
+  [CHAIN_IDS.ETHEREUM]: { chain: mainnet, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.ETHEREUM]?.rpcUrls ?? [] },
+  [CHAIN_IDS.BASE]: { chain: base, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.BASE]?.rpcUrls ?? [] },
+  [CHAIN_IDS.ARBITRUM]: { chain: arbitrum, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.ARBITRUM]?.rpcUrls ?? [] },
+  [CHAIN_IDS.OPTIMISM]: { chain: optimism, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.OPTIMISM]?.rpcUrls ?? [] },
+  [CHAIN_IDS.POLYGON]: { chain: polygon, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.POLYGON]?.rpcUrls ?? [] },
   // Testnets
-  [CHAIN_IDS.SEPOLIA]: { chain: sepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.SEPOLIA]?.rpcUrls[0] },
-  [CHAIN_IDS.BASE_SEPOLIA]: { chain: baseSepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.BASE_SEPOLIA]?.rpcUrls[0] },
-  [CHAIN_IDS.ARBITRUM_SEPOLIA]: { chain: arbitrumSepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.ARBITRUM_SEPOLIA]?.rpcUrls[0] },
-  [CHAIN_IDS.OPTIMISM_SEPOLIA]: { chain: optimismSepolia, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.OPTIMISM_SEPOLIA]?.rpcUrls[0] },
-  [CHAIN_IDS.POLYGON_AMOY]: { chain: polygonAmoy, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.POLYGON_AMOY]?.rpcUrls[0] },
-  [CHAIN_IDS.HOLESKY]: { chain: holesky, rpcUrl: CHAIN_CONFIGS[CHAIN_IDS.HOLESKY]?.rpcUrls[0] },
+  [CHAIN_IDS.SEPOLIA]: { chain: sepolia, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.SEPOLIA]?.rpcUrls ?? [] },
+  [CHAIN_IDS.BASE_SEPOLIA]: { chain: baseSepolia, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.BASE_SEPOLIA]?.rpcUrls ?? [] },
+  [CHAIN_IDS.ARBITRUM_SEPOLIA]: { chain: arbitrumSepolia, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.ARBITRUM_SEPOLIA]?.rpcUrls ?? [] },
+  [CHAIN_IDS.OPTIMISM_SEPOLIA]: { chain: optimismSepolia, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.OPTIMISM_SEPOLIA]?.rpcUrls ?? [] },
+  [CHAIN_IDS.POLYGON_AMOY]: { chain: polygonAmoy, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.POLYGON_AMOY]?.rpcUrls ?? [] },
+  [CHAIN_IDS.HOLESKY]: { chain: holesky, rpcUrls: CHAIN_CONFIGS[CHAIN_IDS.HOLESKY]?.rpcUrls ?? [] },
 };
 
 /**
@@ -89,17 +92,21 @@ export class RpcHandler {
 
     if (!client) {
       const config = CHAIN_CONFIG[chainId];
-      if (!config) {
+      if (!config || config.rpcUrls.length === 0) {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
+      // Use viem's fallback transport so a transient failure on the primary
+      // RPC silently rolls over to the secondary. Manifest CSP +
+      // host_permissions allow every URL in CHAIN_CONFIGS.
+      const transports = config.rpcUrls.map((url) => http(url));
       client = createPublicClient({
         chain: config.chain,
-        transport: http(config.rpcUrl),
+        transport: transports.length > 1 ? fallback(transports) : transports[0],
       });
 
       this.clients.set(chainId, client);
-      console.log(`[RpcHandler] Created client for chain ${chainId}`);
+      console.log(`[RpcHandler] Created client for chain ${chainId} with ${transports.length} RPC(s)`);
     }
 
     return client;

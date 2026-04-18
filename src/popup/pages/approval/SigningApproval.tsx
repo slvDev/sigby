@@ -172,7 +172,7 @@ export function SigningApproval() {
     () => analyzeOrigin(request.origin || ""),
     [request.origin]
   );
-  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
+  const displayOrigin = originAnalysis.hostname;
   const isPersonalSign = request.method === "personal_sign";
   const rawTypedData = isPersonalSign
     ? null

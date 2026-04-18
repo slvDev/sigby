@@ -138,7 +138,7 @@ export function GrantPermissionsApproval() {
     () => analyzeOrigin(request.origin || ""),
     [request.origin]
   );
-  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
+  const displayOrigin = originAnalysis.hostname;
   const calls = permissionRequest.permissions.calls ?? [];
   const spendLimits = permissionRequest.permissions.spend ?? [];
 

@@ -1,34 +1,37 @@
 /**
  * Origin analysis helpers for approval screens.
  *
- * Browsers auto-encode IDN domains to Punycode (`xn--…`) in the URL string,
- * so a raw ASCII hostname may hide Unicode homoglyphs — `xn--uniswp-30a.org`
- * renders as `unісwap.org` (Cyrillic і). We decode back to the Unicode form
- * for display and flag the mismatch so the user sees both.
+ * Two distinct risks we want to surface separately:
+ *   - `isPunycode`: hostname includes an `xn--…` label. These are IDN domains
+ *     the browser is rendering in its ASCII compatibility form — could be
+ *     legitimate (unicode.org), could be a homograph like
+ *     `xn--uniswp-30a.org`. We flag the domain; actually decoding to Unicode
+ *     for display would require the `punycode` package, out of scope for now.
+ *   - `mixedScripts`: the Unicode hostname mixes character sets (Latin with
+ *     Cyrillic/Greek/Hebrew/Arabic/Han). Classic homograph risk that doesn't
+ *     require Punycode — e.g. a URL typed with a Cyrillic `і`.
  */
 
 export interface OriginAnalysis {
   /** Origin as received (may include scheme, may be "Unknown dApp"). */
   raw: string;
-  /** Parsed hostname in its browser-normalized (ASCII/Punycode) form. */
+  /** Parsed hostname in its browser-normalized form. */
   hostname: string;
   /** URL scheme, lowercased (e.g. "https"). `null` when parsing fails. */
   scheme: string | null;
   /** True for `https:`. */
   isHttps: boolean;
-  /** True if the hostname uses Punycode (`xn--…` in any label). */
+  /** True if the hostname contains a Punycode (`xn--…`) label. */
   isPunycode: boolean;
-  /** Unicode rendering of the hostname, if different from `hostname`. */
-  unicodeHostname: string | null;
-  /** True if the Unicode form mixes scripts (homograph risk). */
+  /** True if the hostname mixes character sets (homograph risk). */
   mixedScripts: boolean;
 }
 
 const PUNYCODE_PREFIX = "xn--";
 
 // Minimal script buckets we care about for homograph detection. Full Unicode
-// Script property is overkill here — we just want to flag "Latin mixed with
-// Cyrillic/Greek/etc." which is the classic homograph attack.
+// Script property would be overkill — we only need to flag "Latin mixed with
+// Cyrillic/Greek/etc.", the classic homograph vector.
 const SCRIPT_RANGES: Array<{ name: string; re: RegExp }> = [
   { name: "Latin", re: /[A-Za-z]/ },
   { name: "Cyrillic", re: /[\u0400-\u04FF]/ },
@@ -47,25 +50,6 @@ function detectMixedScripts(s: string): boolean {
   return false;
 }
 
-/**
- * Best-effort Punycode → Unicode. Falls back to the input if `URL` can't
- * resolve (e.g. invalid label). Modern Chromium's `URL.hostname` does this
- * automatically for the full URL, but we may have just a bare hostname.
- */
-function punycodeToUnicode(hostname: string): string | null {
-  if (!hostname.split(".").some((label) => label.startsWith(PUNYCODE_PREFIX))) {
-    return null;
-  }
-  try {
-    // Construct a throwaway URL to let the engine decode the host.
-    const decoded = new URL(`https://${hostname}`).hostname;
-    // Some engines keep the Punycode form; if nothing changed, no IDN.
-    return decoded !== hostname ? decoded : null;
-  } catch {
-    return null;
-  }
-}
-
 export function analyzeOrigin(raw: string): OriginAnalysis {
   let scheme: string | null = null;
   let hostname = raw;
@@ -80,12 +64,11 @@ export function analyzeOrigin(raw: string): OriginAnalysis {
     hostname = stripped || raw;
   }
 
-  const labels = hostname.split(".");
-  const isPunycode = labels.some((label) => label.startsWith(PUNYCODE_PREFIX));
-  const unicodeHostname = punycodeToUnicode(hostname);
-  const nonAscii = /[^\x00-\x7F]/.test(hostname) || (unicodeHostname !== null);
-  const mixedScripts = nonAscii
-    ? detectMixedScripts(unicodeHostname ?? hostname)
+  const isPunycode = hostname
+    .split(".")
+    .some((label) => label.startsWith(PUNYCODE_PREFIX));
+  const mixedScripts = /[^\x00-\x7F]/.test(hostname)
+    ? detectMixedScripts(hostname)
     : false;
 
   return {
@@ -94,7 +77,6 @@ export function analyzeOrigin(raw: string): OriginAnalysis {
     scheme,
     isHttps: scheme === "https",
     isPunycode,
-    unicodeHostname,
     mixedScripts,
   };
 }

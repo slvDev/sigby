@@ -215,7 +215,7 @@ export function TransactionApproval() {
     () => analyzeOrigin(request.origin || ""),
     [request.origin]
   );
-  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
+  const displayOrigin = originAnalysis.hostname;
 
   // Helper function to format a single call
   const formatCall = (call: any) => {

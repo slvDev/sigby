@@ -128,11 +128,15 @@ export class AccountManager {
         return existingAccount;
       }
 
-      // Get next account index
-      const accountCount = await this.storageManager.getAccountCount();
-      const accountIndex = accountCount + 1;
+      // Derive a local-only index from how many accounts we already hold on
+      // this device — do NOT touch the global `accountCount` counter. That
+      // counter drives the immutable `Berth N` keychain label set in
+      // `createAccount`, and bumping it on every cross-device reconnect is
+      // what caused the label to drift (e.g. "Berth 3" on device A but
+      // "Berth 5" on device B for the same synced passkey).
+      const localAccounts = await this.storageManager.getAllAccounts();
+      const accountIndex = Object.keys(localAccounts).length + 1;
 
-      // Create new account entry
       const account: Account = {
         address,
         credentialId: "", // Managed by Porto SDK in IndexedDB
@@ -144,7 +148,6 @@ export class AccountManager {
       };
 
       await this.storageManager.saveAccount(account);
-      await this.storageManager.incrementAccountCount();
       await this.storageManager.setActiveAccountAddress(address);
 
       console.log("[AccountManager] New account connected and saved:", address);

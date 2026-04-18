@@ -16,13 +16,12 @@ interface OriginSecurityBannerProps {
 }
 
 export function OriginSecurityBanner({ analysis, isKnownOrigin }: OriginSecurityBannerProps) {
-  const { scheme, isHttps, isPunycode, unicodeHostname, mixedScripts, hostname } = analysis;
+  const { scheme, isHttps, isPunycode, mixedScripts, hostname } = analysis;
 
   const showInsecure = scheme !== null && !isHttps;
-  const showIdnWarn = isPunycode || mixedScripts;
   const showNewOrigin = isKnownOrigin === false;
 
-  if (!showInsecure && !showIdnWarn && !showNewOrigin) {
+  if (!showInsecure && !isPunycode && !mixedScripts && !showNewOrigin) {
     return (
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <LockIcon />
@@ -40,15 +39,18 @@ export function OriginSecurityBanner({ analysis, isKnownOrigin }: OriginSecurity
           body={`This site is served over ${scheme ?? "an unknown protocol"} — its traffic is not encrypted. Do not sign here unless you trust the network.`}
         />
       )}
-      {showIdnWarn && (
+      {isPunycode && (
         <Banner
           tone="warn"
-          title="Unusual domain"
-          body={
-            unicodeHostname
-              ? `Punycode hostname "${hostname}" renders as "${unicodeHostname}". Confirm it matches the site you meant to visit.`
-              : `Hostname "${hostname}" mixes character sets — this can be used to impersonate another site. Verify the URL before continuing.`
-          }
+          title="Internationalized domain"
+          body={`Hostname "${hostname}" is an IDN (contains an xn-- label). Confirm it matches the site you meant to visit — Punycode can disguise Unicode lookalikes.`}
+        />
+      )}
+      {mixedScripts && (
+        <Banner
+          tone="warn"
+          title="Mixed-script hostname"
+          body={`Hostname "${hostname}" mixes character sets — this is a common homograph trick used to impersonate legitimate sites.`}
         />
       )}
       {showNewOrigin && (

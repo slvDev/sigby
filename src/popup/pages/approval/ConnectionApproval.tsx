@@ -22,7 +22,7 @@ export function ConnectionApproval() {
   const [isKnownOrigin, setIsKnownOrigin] = useState<boolean | null>(null);
 
   const originAnalysis = useMemo(() => analyzeOrigin(origin), [origin]);
-  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
+  const displayOrigin = originAnalysis.hostname;
   const shortAddress = accountAddress
     ? `${accountAddress.slice(0, 6)}...${accountAddress.slice(-4)}`
     : "No account";
