@@ -13,7 +13,17 @@
 
   "host_permissions": [
     "https://rpc.porto.sh/*",
-    "https://id.porto.sh/*"
+    "https://eth.llamarpc.com/*",
+    "https://mainnet.base.org/*",
+    "https://arb1.arbitrum.io/*",
+    "https://mainnet.optimism.io/*",
+    "https://polygon-rpc.com/*",
+    "https://rpc.sepolia.org/*",
+    "https://sepolia.base.org/*",
+    "https://sepolia-rollup.arbitrum.io/*",
+    "https://sepolia.optimism.io/*",
+    "https://ethereum-holesky.publicnode.com/*",
+    "https://rpc-amoy.polygon.technology/*"
   ],
 
   "background": {
@@ -54,6 +64,6 @@
   },
 
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://rpc.porto.sh https://id.porto.sh https://mainnet.base.org https://eth.llamarpc.com https://arb1.arbitrum.io https://mainnet.optimism.io https://polygon-rpc.com https://rpc.sepolia.org https://sepolia.base.org https://sepolia-rollup.arbitrum.io https://sepolia.optimism.io https://rpc-mumbai.maticvigil.com https://cloudflare-eth.com https://rpc.ankr.com; frame-src https://id.porto.sh"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://rpc.porto.sh https://eth.llamarpc.com https://mainnet.base.org https://arb1.arbitrum.io https://mainnet.optimism.io https://polygon-rpc.com https://rpc.sepolia.org https://sepolia.base.org https://sepolia-rollup.arbitrum.io https://sepolia.optimism.io https://ethereum-holesky.publicnode.com https://rpc-amoy.polygon.technology"
   }
 }
