@@ -22,6 +22,10 @@ export function TransactionApproval() {
   const [gasEstimate, setGasEstimate] = useState<string | null>(null);
   const [feeTokens, setFeeTokens] = useState<FeeToken[]>([]);
   const [selectedFeeToken, setSelectedFeeToken] = useState<string>("");
+  // When the dApp puts `capabilities.feeToken` on a wallet_sendCalls request,
+  // that's a hard requirement (e.g. merchant wants payment in USDC); we lock
+  // the picker to it instead of silently overriding the dApp's choice.
+  const [dappRequiredFeeToken, setDappRequiredFeeToken] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchRequest() {
@@ -55,14 +59,25 @@ export function TransactionApproval() {
             }
           }
 
+          // Parse any dApp-required fee token (wallet_sendCalls only — the
+          // capabilities slot doesn't exist on legacy eth_sendTransaction).
+          let required: string | null = null;
+          if (response.data.method === "wallet_sendCalls") {
+            const raw = response.data.params?.[0]?.capabilities?.feeToken;
+            required = typeof raw === "string" ? raw : raw?.symbol ?? null;
+          }
+          setDappRequiredFeeToken(required);
+
           // Fetch available fee tokens from capabilities
           try {
             const capabilities = await popupPortoService.getCapabilities(response.data.chainId);
             if (capabilities?.feeToken?.supported && capabilities.feeToken.tokens?.length > 0) {
               const tokens = capabilities.feeToken.tokens;
               setFeeTokens(tokens);
-              setSelectedFeeToken(tokens[0].symbol); // Default to first token
-              console.log("[TransactionApproval] Fee tokens available:", tokens);
+              // If the dApp pinned a fee token and it's available, select it
+              // and leave it locked. Otherwise default to first.
+              const pinned = required && tokens.find((t) => t.symbol === required);
+              setSelectedFeeToken(pinned ? pinned.symbol : tokens[0].symbol);
             }
           } catch (e) {
             console.warn("Failed to fetch fee tokens:", e);
@@ -83,14 +98,27 @@ export function TransactionApproval() {
   const handleApprove = async () => {
     if (!request) return;
 
+    // Block approval if the dApp pinned a fee token we can't honour.
+    if (
+      dappRequiredFeeToken &&
+      feeTokens.length > 0 &&
+      !feeTokens.some((t) => t.symbol === dappRequiredFeeToken)
+    ) {
+      setError(
+        `This dApp requires ${dappRequiredFeeToken} for gas, which isn't available on this chain.`
+      );
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
       let result: string;
 
-      // Use selected fee token (from capabilities)
-      const feeToken = selectedFeeToken || feeTokens[0]?.symbol;
+      // If the dApp pinned a fee token, always honour it; otherwise use the
+      // user's selection (falling back to the first available token).
+      const feeToken = dappRequiredFeeToken ?? selectedFeeToken ?? feeTokens[0]?.symbol;
 
       if (request.method === "wallet_sendCalls") {
         // EIP-5792: wallet_sendCalls - return bundleId immediately
@@ -103,15 +131,16 @@ export function TransactionApproval() {
         // Ensure account is authorized before sending
         await popupPortoService.ensureAccountAuthorized(request.accountAddress);
 
-        // Build params with fee token capability
-        // User's selection overrides whatever the dApp requested
+        // Build params with fee token capability. When the dApp pinned a token
+        // we pass it through untouched; otherwise we substitute the user's
+        // pick for any lingering capabilities.feeToken.
         const callsParam = request.params[0] || {};
         const { feeToken: _dappFeeToken, ...otherCapabilities } = callsParam.capabilities || {};
         const paramsWithFeeToken = [{
           ...callsParam,
           capabilities: {
             ...otherCapabilities,
-            feeToken, // Always pass user's selection (including "native" for ETH)
+            feeToken,
           },
         }];
 
@@ -277,12 +306,21 @@ export function TransactionApproval() {
 
       {/* Fee Token Selector */}
       {feeTokens.length > 0 && (
-        <FeeTokenDropdown
-          tokens={feeTokens}
-          selected={selectedFeeToken}
-          onChange={setSelectedFeeToken}
-          disabled={isLoading}
-        />
+        <div className="space-y-1">
+          <FeeTokenDropdown
+            tokens={feeTokens}
+            selected={selectedFeeToken}
+            onChange={setSelectedFeeToken}
+            disabled={isLoading || dappRequiredFeeToken !== null}
+          />
+          {dappRequiredFeeToken && (
+            <p className="text-xs text-gray-500 px-1">
+              {feeTokens.some((t) => t.symbol === dappRequiredFeeToken)
+                ? `${dappRequiredFeeToken} is required by this dApp.`
+                : `${dappRequiredFeeToken} is required by this dApp but isn't available on this chain.`}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Error */}
