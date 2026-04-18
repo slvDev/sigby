@@ -6,6 +6,9 @@
 
 import { MessageType } from "../types/messages";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
+
 /**
  * Check if the extension context is still valid
  * Returns false if extension was reloaded/updated and this content script is orphaned
@@ -79,10 +82,23 @@ class DappBridge {
         return;
       }
 
-      // Only handle Porto provider requests
-      if (event.data.type === "PORTO_REQUEST") {
-        await this.handleProviderRequest(event.data);
+      const data = event.data;
+      // Shape-check: plain object literal, known type tag, UUID correlation id,
+      // string method, array params. Silently drop anything else.
+      if (
+        data === null ||
+        typeof data !== "object" ||
+        Array.isArray(data) ||
+        Object.getPrototypeOf(data) !== Object.prototype ||
+        data.type !== "PORTO_REQUEST" ||
+        !isUuid(data.requestId) ||
+        typeof data.method !== "string" ||
+        (data.params !== undefined && !Array.isArray(data.params))
+      ) {
+        return;
       }
+
+      await this.handleProviderRequest(data);
     });
 
     // Listen to messages from background script

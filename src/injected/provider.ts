@@ -4,6 +4,9 @@
  * Runs in page context and communicates with content script via postMessage
  */
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
+
 // Extend Window interface for TypeScript (this gets stripped in build)
 interface EthereumProvider {
   isBerth: boolean;
@@ -38,7 +41,6 @@ class BerthProvider implements EthereumProvider {
   private eventListeners = new Map<string, Set<Function>>();
 
   // Request tracking
-  private requestId = 0;
   private pendingRequests = new Map<
     string,
     {
@@ -66,7 +68,7 @@ class BerthProvider implements EthereumProvider {
   async request(args: { method: string; params?: any[] }): Promise<any> {
     console.log("[Berth] Request:", args.method);
 
-    const requestId = `req_${++this.requestId}_${Date.now()}`;
+    const requestId = crypto.randomUUID();
 
     return new Promise((resolve, reject) => {
       // Set up timeout (2 minutes for signing requests)
@@ -143,14 +145,23 @@ class BerthProvider implements EthereumProvider {
         return;
       }
 
-      // Handle responses from content script
-      if (event.data.type === "PORTO_RESPONSE") {
-        this.handleResponse(event.data);
+      const data = event.data;
+      // Shape-check: plain object literal, no array/prototype tricks, known type tag.
+      if (
+        data === null ||
+        typeof data !== "object" ||
+        Array.isArray(data) ||
+        Object.getPrototypeOf(data) !== Object.prototype
+      ) {
+        return;
       }
 
-      // Handle events from content script
-      if (event.data.type === "PORTO_EVENT") {
-        this.handleEvent(event.data);
+      if (data.type === "PORTO_RESPONSE") {
+        if (!isUuid(data.requestId)) return;
+        this.handleResponse(data);
+      } else if (data.type === "PORTO_EVENT") {
+        if (typeof data.event !== "string") return;
+        this.handleEvent(data);
       }
     });
   }
