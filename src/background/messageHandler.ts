@@ -42,7 +42,7 @@ import { eventBroadcaster } from "./eventBroadcaster";
 import { tokenService } from "./tokenService";
 // portfolioService removed - using Porto's wallet_getAssets instead
 // TransactionMonitor removed - using Porto's wallet_getCallsStatus instead
-import { ERROR_MESSAGES, CHAIN_CONFIGS } from "../utils/constants";
+import { ERROR_MESSAGES, CHAIN_CONFIGS, PORTO_CONFIG } from "../utils/constants";
 import { MessageType as MT } from "../types/messages";
 import {
   validateTransactionParams,
@@ -511,9 +511,14 @@ export class MessageHandler {
         case "personal_sign":
           return await this.handlePersonalSign(params || [], sender, origin);
 
-        case "eth_sign":
-          // eth_sign is deprecated and insecure, redirect to personal_sign
-          return await this.handlePersonalSign(params || [], sender, origin);
+        case "eth_sign": {
+          // eth_sign is deprecated and insecure — redirect to personal_sign.
+          // Note: eth_sign uses [address, message], personal_sign uses
+          // [message, address]. Swap before forwarding so validation doesn't
+          // reject the call and the signer sees the right payload.
+          const [addr, msg] = (params || []) as [unknown, unknown];
+          return await this.handlePersonalSign([msg, addr], sender, origin);
+        }
 
         case "eth_signTypedData":
         case "eth_signTypedData_v3":
@@ -1666,62 +1671,82 @@ export class MessageHandler {
   }
 
   /**
-   * Handle wallet_getCapabilities (EIP-5792)
-   * Returns wallet capabilities for smart account features
-   * SECURITY: Only returns capabilities to connected dApps
+   * Handle wallet_getCapabilities (EIP-5792).
+   *
+   * The Porto Relay responds with its own raw shape (`{ contracts, fees, ... }`
+   * per chain), not with the EIP-5792 flattened shape dApps expect. The Porto
+   * SDK does this transform in its relay mode (see
+   * node_modules/porto/src/core/internal/modes/relay.ts — action
+   * `getCapabilities`); we replicate it here so dApps that reach the provider
+   * via `window.ethereum.request(...)` see the same shape as SDK consumers.
+   *
+   * SECURITY: only returns capabilities to connected dApps.
    */
   private async handleWalletGetCapabilities(params?: any[], origin?: string): Promise<MessageResponse> {
     try {
-      console.log('[MessageHandler] wallet_getCapabilities called, origin:', origin, 'params:', params);
-
       const account = await this.accountManager.getAccount();
-      console.log('[MessageHandler] wallet_getCapabilities account:', account?.address);
+      if (!account || !origin) return { success: true, data: {} };
 
-      // If no account or no origin, return empty (don't reveal wallet info)
-      if (!account || !origin) {
-        console.log('[MessageHandler] wallet_getCapabilities: no account or origin, returning empty');
-        return { success: true, data: {} };
-      }
-
-      // Check if dApp is connected - SECURITY: only return capabilities to connected dApps
       const isConnected = await this.dappManager.isConnected(origin, account.address);
-      console.log('[MessageHandler] wallet_getCapabilities isConnected:', isConnected);
-      if (!isConnected) {
-        console.log('[MessageHandler] wallet_getCapabilities: dApp not connected, returning empty');
-        return { success: true, data: {} };
-      }
+      if (!isConnected) return { success: true, data: {} };
 
-      // Get current chain ID (use per-origin chain if available)
-      const chainId = await this.dappManager.getChainIdForOrigin(origin, account.address);
-      const chainIdHex = `0x${chainId.toString(16)}`;
-      console.log('[MessageHandler] wallet_getCapabilities chainId:', chainId, 'hex:', chainIdHex);
+      // EIP-5792 request shape: `params: [address?, chainIds?: Hex[]]`.
+      // When the dApp scopes to specific chains we honour that; otherwise we
+      // return capabilities for the origin's currently-selected chain only
+      // (avoids a fan-out to every supported chain on each call).
+      const dappChainIds: unknown = params?.[1];
+      const chainIdsHex: string[] = Array.isArray(dappChainIds) && dappChainIds.length > 0
+        ? dappChainIds.filter((x): x is string => typeof x === "string" && x.startsWith("0x"))
+        : [`0x${(await this.dappManager.getChainIdForOrigin(origin, account.address)).toString(16)}`];
+      if (chainIdsHex.length === 0) return { success: true, data: {} };
 
-      // Call Porto Relay directly to get real capabilities
-      // Relay expects params as array of chain IDs: [[chainId1, chainId2, ...]]
-      const response = await fetch('https://rpc.porto.sh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // Relay expects decimal chain IDs (schema/rpc.ts `wallet_getCapabilities`
+      // request is `tuple([array(number())])`). Sending hex previously caused
+      // schema rejection which we silently caught as `{}`.
+      const chainIdsNumeric = chainIdsHex.map((hex) => parseInt(hex, 16));
+
+      const response = await fetch(PORTO_CONFIG.RELAY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jsonrpc: '2.0',
+          jsonrpc: "2.0",
           id: 1,
-          method: 'wallet_getCapabilities',
-          params: [[chainIdHex]],  // Array of chain IDs
+          method: "wallet_getCapabilities",
+          params: [chainIdsNumeric],
         }),
       });
 
       const data = await response.json();
-      console.log('[MessageHandler] wallet_getCapabilities relay response:', JSON.stringify(data));
-
       if (data.error) {
-        console.error('[MessageHandler] Relay error:', data.error);
+        console.error("[MessageHandler] wallet_getCapabilities relay error:", data.error);
         return { success: true, data: {} };
       }
 
-      // Pass through relay response directly - relay already returns EIP-5792 format
-      return { success: true, data: data.result };
+      const raw = (data.result ?? {}) as Record<string, {
+        contracts?: unknown;
+        fees?: { tokens?: unknown[] };
+        [key: string]: unknown;
+      }>;
+      const flattened: Record<string, Record<string, unknown>> = {};
+      for (const [chainHex, rawCaps] of Object.entries(raw)) {
+        const feeTokens = rawCaps.fees?.tokens ?? [];
+        // Drop the relay-internal `contracts` / `fees` fields — they're
+        // implementation detail, not EIP-5792 capabilities.
+        const { contracts: _c, fees: _f, ...passthrough } = rawCaps;
+        flattened[chainHex] = {
+          atomic: { status: "supported" },
+          atomicBatch: { supported: true },
+          feeToken: { supported: true, tokens: feeTokens },
+          merchant: { supported: true },
+          permissions: { supported: true },
+          requiredFunds: { supported: false, tokens: [] },
+          ...passthrough,
+        };
+      }
+
+      return { success: true, data: flattened };
     } catch (error) {
-      console.error('[MessageHandler] wallet_getCapabilities error:', error);
-      // Return empty on error - don't expose internal errors
+      console.error("[MessageHandler] wallet_getCapabilities error:", error);
       return { success: true, data: {} };
     }
   }
