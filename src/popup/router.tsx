@@ -21,6 +21,7 @@ import { Permissions } from "./pages/Permissions";
 import { ConnectionApproval } from "./pages/approval/ConnectionApproval";
 import { TransactionApproval } from "./pages/approval/TransactionApproval";
 import { SigningApproval } from "./pages/approval/SigningApproval";
+import { GrantPermissionsApproval } from "./pages/approval/GrantPermissionsApproval";
 
 export const router = createHashRouter([
   {
@@ -39,6 +40,7 @@ export const router = createHashRouter([
       { path: "connect", element: <ConnectionApproval /> },
       { path: "transaction", element: <TransactionApproval /> },
       { path: "sign", element: <SigningApproval /> },
+      { path: "grant-permissions", element: <GrantPermissionsApproval /> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

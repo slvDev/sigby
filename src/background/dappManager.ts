@@ -707,11 +707,16 @@ export class DappManager {
    */
   private openSigningPopup(request: SigningRequest): void {
     try {
-      // Determine view based on method
-      // Both eth_sendTransaction and wallet_sendCalls go to transaction view
-      const view = (request.method === "eth_sendTransaction" || request.method === "wallet_sendCalls")
-        ? "transaction"
-        : "sign";
+      // Route to the right approval view by method:
+      //   eth_sendTransaction / wallet_sendCalls  -> transaction preview
+      //   wallet_grantPermissions                  -> session-key grant
+      //   personal_sign / eth_signTypedData_*      -> plain signing
+      const view =
+        request.method === "eth_sendTransaction" || request.method === "wallet_sendCalls"
+          ? "transaction"
+          : request.method === "wallet_grantPermissions"
+            ? "grant-permissions"
+            : "sign";
 
       // Build popup URL with query parameters
       const params = new URLSearchParams({

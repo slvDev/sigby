@@ -200,7 +200,7 @@ export const STORAGE_KEYS = {
 
   // Token management (Phase 7)
   CUSTOM_TOKENS: "customTokens", // Record<address, Record<chainId, string[]>>
-  TOKEN_METADATA_CACHE: "tokenMetadataCache", // Record<tokenAddress, TokenMetadata>
+  TOKEN_METADATA_CACHE: "tokenMetadataCache", // Record<"${tokenAddress}:${chainId}", TokenMetadata>
 
   // Persisted signing requests (survives SW termination)
   PENDING_SIGNING_REQUESTS: "pendingSigningRequests", // Record<requestId, PersistedSigningRequest>

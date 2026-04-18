@@ -151,18 +151,22 @@ export interface SpendLimit {
 }
 
 /**
- * Fee token for permission request
+ * Fee token for permission request.
+ * Matches Porto's schema (node_modules/porto/src/core/internal/schema/key.ts:50):
+ *   { limit: string (e.g. "100" or "0.5"), symbol?: 'native' | TokenSymbol }
+ * `limit` is the total fees the session key is allowed to spend in this
+ * token's units; `symbol` selects the fee token ('native' = chain native).
  */
 export interface PermissionFeeToken {
-  address?: string;              // Token address (omit for native)
-  native?: boolean;              // True to use native token (ETH)
+  limit: string;
+  symbol?: 'native' | string;
 }
 
 /**
  * Permission request structure
  * Note: When calling wallet_grantPermissions, Porto requires:
  * - At least 1 call in permissions.calls
- * - feeToken with a limit
+ * - feeToken with a non-zero limit (either chain-native or an ERC-20)
  */
 export interface PermissionRequest {
   expiry: number;                // Unix timestamp
@@ -170,7 +174,7 @@ export interface PermissionRequest {
     calls?: PermissionCall[];    // Allowed contract calls
     spend?: SpendLimit[];        // Spend limits
   };
-  feeToken?: PermissionFeeToken; // Fee token for gas
+  feeToken: PermissionFeeToken;  // Fee token for gas (required)
   key?: {                        // Optional custom key
     publicKey: string;
     type: 'secp256k1' | 'p256' | 'webauthn-p256';

@@ -60,7 +60,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Skip guard for approval routes
   if (location.pathname.startsWith("/connect") ||
       location.pathname.startsWith("/transaction") ||
-      location.pathname.startsWith("/sign")) {
+      location.pathname.startsWith("/sign") ||
+      location.pathname.startsWith("/grant-permissions")) {
     return <>{children}</>;
   }
 

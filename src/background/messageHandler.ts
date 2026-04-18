@@ -542,6 +542,9 @@ export class MessageHandler {
           // so return [] and let dApps fall back to eth_accounts for connectivity.
           return { success: true, data: [] };
 
+        case "wallet_grantPermissions":
+          return await this.handleWalletGrantPermissions(params || [], sender, origin);
+
         // EIP-5792: Wallet capabilities
         case "wallet_getCapabilities":
           return await this.handleWalletGetCapabilities(params, origin);
@@ -2037,6 +2040,72 @@ export class MessageHandler {
       return { success: true, data: signature };
     } catch (error) {
       console.error("[MessageHandler] eth_signTypedData error:", error);
+      return toDappErrorResponse(error);
+    }
+  }
+
+  /**
+   * Handle wallet_grantPermissions — dApp-originated session-key grant.
+   *
+   * Opens the grant-permissions approval popup (same requestSigning pipeline
+   * as signing methods, routed to a different view). On user approval the
+   * popup calls `popupPortoService.grantPermissions(...)` and returns the
+   * JSON-encoded GrantedPermission; we parse it back here so the dApp
+   * receives the Porto shape rather than a string.
+   */
+  private async handleWalletGrantPermissions(
+    params: any[],
+    sender: chrome.runtime.MessageSender,
+    origin?: string
+  ): Promise<MessageResponse> {
+    try {
+      const request = params?.[0];
+      if (!request || typeof request !== "object") {
+        return { success: false, error: "Missing permission request" };
+      }
+      // Minimum viable request per Porto schema: expiry, >=1 call, feeToken.limit.
+      if (typeof request.expiry !== "number") {
+        return { success: false, error: "expiry is required" };
+      }
+      if (!Array.isArray(request.permissions?.calls) || request.permissions.calls.length === 0) {
+        return { success: false, error: "permissions.calls must contain at least one entry" };
+      }
+      if (!request.feeToken?.limit) {
+        return { success: false, error: "feeToken.limit is required" };
+      }
+
+      const account = await this.accountManager.getAccount();
+      if (!account) return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
+
+      const dappOrigin = extractValidOrigin(sender, origin);
+      if (!dappOrigin) return { success: false, error: "Could not determine valid dApp origin" };
+
+      const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
+      if (!isConnected) return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+
+      const chainId = await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
+
+      const json = await this.dappManager.requestSigning({
+        method: "wallet_grantPermissions",
+        params,
+        origin: dappOrigin,
+        accountAddress: account.address,
+        chainId,
+        metadata: {
+          favicon: sender.tab?.favIconUrl,
+          title: sender.tab?.title,
+        },
+      });
+
+      // Popup returns the GrantedPermission JSON-stringified (the approve
+      // channel carries a string); parse it back to the native shape.
+      try {
+        return { success: true, data: JSON.parse(json) };
+      } catch {
+        return { success: true, data: json };
+      }
+    } catch (error) {
+      console.error("[MessageHandler] wallet_grantPermissions error:", error);
       return toDappErrorResponse(error);
     }
   }
