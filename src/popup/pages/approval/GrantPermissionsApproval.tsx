@@ -75,7 +75,8 @@ export function GrantPermissionsApproval() {
 
   const permissionRequest = request?.params?.[0] as PermissionRequest | undefined;
 
-  const handleApprove = async () => {
+  const handleApprove = async (e: React.MouseEvent) => {
+    if (!e.isTrusted) return;
     if (!request || !permissionRequest) return;
     setIsLoading(true);
     setError(null);
@@ -97,7 +98,8 @@ export function GrantPermissionsApproval() {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = async (e: React.MouseEvent) => {
+    if (!e.isTrusted) return;
     try {
       await chrome.runtime.sendMessage({
         type: MessageType.REJECT_SIGNING,

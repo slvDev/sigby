@@ -9,6 +9,17 @@ import { MessageType } from "../types/messages";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
+// EIP-1193 events we allow through to the injected provider. Anything else
+// from the background (even inside an EMIT_EVENT frame) is dropped so a
+// compromised internal code path can't push arbitrary events to the page.
+const KNOWN_PROVIDER_EVENTS = new Set([
+  "accountsChanged",
+  "chainChanged",
+  "connect",
+  "disconnect",
+  "message",
+]);
+
 /**
  * Methods whose dApp-boundary requests are persisted to chrome.storage.local
  * and can therefore be recovered via POLL_SIGNING_REQUEST after a service
@@ -130,9 +141,16 @@ class DappBridge {
     if (isExtensionContextValid()) {
       try {
         chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-          // Handle events that should be emitted to page
-          if (message.type === MessageType.EMIT_EVENT) {
-            console.log("[DappBridge] Received EMIT_EVENT from background:", message.event);
+          // Handle events that should be emitted to page. Validate shape
+          // before forwarding to window.postMessage — anything malformed
+          // would otherwise hit the page as an EIP-1193 event.
+          if (
+            message !== null &&
+            typeof message === "object" &&
+            message.type === MessageType.EMIT_EVENT &&
+            typeof message.event === "string" &&
+            KNOWN_PROVIDER_EVENTS.has(message.event)
+          ) {
             this.emitEvent(message.event, message.data);
           }
 

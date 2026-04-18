@@ -45,7 +45,8 @@ export function SigningApproval() {
     fetchRequest();
   }, [requestId]);
 
-  const handleApprove = async () => {
+  const handleApprove = async (e: React.MouseEvent) => {
+    if (!e.isTrusted) return;
     if (!request) return;
 
     setIsLoading(true);
@@ -78,7 +79,8 @@ export function SigningApproval() {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = async (e: React.MouseEvent) => {
+    if (!e.isTrusted) return;
     try {
       await chrome.runtime.sendMessage({
         type: MessageType.REJECT_SIGNING,

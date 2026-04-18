@@ -116,7 +116,9 @@ export interface FeeToken {
 }
 
 /**
- * Chain capabilities from wallet_getCapabilities
+ * Chain capabilities from wallet_getCapabilities.
+ * Mirrors what Porto's relay-mode action returns (see
+ * node_modules/porto/src/core/internal/modes/relay.ts:208-229).
  */
 export interface ChainCapabilities {
   feeToken: {
@@ -132,18 +134,23 @@ export interface ChainCapabilities {
   permissions?: {
     supported: boolean;
   };
+  requiredFunds?: {
+    supported: boolean;
+    tokens: FeeToken[];
+  };
 }
 
 // ==================== PERMISSION TYPES ====================
 
 /**
- * Permission call restriction
+ * Permission call restriction.
+ * Porto's schema (node_modules/porto/src/core/internal/schema/key.ts:31-46)
+ * is a discriminated union — an entry may restrict by `to` alone, by
+ * `signature` alone, or by both. Matching it here keeps the type honest.
  */
-export interface PermissionCall {
-  to: string;                    // Contract address
-  signature?: string;            // Function signature (e.g., "transfer(address,uint256)")
-  selector?: string;             // Function selector (4 bytes)
-}
+export type PermissionCall =
+  | { to: string; signature?: string; selector?: string }
+  | { signature: string; to?: string; selector?: string };
 
 /**
  * Spend limit for permissions

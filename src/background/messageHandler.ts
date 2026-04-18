@@ -1732,9 +1732,13 @@ export class MessageHandler {
         // Drop the relay-internal `contracts` / `fees` fields — they're
         // implementation detail, not EIP-5792 capabilities.
         const { contracts: _c, fees: _f, ...passthrough } = rawCaps;
+        // Mirror the shape Porto's own relay-mode action returns (see
+        // node_modules/porto/src/core/internal/modes/relay.ts:208-229).
+        // `atomicBatch` is NOT in Porto's schema — earlier version of this
+        // handler invented it; dropped so dApps don't rely on a field that
+        // will disappear.
         flattened[chainHex] = {
           atomic: { status: "supported" },
-          atomicBatch: { supported: true },
           feeToken: { supported: true, tokens: feeTokens },
           merchant: { supported: true },
           permissions: { supported: true },

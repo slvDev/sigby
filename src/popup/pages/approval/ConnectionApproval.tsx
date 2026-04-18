@@ -43,7 +43,10 @@ export function ConnectionApproval() {
     };
   }, [origin]);
 
-  const handleApprove = async () => {
+  const handleApprove = async (e: React.MouseEvent) => {
+    // Only honour real user clicks — synthetic events (e.g. from page-script
+    // dispatch) must not approve a connection.
+    if (!e.isTrusted) return;
     setIsLoading(true);
     setError(null);
 
@@ -65,7 +68,8 @@ export function ConnectionApproval() {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = async (e: React.MouseEvent) => {
+    if (!e.isTrusted) return;
     setIsLoading(true);
 
     try {

@@ -97,7 +97,8 @@ export function TransactionApproval() {
     fetchRequest();
   }, [requestId]);
 
-  const handleApprove = async () => {
+  const handleApprove = async (e: React.MouseEvent) => {
+    if (!e.isTrusted) return;
     if (!request) return;
 
     // Block approval if the dApp pinned a fee token we can't honour.
@@ -167,7 +168,8 @@ export function TransactionApproval() {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = async (e: React.MouseEvent) => {
+    if (!e.isTrusted) return;
     try {
       await chrome.runtime.sendMessage({
         type: MessageType.REJECT_SIGNING,

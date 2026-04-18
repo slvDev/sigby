@@ -778,10 +778,13 @@ export class DappManager {
   }
 
   /**
-   * Generate unique request ID
+   * Generate unique request ID. Uses crypto.randomUUID so the ID is
+   * unpredictable — same rationale as the injected provider's change in
+   * commit 8c9d4c4: anything that crosses a dApp / content-script boundary
+   * needs a real random ID, not `Math.random`.
    */
   private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return crypto.randomUUID();
   }
 }
 
