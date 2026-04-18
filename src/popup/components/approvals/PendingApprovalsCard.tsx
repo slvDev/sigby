@@ -38,6 +38,9 @@ export function PendingApprovalsCard() {
   const [items, setItems] = useState<PendingApprovalSummary[]>([]);
   const [resuming, setResuming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Increments every 10s to force a re-render of the "Xs ago" relative
+  // timestamps without cloning the items array.
+  const [, setTick] = useState(0);
 
   const load = async () => {
     try {
@@ -68,7 +71,7 @@ export function PendingApprovalsCard() {
     chrome.storage.onChanged.addListener(onChanged);
 
     // Gentle re-render so "Xs ago" labels tick while the popup is open.
-    const interval = setInterval(() => setItems((prev) => [...prev]), 10_000);
+    const interval = setInterval(() => setTick((n) => n + 1), 10_000);
 
     return () => {
       chrome.storage.onChanged.removeListener(onChanged);

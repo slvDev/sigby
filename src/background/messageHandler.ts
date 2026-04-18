@@ -1826,7 +1826,7 @@ export class MessageHandler {
       }
 
       // Call Porto Relay to get bundle status
-      const response = await fetch('https://rpc.porto.sh', {
+      const response = await fetch(PORTO_CONFIG.RELAY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2084,7 +2084,11 @@ export class MessageHandler {
       // channel carries a string); parse it back to the native shape.
       try {
         return { success: true, data: JSON.parse(json) };
-      } catch {
+      } catch (parseError) {
+        console.warn(
+          "[MessageHandler] wallet_grantPermissions: result was not JSON — returning as-is:",
+          parseError
+        );
         return { success: true, data: json };
       }
     } catch (error) {

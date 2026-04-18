@@ -23,7 +23,13 @@
     "https://sepolia-rollup.arbitrum.io/*",
     "https://sepolia.optimism.io/*",
     "https://ethereum-holesky.publicnode.com/*",
-    "https://rpc-amoy.polygon.technology/*"
+    "https://rpc-amoy.polygon.technology/*",
+    "https://ethereum.publicnode.com/*",
+    "https://base.llamarpc.com/*",
+    "https://arbitrum.llamarpc.com/*",
+    "https://optimism.llamarpc.com/*",
+    "https://polygon.llamarpc.com/*",
+    "https://ethereum-sepolia.publicnode.com/*"
   ],
 
   "background": {
@@ -64,6 +70,6 @@
   },
 
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://rpc.porto.sh https://eth.llamarpc.com https://mainnet.base.org https://arb1.arbitrum.io https://mainnet.optimism.io https://polygon-rpc.com https://rpc.sepolia.org https://sepolia.base.org https://sepolia-rollup.arbitrum.io https://sepolia.optimism.io https://ethereum-holesky.publicnode.com https://rpc-amoy.polygon.technology"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://rpc.porto.sh https://eth.llamarpc.com https://mainnet.base.org https://arb1.arbitrum.io https://mainnet.optimism.io https://polygon-rpc.com https://rpc.sepolia.org https://sepolia.base.org https://sepolia-rollup.arbitrum.io https://sepolia.optimism.io https://ethereum-holesky.publicnode.com https://rpc-amoy.polygon.technology https://ethereum.publicnode.com https://base.llamarpc.com https://arbitrum.llamarpc.com https://optimism.llamarpc.com https://polygon.llamarpc.com https://ethereum-sepolia.publicnode.com"
   }
 }
