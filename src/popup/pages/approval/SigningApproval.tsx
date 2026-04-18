@@ -113,6 +113,27 @@ export function SigningApproval() {
     }
   };
 
+  // Pull out the EIP-712 domain so chainId + verifyingContract are the first
+  // thing the user sees — phishers swap these to get someone to sign a
+  // seaport/permit on the wrong chain or for the wrong contract.
+  const parseTypedDataDomain = (
+    data: any
+  ): { name?: string; chainId?: string | number; verifyingContract?: string } | null => {
+    try {
+      const parsed = typeof data === "string" ? JSON.parse(data) : data;
+      const domain = parsed?.domain;
+      if (!domain || typeof domain !== "object") return null;
+      return {
+        name: typeof domain.name === "string" ? domain.name : undefined,
+        chainId: domain.chainId,
+        verifyingContract:
+          typeof domain.verifyingContract === "string" ? domain.verifyingContract : undefined,
+      };
+    } catch {
+      return null;
+    }
+  };
+
   // Invisible / directional chars that can hide content in a signed message:
   // \u200B-\u200F  zero-width + LRM/RLM
   // \u202A-\u202E  BIDI embeddings + LRO/RLO overrides
@@ -147,9 +168,13 @@ export function SigningApproval() {
 
   const displayOrigin = request.origin?.replace(/^https?:\/\//, "").replace(/\/$/, "") || "Unknown";
   const isPersonalSign = request.method === "personal_sign";
+  const rawTypedData = isPersonalSign
+    ? null
+    : (request.params?.[1] ?? request.params?.[0]);
   const messageContent = isPersonalSign
     ? decodeMessage(request.params?.[0] || "")
-    : formatTypedData(request.params?.[1] || request.params?.[0]);
+    : formatTypedData(rawTypedData);
+  const typedDataDomain = isPersonalSign ? null : parseTypedDataDomain(rawTypedData);
 
   return (
     <div className="flex flex-col min-h-[600px] p-6 gap-4">
@@ -174,6 +199,35 @@ export function SigningApproval() {
         )}
         <div className="font-medium text-gray-700 truncate">{displayOrigin}</div>
       </div>
+
+      {/* Typed-data domain summary — shown before the raw JSON so the user
+          sees chainId + verifyingContract without scrolling. */}
+      {typedDataDomain && (
+        <div className="p-3 bg-primary-50 border border-primary-200 rounded-xl text-xs text-gray-700 space-y-1">
+          {typedDataDomain.name && (
+            <div>
+              <span className="text-gray-500">Domain:</span>{" "}
+              <span className="font-medium">{typedDataDomain.name}</span>
+            </div>
+          )}
+          {typedDataDomain.chainId !== undefined && (
+            <div>
+              <span className="text-gray-500">Chain ID:</span>{" "}
+              <span className="font-mono">
+                {typeof typedDataDomain.chainId === "string"
+                  ? typedDataDomain.chainId
+                  : String(typedDataDomain.chainId)}
+              </span>
+            </div>
+          )}
+          {typedDataDomain.verifyingContract && (
+            <div className="break-all">
+              <span className="text-gray-500">Verifying contract:</span>{" "}
+              <span className="font-mono">{typedDataDomain.verifyingContract}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Message Content */}
       <div className="flex-1 flex flex-col gap-2 min-h-0">
