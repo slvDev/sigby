@@ -179,6 +179,15 @@ export function TransactionApproval() {
     window.close();
   };
 
+  // useMemo MUST be called on every render (rules of hooks) — keep it above
+  // the early returns below. React error #310 hit when this lived after the
+  // `if (!request) return …` guard because the hook count changed between
+  // the loading render and the loaded render.
+  const originAnalysis = useMemo(
+    () => analyzeOrigin(request?.origin || ""),
+    [request?.origin]
+  );
+
   if (isFetching) {
     return (
       <div className="w-[400px] min-h-[600px] bg-white flex items-center justify-center text-gray-500">
@@ -211,10 +220,6 @@ export function TransactionApproval() {
   // For wallet_sendCalls: { calls: [...], chainId, from, capabilities }
   // For eth_sendTransaction: { to, value, data, ... }
   const calls = isWalletSendCalls ? (requestParams.calls || []) : [requestParams];
-  const originAnalysis = useMemo(
-    () => analyzeOrigin(request.origin || ""),
-    [request.origin]
-  );
   const displayOrigin = originAnalysis.hostname;
 
   // Helper function to format a single call

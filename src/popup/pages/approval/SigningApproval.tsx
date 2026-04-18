@@ -143,6 +143,13 @@ export function SigningApproval() {
   const INVISIBLE_CHAR_RE = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069]/;
   const hasInvisibleChars = (s: string): boolean => INVISIBLE_CHAR_RE.test(s);
 
+  // Hooks must run in the same order every render — keep useMemo above the
+  // early returns. React error #310 fires otherwise.
+  const originAnalysis = useMemo(
+    () => analyzeOrigin(request?.origin || ""),
+    [request?.origin]
+  );
+
   if (isFetching) {
     return (
       <div className="w-[400px] min-h-[600px] bg-white flex items-center justify-center text-gray-500">
@@ -168,10 +175,6 @@ export function SigningApproval() {
     );
   }
 
-  const originAnalysis = useMemo(
-    () => analyzeOrigin(request.origin || ""),
-    [request.origin]
-  );
   const displayOrigin = originAnalysis.hostname;
   const isPersonalSign = request.method === "personal_sign";
   const rawTypedData = isPersonalSign

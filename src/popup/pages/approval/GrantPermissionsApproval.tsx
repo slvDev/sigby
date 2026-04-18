@@ -109,6 +109,12 @@ export function GrantPermissionsApproval() {
     window.close();
   };
 
+  // Hooks must run unconditionally — keep useMemo above the early returns.
+  const originAnalysis = useMemo(
+    () => analyzeOrigin(request?.origin || ""),
+    [request?.origin]
+  );
+
   if (isFetching) {
     return (
       <div className="w-[400px] min-h-[600px] bg-white flex items-center justify-center text-gray-500">
@@ -134,10 +140,6 @@ export function GrantPermissionsApproval() {
     );
   }
 
-  const originAnalysis = useMemo(
-    () => analyzeOrigin(request.origin || ""),
-    [request.origin]
-  );
   const displayOrigin = originAnalysis.hostname;
   const calls = permissionRequest.permissions.calls ?? [];
   const spendLimits = permissionRequest.permissions.spend ?? [];
