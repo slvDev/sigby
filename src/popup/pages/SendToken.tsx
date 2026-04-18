@@ -120,9 +120,9 @@ export function SendToken() {
       // Encode ERC-20 transfer call (amountRaw already calculated above)
       const data = encodeTransfer(recipient, amountRaw);
 
-      // Send via Porto SDK
-      // For ERC-20: to = token contract, value = 0, data = encoded transfer
-      const bundleId = await popupPortoService.sendTransaction({
+      // Submit via wallet_sendCalls; useTransactionWatcher polls for status
+      // in the background so we don't double-poll here.
+      const bundleId = await popupPortoService.sendCalls({
         from: activeAddress!,
         to: token.address, // Token contract address
         value: "0x0", // No ETH value
@@ -131,12 +131,8 @@ export function SendToken() {
         ...(selectedFeeToken && { feeToken: selectedFeeToken }), // Gas payment token
       });
 
-      console.log("[SendToken] Transaction bundle ID:", bundleId);
-
-      // Add to pending transactions for watching
-      const bundleIdStr = typeof bundleId === "string" ? bundleId : String(bundleId);
       addPendingTransaction({
-        id: bundleIdStr,
+        id: bundleId,
         chainId: chainId,
         timestamp: Date.now(),
       });

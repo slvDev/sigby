@@ -64,9 +64,9 @@ export function Send() {
       const valueWei = BigInt(Math.floor(amountNum * 1e18));
       const valueHex = "0x" + valueWei.toString(16);
 
-      // Send via Porto SDK using selected chain and account
-      // Returns bundle ID from wallet_sendCalls
-      const bundleId = await popupPortoService.sendTransaction({
+      // Submit via wallet_sendCalls and let useTransactionWatcher poll for
+      // confirmation in the background — no need to block the UI on the hash.
+      const bundleId = await popupPortoService.sendCalls({
         from: activeAddress!,
         to: recipient,
         value: valueHex,
@@ -74,14 +74,8 @@ export function Send() {
         chainId: chainId,
       });
 
-      console.log("[Send] Transaction bundle ID:", bundleId);
-
-      // Ensure bundleId is a string
-      const bundleIdStr = typeof bundleId === 'string' ? bundleId : String(bundleId);
-
-      // Add to pending transactions for watching
       addPendingTransaction({
-        id: bundleIdStr,
+        id: bundleId,
         chainId: chainId,
         timestamp: Date.now(),
       });

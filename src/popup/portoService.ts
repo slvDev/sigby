@@ -297,12 +297,11 @@ class PopupPortoService {
   }
 
   /**
-   * Send a transaction via Porto SDK
-   * This triggers WebAuthn for signing
-   * @param params Transaction parameters
-   * @returns Transaction hash
+   * Submit a wallet_sendCalls bundle and return the bundleId immediately.
+   * Use this for popup-internal sends where useTransactionWatcher will do
+   * the status polling — avoids duplicating the poll here.
    */
-  async sendTransaction(params: {
+  async sendCalls(params: {
     from: string;
     to: string;
     value?: string;
@@ -314,52 +313,53 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Sending transaction:', params);
-
-    // Ensure the account is authorized before sending
     const isAuthorized = await this.ensureAccountAuthorized(params.from);
     if (!isAuthorized) {
       throw new Error('Account not authorized. Please reconnect the account.');
     }
 
-    try {
-      // Use wallet_sendCalls (EIP-5792) for Porto
-      const chainIdHex = `0x${params.chainId.toString(16)}`;
-
-      const result = await this.provider.request({
-        method: 'wallet_sendCalls',
-        params: [{
-          calls: [{
-            to: params.to,
-            value: params.value || '0x0',
-            data: params.data || '0x',
-          }],
-          chainId: chainIdHex,
-          from: params.from, // Specify which account to send from
-          // Add feeToken capability if specified
-          ...(params.feeToken && {
-            capabilities: {
-              feeToken: params.feeToken,
-            },
-          }),
+    const chainIdHex = `0x${params.chainId.toString(16)}`;
+    const result = await this.provider.request({
+      method: 'wallet_sendCalls',
+      params: [{
+        calls: [{
+          to: params.to,
+          value: params.value || '0x0',
+          data: params.data || '0x',
         }],
-      });
+        chainId: chainIdHex,
+        from: params.from,
+        ...(params.feeToken && {
+          capabilities: {
+            feeToken: params.feeToken,
+          },
+        }),
+      }],
+    });
 
-      console.log('[Berth:Popup] Transaction sent, bundle result:', result);
+    const bundleId = typeof result === 'string' ? result : result?.id || result;
+    console.log('[Berth:Popup] wallet_sendCalls bundleId:', bundleId);
+    return bundleId;
+  }
 
-      // wallet_sendCalls returns { id: "0x..." } - extract the bundle ID
-      const bundleId = typeof result === 'string' ? result : result?.id || result;
-
-      // Wait for the actual transaction hash by polling wallet_getCallsStatus
-      // DApps expect a real tx hash that works with eth_getTransactionReceipt
-      const txHash = await this.waitForTransactionHash(bundleId);
-      console.log('[Berth:Popup] Got actual transaction hash:', txHash);
-
-      return txHash;
-    } catch (error: any) {
-      console.error('[Berth:Popup] Transaction failed:', error);
-      throw error;
-    }
+  /**
+   * Submit a transaction and wait for the actual tx hash.
+   * Only the dApp-facing legacy `eth_sendTransaction` path needs this — dApps
+   * expect a hash they can feed into `eth_getTransactionReceipt`. Everything
+   * else should prefer `sendCalls` and let useTransactionWatcher poll.
+   */
+  async sendTransaction(params: {
+    from: string;
+    to: string;
+    value?: string;
+    data?: string;
+    chainId: number;
+    feeToken?: string;
+  }): Promise<string> {
+    const bundleId = await this.sendCalls(params);
+    const txHash = await this.waitForTransactionHash(bundleId);
+    console.log('[Berth:Popup] sendTransaction resolved to tx hash:', txHash);
+    return txHash;
   }
 
   /**
