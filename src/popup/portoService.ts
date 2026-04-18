@@ -390,20 +390,15 @@ class PopupPortoService {
           }
         }
 
-        // If status is 'CONFIRMED' but no receipts, the bundleId might be the tx hash
-        if (status?.status === 'CONFIRMED') {
-          // Some implementations return the tx hash as the bundle ID
+        // Porto returns numeric status codes (EIP-5792 1xx/2xx/4xx/5xx), not
+        // strings — if confirmed without a receipt, treat the bundleId as
+        // the best available identifier and return.
+        if (status?.status === 200 && (!status.receipts || status.receipts.length === 0)) {
           return bundleId;
         }
 
-        // If pending, wait and retry
-        if (status?.status === 'PENDING') {
-          await new Promise(resolve => setTimeout(resolve, intervalMs));
-          continue;
-        }
-
-        // If we got an unknown status, try next attempt
-        await new Promise(resolve => setTimeout(resolve, intervalMs));
+        // Pending or anything else: wait and retry.
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
       } catch (error) {
         console.warn('[Berth:Popup] Error getting bundle status:', error);
         // Some error occurred, wait and retry

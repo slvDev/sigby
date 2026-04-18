@@ -234,41 +234,6 @@ export const UI_CONFIG = {
 } as const;
 
 /**
- * Transaction configuration
- */
-export const TRANSACTION_CONFIG = {
-  /** Max transactions to store in history */
-  MAX_HISTORY_SIZE: 100,
-  /** Transaction status polling interval (ms) - 1 minute (chrome.alarms minimum) */
-  STATUS_POLL_INTERVAL: 60000,
-  /** Max polling attempts before giving up */
-  MAX_POLL_ATTEMPTS: 10, // 10 minutes at 1 minute intervals
-} as const;
-
-/**
- * WebAuthn configuration
- */
-export const WEBAUTHN_CONFIG = {
-  /** Timeout for WebAuthn operations (ms) */
-  TIMEOUT: 60000,
-  /** Relying party name */
-  RP_NAME: "Berth",
-  /** Relying party ID - domain for passkey association */
-  RP_ID: "porto.sh",
-  /** User verification requirement */
-  USER_VERIFICATION: "required" as const,
-  /** Authenticator attachment */
-  AUTHENTICATOR_ATTACHMENT: "platform" as const,
-  /** Resident key requirement */
-  RESIDENT_KEY: "required" as const,
-  /** Supported algorithms for passkey creation */
-  ALGORITHMS: [
-    { type: "public-key" as const, alg: -7 },  // ES256 (P-256)
-    { type: "public-key" as const, alg: -257 }, // RS256 (RSA)
-  ],
-} as const;
-
-/**
  * Error messages
  */
 export const ERROR_MESSAGES = {

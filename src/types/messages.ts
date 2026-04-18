@@ -51,7 +51,6 @@ export enum MessageType {
   // State Management
   GET_STATE = "GET_STATE",
   UPDATE_STATE = "UPDATE_STATE",
-  GET_PORTFOLIO = "GET_PORTFOLIO",
 
   // UI Actions
   OPEN_POPUP = "OPEN_POPUP",
@@ -59,10 +58,6 @@ export enum MessageType {
 
   // Events (emitted to dApps)
   EMIT_EVENT = "EMIT_EVENT",
-
-  // WebAuthn (for offscreen document)
-  WEBAUTHN_CREATE = "WEBAUTHN_CREATE",
-  WEBAUTHN_GET = "WEBAUTHN_GET",
 
   // Porto SDK Operations (proxied to offscreen document)
   PORTO_CREATE_ACCOUNT = "PORTO_CREATE_ACCOUNT",
@@ -473,12 +468,3 @@ export interface GetCustomTokensPayload {
   chainId?: number;
 }
 
-/**
- * Get portfolio payload (already defined, ensuring it has correct structure)
- */
-export interface GetPortfolioPayload {
-  /** Account address */
-  address: string;
-  /** Chain IDs to include (optional, if omitted uses all chains) */
-  chainIds?: number[];
-}

@@ -30,7 +30,6 @@ import type {
   AddCustomTokenPayload,
   RemoveCustomTokenPayload,
   GetCustomTokensPayload,
-  GetPortfolioPayload,
 } from "../types/messages";
 import { TransactionStatus, type Transaction } from "../types/account";
 import { PortoService } from "./portoService";
@@ -286,10 +285,6 @@ export class MessageHandler {
           response = await this.handleGetState();
           break;
 
-        case MT.GET_PORTFOLIO:
-          response = await this.handleGetPortfolio(message.payload as GetPortfolioPayload);
-          break;
-
         // Token management (Phase 7)
         case MT.GET_TOKEN_BALANCES:
           response = await this.handleGetTokenBalances(message.payload as GetTokenBalancesPayload);
@@ -314,12 +309,6 @@ export class MessageHandler {
         // Network management
         case MT.SWITCH_CHAIN:
           response = await this.handleSwitchChain(message.payload as ChainSwitchPayload);
-          break;
-
-        // WebAuthn - Porto runs in popup, not background
-        case MT.WEBAUTHN_CREATE:
-        case MT.WEBAUTHN_GET:
-          response = { success: false, error: "WebAuthn operations run in popup context" };
           break;
 
         default:
@@ -850,18 +839,6 @@ export class MessageHandler {
         error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
-  }
-
-  /**
-   * Handle get portfolio request
-   */
-  private async handleGetPortfolio(_payload: GetPortfolioPayload): Promise<MessageResponse> {
-    // portfolioService removed - use wallet_getAssets from popup via Porto SDK
-    console.warn("[MessageHandler] GET_PORTFOLIO deprecated - use wallet_getAssets via popup");
-    return {
-      success: false,
-      error: "GET_PORTFOLIO is deprecated. Use wallet_getAssets via Porto SDK in popup context.",
-    };
   }
 
   // ==================== TOKEN MANAGEMENT HANDLERS (Phase 7) ====================

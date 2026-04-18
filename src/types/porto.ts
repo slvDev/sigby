@@ -4,8 +4,8 @@
  */
 
 /**
- * Porto wallet_getCallsHistory response entry
- * Status codes: 100=pending, 200=success, 400/500/600=failure
+ * Porto wallet_getCallsHistory response entry.
+ * Status codes per EIP-5792: 1xx=pending, 2xx=success, 4xx/5xx=failure.
  */
 export interface PortoHistoryEntry {
   id: string;
@@ -20,14 +20,16 @@ export interface PortoHistoryEntry {
   atomic?: boolean;
   receipts?: Array<{
     transactionHash?: string;
-    blockNumber?: number;
+    /** Hex (per EIP-5792 / Porto SDK `Hex.fromNumber`). */
+    blockNumber?: string;
+    /** Hex (receipt.status from the chain, e.g. "0x1" = success). */
     status?: string;
   }>;
 }
 
 /**
- * Porto wallet_getCallsStatus response
- * Status codes: 100=pending, 200=success, 400/500/600=failure
+ * Porto wallet_getCallsStatus response.
+ * Status codes per EIP-5792: 1xx=pending, 2xx=success, 4xx/5xx=failure.
  */
 export interface PortoCallsStatus {
   id: string;
@@ -36,7 +38,9 @@ export interface PortoCallsStatus {
   atomic: boolean;
   receipts?: Array<{
     transactionHash: string;
-    blockNumber: number;
+    /** Hex. */
+    blockNumber: string;
+    /** Hex. */
     status: string;
   }>;
 }
