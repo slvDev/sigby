@@ -11,6 +11,7 @@ import { Header } from "../components/layout/Header";
 import { BottomNav } from "../components/layout/BottomNav";
 import { PendingApprovalsCard } from "../components/approvals/PendingApprovalsCard";
 import { errorToString } from "../../utils/rpcError";
+import { CHAIN_CONFIGS } from "../../utils/constants";
 
 export function Home() {
   const navigate = useNavigate();
@@ -36,6 +37,7 @@ export function Home() {
   const balance = nativeAsset
     ? (Number(BigInt(nativeAsset.balance)) / 1e18).toFixed(7)
     : "0";
+  const nativeSymbol = CHAIN_CONFIGS[chainId]?.nativeCurrency.symbol || "ETH";
 
   // Get account count on mount
   useEffect(() => {
@@ -212,7 +214,7 @@ export function Home() {
             <div className="text-center py-6">
               <div className="text-xs uppercase tracking-wider text-gray-400 mb-2">Balance</div>
               <div className="text-4xl font-bold text-gray-900">
-                {assetsLoading ? "..." : balance} ETH
+                {assetsLoading ? "..." : balance} {nativeSymbol}
               </div>
             </div>
 

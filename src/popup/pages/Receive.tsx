@@ -7,11 +7,15 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { useWalletStore } from "../store";
+import { CHAIN_CONFIGS } from "../../utils/constants";
 
 export function Receive() {
   const navigate = useNavigate();
-  const { activeAddress, accounts } = useWalletStore();
+  const { activeAddress, accounts, chainId } = useWalletStore();
   const activeAccount = activeAddress ? accounts[activeAddress] : null;
+  const chainConfig = CHAIN_CONFIGS[chainId];
+  const nativeSymbol = chainConfig?.nativeCurrency.symbol || "ETH";
+  const chainName = chainConfig?.name || "current";
 
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -109,7 +113,7 @@ export function Receive() {
         {/* Note */}
         <div className="text-center text-sm text-gray-500 max-w-xs">
           <p>
-            Only send ETH and ERC-20 tokens on <strong className="text-gray-700">Base</strong> network to this address.
+            Only send {nativeSymbol} and ERC-20 tokens on <strong className="text-gray-700">{chainName}</strong> network to this address.
           </p>
         </div>
       </div>

@@ -1951,6 +1951,22 @@ export class MessageHandler {
         return { success: false, error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED } };
       }
 
+      // Reject transactions that pin a `from` we don't control. Mirrors the
+      // wallet_sendCalls guard — dApps can't quietly swap which account signs.
+      const tx = params[0] || {};
+      if (
+        typeof tx.from === "string" &&
+        tx.from.toLowerCase() !== account.address.toLowerCase()
+      ) {
+        return {
+          success: false,
+          error: {
+            code: RPC_ERROR_CODES.UNAUTHORIZED,
+            message: `Account ${tx.from} is not available; the active account is ${account.address}.`,
+          },
+        };
+      }
+
       // Get per-origin chain ID
       const chainId = await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
 
@@ -2120,6 +2136,21 @@ export class MessageHandler {
 
       const account = await this.accountManager.getAccount();
       if (!account) return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
+
+      // If the dApp pinned an address, it must match our active account —
+      // grants silently landing on the wrong account is a privacy/security bug.
+      if (
+        typeof request.address === "string" &&
+        request.address.toLowerCase() !== account.address.toLowerCase()
+      ) {
+        return {
+          success: false,
+          error: {
+            code: RPC_ERROR_CODES.UNAUTHORIZED,
+            message: `Account ${request.address} is not available; the active account is ${account.address}.`,
+          },
+        };
+      }
 
       const dappOrigin = extractValidOrigin(sender, origin);
       if (!dappOrigin) return { success: false, error: "Could not determine valid dApp origin" };

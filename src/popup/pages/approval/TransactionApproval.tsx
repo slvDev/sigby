@@ -12,6 +12,7 @@ import { FeeTokenDropdown } from "../../components/token/FeeTokenDropdown";
 import { errorToString } from "../../../utils/rpcError";
 import { analyzeOrigin } from "../../utils/originCheck";
 import { OriginSecurityBanner } from "../../components/approvals/OriginSecurityBanner";
+import { CHAIN_CONFIGS } from "../../../utils/constants";
 
 export function TransactionApproval() {
   const [searchParams] = useSearchParams();
@@ -223,6 +224,7 @@ export function TransactionApproval() {
   // For eth_sendTransaction: { to, value, data, ... }
   const calls = isWalletSendCalls ? (requestParams.calls || []) : [requestParams];
   const displayOrigin = originAnalysis.hostname;
+  const nativeSymbol = CHAIN_CONFIGS[request.chainId]?.nativeCurrency.symbol || "ETH";
 
   // Helper function to format a single call
   const formatCall = (call: any) => {
@@ -281,7 +283,7 @@ export function TransactionApproval() {
               </div>
               <div className="flex justify-between items-start gap-3">
                 <span className="text-sm text-gray-500">Value:</span>
-                <span className="font-medium text-gray-900">{valueInEth} ETH</span>
+                <span className="font-medium text-gray-900">{valueInEth} {nativeSymbol}</span>
               </div>
               {data && data !== "0x" && (
                 <div className="flex justify-between items-start gap-3">

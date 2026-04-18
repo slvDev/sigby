@@ -161,7 +161,7 @@ export type PermissionCall =
 export interface SpendLimit {
   token: string;                 // Token address (or 'native')
   limit: string;                 // Max amount (hex)
-  period: 'transaction' | 'day' | 'week' | 'month' | 'total';
+  period: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
 }
 
 /**
