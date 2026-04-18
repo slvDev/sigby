@@ -87,38 +87,17 @@ export function SigningApproval() {
     window.close();
   };
 
+  // Returns raw decoded text; React JSX auto-escapes when we render it as a text child.
   const decodeMessage = (hex: string): string => {
     if (!hex || !hex.startsWith("0x")) {
-      // Sanitize non-hex strings to prevent XSS
-      return String(hex || "").replace(/[<>&"']/g, (char) => {
-        const escapeMap: Record<string, string> = {
-          '<': '&lt;',
-          '>': '&gt;',
-          '&': '&amp;',
-          '"': '&quot;',
-          "'": '&#39;'
-        };
-        return escapeMap[char] || char;
-      });
+      return String(hex || "");
     }
     try {
       const bytes = hex.slice(2).match(/.{1,2}/g) || [];
       const decoded = bytes.map((b) => String.fromCharCode(parseInt(b, 16))).join("");
-      // Only allow printable ASCII + common whitespace to prevent injection
-      if (/^[\x20-\x7E\n\r\t]*$/.test(decoded)) {
-        // Still sanitize even printable content
-        return decoded.replace(/[<>&"']/g, (char) => {
-          const escapeMap: Record<string, string> = {
-            '<': '&lt;',
-            '>': '&gt;',
-            '&': '&amp;',
-            '"': '&quot;',
-            "'": '&#39;'
-          };
-          return escapeMap[char] || char;
-        });
-      }
-      return hex;
+      // If the payload looks like text (UTF-8-safe printable + common whitespace), show it;
+      // otherwise fall back to the hex so users aren't shown mojibake they can't verify.
+      return /^[\x20-\x7E\n\r\t]*$/.test(decoded) ? decoded : hex;
     } catch {
       return hex;
     }
@@ -132,6 +111,13 @@ export function SigningApproval() {
       return String(data);
     }
   };
+
+  // Invisible / directional chars that can hide content in a signed message:
+  // \u200B-\u200F  zero-width + LRM/RLM
+  // \u202A-\u202E  BIDI embeddings + LRO/RLO overrides
+  // \u2066-\u2069  BIDI isolates
+  const INVISIBLE_CHAR_RE = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069]/;
+  const hasInvisibleChars = (s: string): boolean => INVISIBLE_CHAR_RE.test(s);
 
   if (isFetching) {
     return (
@@ -193,11 +179,16 @@ export function SigningApproval() {
         <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">
           {isPersonalSign ? "Message to sign:" : "Typed data to sign:"}
         </div>
+        {hasInvisibleChars(messageContent) && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+            This message contains invisible or directional characters that can
+            disguise its true content. Review carefully before signing.
+          </div>
+        )}
         <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-4 overflow-auto max-h-[300px]">
-          <pre
-            className="font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap break-words m-0"
-            dangerouslySetInnerHTML={{ __html: messageContent }}
-          />
+          <pre className="font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap break-words m-0">
+            {messageContent}
+          </pre>
         </div>
       </div>
 
