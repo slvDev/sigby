@@ -3,13 +3,15 @@
  * Shown when a dApp requests to send a transaction
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageType, SigningRequest } from "../../../types/messages";
 import type { FeeToken } from "../../../types/porto";
 import { popupPortoService } from "../../portoService";
 import { FeeTokenDropdown } from "../../components/token/FeeTokenDropdown";
 import { errorToString } from "../../../utils/rpcError";
+import { analyzeOrigin } from "../../utils/originCheck";
+import { OriginSecurityBanner } from "../../components/approvals/OriginSecurityBanner";
 
 export function TransactionApproval() {
   const [searchParams] = useSearchParams();
@@ -209,7 +211,11 @@ export function TransactionApproval() {
   // For wallet_sendCalls: { calls: [...], chainId, from, capabilities }
   // For eth_sendTransaction: { to, value, data, ... }
   const calls = isWalletSendCalls ? (requestParams.calls || []) : [requestParams];
-  const displayOrigin = request.origin?.replace(/^https?:\/\//, "").replace(/\/$/, "") || "Unknown";
+  const originAnalysis = useMemo(
+    () => analyzeOrigin(request.origin || ""),
+    [request.origin]
+  );
+  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
 
   // Helper function to format a single call
   const formatCall = (call: any) => {
@@ -247,6 +253,7 @@ export function TransactionApproval() {
         )}
         <div className="font-medium text-gray-700 truncate">{displayOrigin}</div>
       </div>
+      <OriginSecurityBanner analysis={originAnalysis} />
 
       {/* Transaction Details */}
       <div className="flex-1 overflow-auto space-y-3">

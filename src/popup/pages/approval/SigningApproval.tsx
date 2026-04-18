@@ -3,11 +3,13 @@
  * Shown when a dApp requests a message signature
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageType, SigningRequest } from "../../../types/messages";
 import { popupPortoService } from "../../portoService";
 import { errorToString } from "../../../utils/rpcError";
+import { analyzeOrigin } from "../../utils/originCheck";
+import { OriginSecurityBanner } from "../../components/approvals/OriginSecurityBanner";
 
 export function SigningApproval() {
   const [searchParams] = useSearchParams();
@@ -166,7 +168,11 @@ export function SigningApproval() {
     );
   }
 
-  const displayOrigin = request.origin?.replace(/^https?:\/\//, "").replace(/\/$/, "") || "Unknown";
+  const originAnalysis = useMemo(
+    () => analyzeOrigin(request.origin || ""),
+    [request.origin]
+  );
+  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
   const isPersonalSign = request.method === "personal_sign";
   const rawTypedData = isPersonalSign
     ? null
@@ -199,6 +205,7 @@ export function SigningApproval() {
         )}
         <div className="font-medium text-gray-700 truncate">{displayOrigin}</div>
       </div>
+      <OriginSecurityBanner analysis={originAnalysis} />
 
       {/* Typed-data domain summary — shown before the raw JSON so the user
           sees chainId + verifyingContract without scrolling. */}

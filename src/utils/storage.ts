@@ -374,6 +374,20 @@ export class StorageManager {
   }
 
   /**
+   * Has *any* account on this device ever connected to this origin?
+   * Used by the connection-approval UI to show a "new origin" warning
+   * when the user has no prior relationship with the site.
+   */
+  async isOriginKnown(origin: string): Promise<boolean> {
+    const allAccountDapps = await this.get(STORAGE_KEYS.ACCOUNT_DAPPS);
+    if (!allAccountDapps) return false;
+    for (const dapps of Object.values(allAccountDapps)) {
+      if (dapps && origin in dapps) return true;
+    }
+    return false;
+  }
+
+  /**
    * Get all accounts connected to a specific dApp
    * @param origin - dApp origin
    * @returns Promise resolving to array of addresses

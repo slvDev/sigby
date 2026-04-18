@@ -9,12 +9,14 @@
  * handler parse it before returning to the dApp.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageType, type SigningRequest } from "../../../types/messages";
 import type { PermissionRequest } from "../../../types/porto";
 import { popupPortoService } from "../../portoService";
 import { errorToString } from "../../../utils/rpcError";
+import { analyzeOrigin } from "../../utils/originCheck";
+import { OriginSecurityBanner } from "../../components/approvals/OriginSecurityBanner";
 
 function formatAddress(addr: string): string {
   if (!addr || addr.length < 12) return addr;
@@ -132,7 +134,11 @@ export function GrantPermissionsApproval() {
     );
   }
 
-  const displayOrigin = request.origin?.replace(/^https?:\/\//, "").replace(/\/$/, "") || "Unknown";
+  const originAnalysis = useMemo(
+    () => analyzeOrigin(request.origin || ""),
+    [request.origin]
+  );
+  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
   const calls = permissionRequest.permissions.calls ?? [];
   const spendLimits = permissionRequest.permissions.spend ?? [];
 
@@ -158,6 +164,7 @@ export function GrantPermissionsApproval() {
         )}
         <div className="font-medium text-gray-700 truncate">{displayOrigin}</div>
       </div>
+      <OriginSecurityBanner analysis={originAnalysis} />
 
       <section className="space-y-2">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Expires</h3>

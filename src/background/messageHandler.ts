@@ -225,6 +225,19 @@ export class MessageHandler {
           response = await this.handleRejectConnection(message.payload as RejectConnectionPayload);
           break;
 
+        case MT.IS_ORIGIN_KNOWN: {
+          const reqOrigin = (message.payload as { origin?: string } | undefined)?.origin;
+          if (typeof reqOrigin !== "string") {
+            response = { success: false, error: "origin is required" };
+          } else {
+            response = {
+              success: true,
+              data: { known: await this.storageManager.isOriginKnown(reqOrigin) },
+            };
+          }
+          break;
+        }
+
         // Signing request management (Phase 4)
         case MT.GET_PENDING_SIGNING:
           response = await this.handleGetPendingSigning(message.payload as GetPendingSigningPayload);

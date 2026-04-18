@@ -3,10 +3,12 @@
  * Shown when a dApp requests to connect
  */
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageType } from "../../../types/messages";
 import { errorToString } from "../../../utils/rpcError";
+import { analyzeOrigin } from "../../utils/originCheck";
+import { OriginSecurityBanner } from "../../components/approvals/OriginSecurityBanner";
 
 export function ConnectionApproval() {
   const [searchParams] = useSearchParams();
@@ -17,11 +19,29 @@ export function ConnectionApproval() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isKnownOrigin, setIsKnownOrigin] = useState<boolean | null>(null);
 
-  const displayOrigin = origin.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const originAnalysis = useMemo(() => analyzeOrigin(origin), [origin]);
+  const displayOrigin = originAnalysis.unicodeHostname ?? originAnalysis.hostname;
   const shortAddress = accountAddress
     ? `${accountAddress.slice(0, 6)}...${accountAddress.slice(-4)}`
     : "No account";
+
+  useEffect(() => {
+    let cancelled = false;
+    chrome.runtime
+      .sendMessage({ type: MessageType.IS_ORIGIN_KNOWN, payload: { origin } })
+      .then((resp) => {
+        if (cancelled) return;
+        setIsKnownOrigin(resp?.success ? Boolean(resp.data?.known) : null);
+      })
+      .catch(() => {
+        if (!cancelled) setIsKnownOrigin(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [origin]);
 
   const handleApprove = async () => {
     setIsLoading(true);
@@ -84,6 +104,9 @@ export function ConnectionApproval() {
           <div className="text-sm text-gray-500 truncate">{displayOrigin}</div>
         </div>
       </div>
+
+      {/* Security indicators (HTTPS / Punycode / new origin) */}
+      <OriginSecurityBanner analysis={originAnalysis} isKnownOrigin={isKnownOrigin} />
 
       {/* Message */}
       <div className="text-center py-4">
