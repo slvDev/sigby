@@ -436,10 +436,16 @@ export class MessageHandler {
       const account = await this.accountManager.getAccount();
       const accountAddress = account?.address || "";
 
-      // Get per-origin chain ID for RPC calls
-      const chainId = origin && accountAddress
-        ? await this.dappManager.getChainIdForOrigin(origin, accountAddress)
-        : (await this.storageManager.getSettings()).defaultChain;
+      // Chain resolution:
+      //   1. payload.chainId wins — popup-originated calls (e.g. eth_getBalance
+      //      for the currently-selected chain) know exactly which chain they
+      //      want and pass it explicitly.
+      //   2. otherwise use the per-origin chain context (EIP-3326).
+      //   3. otherwise fall back to global default (first load, no account).
+      const chainId = payload.chainId
+        ?? (origin && accountAddress
+          ? await this.dappManager.getChainIdForOrigin(origin, accountAddress)
+          : (await this.storageManager.getSettings()).defaultChain);
 
       // Route based on method
       switch (method) {

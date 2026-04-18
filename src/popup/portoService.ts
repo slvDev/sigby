@@ -343,6 +343,26 @@ class PopupPortoService {
   }
 
   /**
+   * Raw wallet_sendCalls pass-through. Used by the dApp-facing
+   * TransactionApproval flow, which needs to forward the dApp's original
+   * calls array + capabilities (multi-call, merchant fee-token pin, etc.)
+   * rather than the single-call shape `sendCalls` constructs.
+   *
+   * Prefer `sendCalls` for popup-internal sends.
+   */
+  async sendCallsRaw(rawParams: any): Promise<string> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+    const result = await this.provider.request({
+      method: 'wallet_sendCalls',
+      params: [rawParams],
+    });
+    const bundleId = typeof result === 'string' ? result : result?.id || result;
+    return bundleId;
+  }
+
+  /**
    * Submit a transaction and wait for the actual tx hash.
    * Only the dApp-facing legacy `eth_sendTransaction` path needs this — dApps
    * expect a hash they can feed into `eth_getTransactionReceipt`. Everything

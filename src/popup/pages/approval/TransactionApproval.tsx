@@ -121,36 +121,22 @@ export function TransactionApproval() {
       const feeToken = dappRequiredFeeToken ?? selectedFeeToken ?? feeTokens[0]?.symbol;
 
       if (request.method === "wallet_sendCalls") {
-        // EIP-5792: wallet_sendCalls - return bundleId immediately
-        // Porto SDK returns { id: bundleId } or just bundleId string
-        const provider = (popupPortoService as any).provider;
-        if (!provider) {
-          throw new Error("Porto provider not initialized");
-        }
-
-        // Ensure account is authorized before sending
+        // EIP-5792 raw pass-through: we keep the dApp's full calls/
+        // capabilities shape (multi-call, merchant pins, etc.) instead of
+        // reducing to single-call. sendCallsRaw handles the provider call.
         await popupPortoService.ensureAccountAuthorized(request.accountAddress);
 
-        // Build params with fee token capability. When the dApp pinned a token
-        // we pass it through untouched; otherwise we substitute the user's
-        // pick for any lingering capabilities.feeToken.
         const callsParam = request.params[0] || {};
         const { feeToken: _dappFeeToken, ...otherCapabilities } = callsParam.capabilities || {};
-        const paramsWithFeeToken = [{
+        const rawParams = {
           ...callsParam,
           capabilities: {
             ...otherCapabilities,
             feeToken,
           },
-        }];
+        };
 
-        const sendResult = await provider.request({
-          method: "wallet_sendCalls",
-          params: paramsWithFeeToken,
-        });
-
-        // Extract bundleId from result
-        result = typeof sendResult === "string" ? sendResult : sendResult?.id || sendResult;
+        result = await popupPortoService.sendCallsRaw(rawParams);
         console.log("[TransactionApproval] wallet_sendCalls bundleId:", result, "feeToken:", feeToken);
       } else {
         // Legacy eth_sendTransaction - waits for txHash

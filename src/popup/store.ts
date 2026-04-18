@@ -612,8 +612,7 @@ async function fetchAndUpdateBalance(address: string, chainId: number): Promise<
           method: "eth_getBalance",
           params: [address, "latest"],
           origin: "popup://porto-wallet",
-          // Note: The background will use the global chain for popup requests
-          // We pass chainId in the payload for future per-chain balance support
+          chainId,
         },
       });
 

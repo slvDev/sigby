@@ -128,6 +128,13 @@ export interface DappRequestPayload {
   params?: any[];
   /** Origin of the requesting dApp */
   origin: string;
+  /**
+   * Optional chain override. Used by the popup when it dispatches a
+   * DAPP_REQUEST for its own needs (e.g. eth_getBalance) — without this,
+   * the background falls back to the per-origin chain for an origin it
+   * doesn't know and silently serves balances on the wrong chain.
+   */
+  chainId?: number;
 }
 
 /**
