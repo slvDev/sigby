@@ -79,6 +79,40 @@ class BerthProvider implements EthereumProvider {
   constructor() {
     console.log("[Berth] Initializing Ethereum provider");
 
+    // EIP-6963 §Security: once the provider is announced, dApps and other
+    // extensions pass a reference around. A hostile page script could try
+    // `provider.request = evilFn` to hijack in-flight calls — pin the core
+    // EIP-1193 surface as non-writable + non-configurable so that fails.
+    // State fields (chainId, selectedAddress, …) stay mutable because the
+    // provider needs to update them on events.
+    const lockedMethods: Array<keyof BerthProvider> = [
+      "request",
+      "on",
+      "removeListener",
+      "emit",
+      "enable",
+      "send",
+      "sendAsync",
+    ];
+    for (const name of lockedMethods) {
+      const method = this[name];
+      if (typeof method === "function") {
+        Object.defineProperty(this, name, {
+          value: (method as Function).bind(this),
+          writable: false,
+          configurable: false,
+          enumerable: true,
+        });
+      }
+    }
+    // Freeze the _metamask shim so dApps can't flip isUnlocked under us.
+    Object.defineProperty(this, "_metamask", {
+      value: Object.freeze(this._metamask),
+      writable: false,
+      configurable: false,
+      enumerable: true,
+    });
+
     // Set up communication with content script
     this.setupMessageBridge();
 
@@ -348,12 +382,14 @@ class BerthProvider implements EthereumProvider {
   }
 
   /**
-   * MetaMask-specific API (some dApps check this)
+   * MetaMask-specific API (some dApps gate UI behind it).
+   * We mirror "has an account been unlocked / selected", since Berth has no
+   * lock concept of its own — passkeys live in the OS keychain. Returning
+   * true unconditionally (as we used to) broke dApps that show a "Connect"
+   * CTA when this is false.
    */
   _metamask = {
-    isUnlocked: async (): Promise<boolean> => {
-      return true; // Porto is always "unlocked" when available
-    },
+    isUnlocked: async (): Promise<boolean> => this.selectedAddress !== null,
   };
 
   /**
