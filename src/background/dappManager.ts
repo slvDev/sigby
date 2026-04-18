@@ -507,6 +507,10 @@ export class DappManager {
    * Mark a persisted entry as settled. We keep the row around briefly so that
    * a late-polling content script can still observe the terminal state, then
    * drop it so storage doesn't grow unbounded.
+   *
+   * Only transitions from `pending` — once a request has been approved or
+   * rejected we must not overwrite the terminal state (e.g. a window-close
+   * fired after approveSigning already settled the row).
    */
   private async settlePersistedSigningRequest(
     requestId: string,
@@ -514,13 +518,47 @@ export class DappManager {
   ): Promise<void> {
     const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
     const current = all[requestId];
-    if (!current) return;
+    if (!current || current.state !== "pending") return;
     all[requestId] = { ...current, ...patch, settledAt: Date.now() };
     await this.storageManager.set(STORAGE_KEYS.PENDING_SIGNING_REQUESTS, all);
     // Remove after a grace period so late pollers can still read the result.
     setTimeout(() => {
       this.removePersistedSigningRequest(requestId).catch(() => {});
     }, 30_000);
+  }
+
+  /**
+   * List persisted signing requests currently in `pending` state.
+   * Used by the toolbar popup to render the "resume pending approval" queue.
+   */
+  async getPersistedPendingRequests(): Promise<PersistedSigningRequest[]> {
+    const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
+    return Object.values(all).filter((e) => e.state === "pending");
+  }
+
+  /**
+   * Reopen the approval popup for a previously-dismissed pending request.
+   * If the original window is still open we focus it; otherwise a fresh
+   * popup is spawned and re-bound to the existing requestId.
+   */
+  async resumePendingRequest(requestId: string): Promise<boolean> {
+    // Focus existing window if we still have it tracked.
+    for (const [windowId, info] of this.windowToRequest.entries()) {
+      if (info.type === "signing" && info.id === requestId) {
+        try {
+          await chrome.windows.update(windowId, { focused: true });
+          return true;
+        } catch {
+          // Window may have been closed since we tracked it; fall through.
+          this.windowToRequest.delete(windowId);
+        }
+      }
+    }
+
+    const request = await this.getPendingSigningRequest(requestId);
+    if (!request) return false;
+    this.openSigningPopup(request);
+    return true;
   }
 
   /**
@@ -721,8 +759,10 @@ export class DappManager {
     this.windowToRequest.delete(windowId);
 
     if (requestInfo.type === "signing") {
-      // Reject the signing request
-      void this.rejectSigning(requestInfo.id);
+      // Closing the approval window no longer auto-rejects the request —
+      // the user may have dismissed it to resume later from the toolbar
+      // popup's pending-approvals queue. The 5-min signing timeout still
+      // fires if they never come back; explicit Reject still works.
     } else if (requestInfo.type === "connection") {
       // Reject the connection request
       const [origin, accountAddress] = requestInfo.id.split(":");

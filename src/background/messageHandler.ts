@@ -23,6 +23,8 @@ import type {
   RejectSigningPayload,
   PollSigningRequestPayload,
   PollSigningRequestResponse,
+  PendingApprovalSummary,
+  ResumePendingApprovalPayload,
   GetTokenBalancesPayload,
   GetTokenBalancePayload,
   AddCustomTokenPayload,
@@ -239,6 +241,14 @@ export class MessageHandler {
 
         case MT.POLL_SIGNING_REQUEST:
           response = await this.handlePollSigningRequest(message.payload as PollSigningRequestPayload);
+          break;
+
+        case MT.LIST_PENDING_APPROVALS:
+          response = await this.handleListPendingApprovals();
+          break;
+
+        case MT.RESUME_PENDING_APPROVAL:
+          response = await this.handleResumePendingApproval(message.payload as ResumePendingApprovalPayload);
           break;
 
         // dApp requests
@@ -2112,5 +2122,37 @@ export class MessageHandler {
     }
     const state = await this.dappManager.pollSigningRequest(payload.requestId);
     return { success: true, data: state };
+  }
+
+  /**
+   * Handle LIST_PENDING_APPROVALS - toolbar popup reads pending queue.
+   */
+  private async handleListPendingApprovals(): Promise<MessageResponse<PendingApprovalSummary[]>> {
+    const entries = await this.dappManager.getPersistedPendingRequests();
+    const summaries: PendingApprovalSummary[] = entries.map((e) => ({
+      requestId: e.request.requestId,
+      method: e.request.method,
+      origin: e.request.origin,
+      createdAt: e.createdAt,
+      metadata: e.request.metadata,
+    }));
+    return { success: true, data: summaries };
+  }
+
+  /**
+   * Handle RESUME_PENDING_APPROVAL - reopen the approval popup for a
+   * dismissed request.
+   */
+  private async handleResumePendingApproval(
+    payload: ResumePendingApprovalPayload
+  ): Promise<MessageResponse<{ resumed: boolean }>> {
+    if (!payload?.requestId) {
+      return { success: false, error: "Request ID is required" };
+    }
+    const resumed = await this.dappManager.resumePendingRequest(payload.requestId);
+    if (!resumed) {
+      return { success: false, error: "Pending request not found (it may have been settled or swept)" };
+    }
+    return { success: true, data: { resumed: true } };
   }
 }

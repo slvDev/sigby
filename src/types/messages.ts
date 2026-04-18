@@ -80,6 +80,8 @@ export enum MessageType {
   APPROVE_SIGNING = "APPROVE_SIGNING",
   REJECT_SIGNING = "REJECT_SIGNING",
   POLL_SIGNING_REQUEST = "POLL_SIGNING_REQUEST",
+  LIST_PENDING_APPROVALS = "LIST_PENDING_APPROVALS",
+  RESUME_PENDING_APPROVAL = "RESUME_PENDING_APPROVAL",
 
   // Token Management (Phase 7)
   GET_TOKEN_BALANCES = "GET_TOKEN_BALANCES",
@@ -390,6 +392,27 @@ export interface PollSigningRequestResponse {
   result?: string;
   /** Error shape when state is rejected */
   error?: { code: number; message: string };
+}
+
+/**
+ * Summary entry for the Home-page pending-approvals queue.
+ */
+export interface PendingApprovalSummary {
+  requestId: string;
+  method: string;
+  origin: string;
+  createdAt: number;
+  metadata?: {
+    favicon?: string;
+    title?: string;
+  };
+}
+
+/**
+ * Resume a dismissed approval — reopens the approval popup.
+ */
+export interface ResumePendingApprovalPayload {
+  requestId: string;
 }
 
 // ==================== TOKEN MANAGEMENT PAYLOADS (Phase 7) ====================

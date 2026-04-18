@@ -9,6 +9,7 @@ import { useWalletStore, syncStoreWithBackground } from "../store";
 import { popupPortoService } from "../portoService";
 import { Header } from "../components/layout/Header";
 import { BottomNav } from "../components/layout/BottomNav";
+import { PendingApprovalsCard } from "../components/approvals/PendingApprovalsCard";
 import { errorToString } from "../../utils/rpcError";
 
 export function Home() {
@@ -190,6 +191,8 @@ export function Home() {
       {activeAccount ? (
         <div className="flex-1 flex flex-col">
           <div className="p-6 flex flex-col gap-6 flex-1">
+            <PendingApprovalsCard />
+
             {/* Address */}
             <div className="flex items-center justify-center gap-2">
               <span className="font-mono text-sm text-gray-500">
