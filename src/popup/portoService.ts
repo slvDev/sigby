@@ -103,30 +103,6 @@ class PopupPortoService {
   }
 
   /**
-   * Count existing Porto accounts (for auto-numbering)
-   */
-  async countExistingAccounts(): Promise<number> {
-    if (!this.provider) {
-      return 0;
-    }
-
-    try {
-      // Try to get existing accounts from Porto using all supported chains
-      await this.provider.request({
-        method: 'wallet_getCapabilities',
-        params: [SUPPORTED_CHAIN_IDS_HEX],
-      });
-
-      // This is a rough estimate - Porto doesn't expose account count directly
-      // We'll increment based on what we find in storage
-      return 0; // Will be calculated from storage instead
-    } catch (error) {
-      console.warn('[Berth:Popup] Could not count accounts:', error);
-      return 0;
-    }
-  }
-
-  /**
    * Create a new account
    */
   async createAccount(options: {

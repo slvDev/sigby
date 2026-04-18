@@ -90,10 +90,13 @@ export function isPortoStatusPending(status: number): boolean {
 }
 
 /**
- * Helper to check if Porto status indicates failure
+ * Helper to check if Porto status indicates a terminal failure.
+ * Terminal = anything that isn't pending (1xx) or success (200). That
+ * includes 3xx offchain failures, which the old `>= 400` check missed —
+ * the transaction watcher would poll those forever.
  */
 export function isPortoStatusFailed(status: number): boolean {
-  return status >= 400;
+  return status >= 300;
 }
 
 /**
@@ -193,10 +196,16 @@ export interface PermissionRequest {
 }
 
 /**
- * Granted permission (response from wallet_grantPermissions)
+ * Granted permission (response from wallet_grantPermissions).
+ * Matches Porto's schema (wallet_grantPermissions.Response) —
+ * `address` and `chainId` identify the account + chain the permission
+ * applies to; `createdAt` was a Berth-side invention and isn't returned
+ * by the relay.
  */
 export interface GrantedPermission {
-  id: string;                    // Permission ID
+  id: string;
+  address: string;
+  chainId: string;               // Hex
   expiry: number;
   key: {
     publicKey: string;
@@ -206,7 +215,6 @@ export interface GrantedPermission {
     calls?: PermissionCall[];
     spend?: SpendLimit[];
   };
-  createdAt: number;
 }
 
 /**

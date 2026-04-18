@@ -59,7 +59,7 @@ export function useTransactionWatcher() {
               type: "success",
               message: "Transaction confirmed!",
             });
-          } else if (status.status >= 400) {
+          } else if (status.status >= 300) {
             // Failed
             console.log("[Watcher] Transaction failed:", tx.id, status.status);
             removePendingTransaction(tx.id);

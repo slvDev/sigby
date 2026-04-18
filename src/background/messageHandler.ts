@@ -524,6 +524,10 @@ export class MessageHandler {
           // Note: eth_sign uses [address, message], personal_sign uses
           // [message, address]. Swap before forwarding so validation doesn't
           // reject the call and the signer sees the right payload.
+          console.warn(
+            "[MessageHandler] eth_sign is deprecated; transparently forwarding as personal_sign. dApps should migrate to personal_sign or eth_signTypedData_v4.",
+            { origin }
+          );
           const [addr, msg] = (params || []) as [unknown, unknown];
           return await this.handlePersonalSign([msg, addr], sender, origin);
         }
@@ -647,7 +651,7 @@ export class MessageHandler {
       } else {
         return {
           success: false,
-          error: ERROR_MESSAGES.PERMISSION_DENIED,
+          error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED },
         };
       }
     } catch (error) {
@@ -997,8 +1001,13 @@ export class MessageHandler {
       settings.defaultChain = payload.chainId;
       await this.storageManager.setSettings(settings);
 
-      // Broadcast chainChanged event to all dApps
-      await eventBroadcaster.chainChanged(payload.chainId);
+      // Intentionally no eventBroadcaster.chainChanged here. The popup's
+      // "switch global chain" action changes the default chain new
+      // connections will use — it must not stomp on per-origin chain
+      // contexts already established by dApps via
+      // wallet_switchEthereumChain (EIP-3326). Per-origin switches go
+      // through handleWalletSwitchChainForOrigin which does the
+      // origin-scoped broadcast.
 
       return {
         success: true,
@@ -1502,7 +1511,7 @@ export class MessageHandler {
       if (!isConnected) {
         return {
           success: false,
-          error: ERROR_MESSAGES.PERMISSION_DENIED,
+          error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED },
         };
       }
 
@@ -1781,11 +1790,31 @@ export class MessageHandler {
       // Verify dApp is connected
       const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
       if (!isConnected) {
-        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+        return {
+          success: false,
+          error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED },
+        };
       }
 
       // Get chain ID (from params or per-origin default)
       const callsParam = params[0] || {};
+
+      // Reject wallet_sendCalls that pin a `from` we don't control. dApps
+      // can't quietly switch which account signs — the approval popup shows
+      // the active account and that's the only one that'll sign.
+      if (
+        typeof callsParam.from === "string" &&
+        callsParam.from.toLowerCase() !== account.address.toLowerCase()
+      ) {
+        return {
+          success: false,
+          error: {
+            code: RPC_ERROR_CODES.UNAUTHORIZED,
+            message: `Account ${callsParam.from} is not available; the active account is ${account.address}.`,
+          },
+        };
+      }
+
       const chainId = callsParam.chainId
         ? parseInt(callsParam.chainId, 16)
         : await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
@@ -1839,8 +1868,10 @@ export class MessageHandler {
       // Verify dApp is connected
       const isConnected = await this.dappManager.isConnected(origin, account.address);
       if (!isConnected) {
-        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+        return { success: false, error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED } };
       }
+
+      const chainId = await this.dappManager.getChainIdForOrigin(origin, account.address);
 
       // Call Porto Relay to get bundle status
       const response = await fetch(PORTO_CONFIG.RELAY_URL, {
@@ -1855,14 +1886,27 @@ export class MessageHandler {
       });
 
       const data = await response.json();
-      console.log('[MessageHandler] wallet_getCallsStatus relay response:', JSON.stringify(data));
-
       if (data.error) {
         return { success: false, error: data.error.message || 'Failed to get calls status' };
       }
 
-      // Pass through relay response directly
-      return { success: true, data: data.result };
+      // EIP-5792 consumers expect `{ chainId, status, atomic, receipts, … }`
+      // with `atomic` always present and `chainId` as the requesting chain's
+      // hex id. Porto's relay returns the raw receipt list without those
+      // envelope fields; fill them in here so dApps can switch on them.
+      const raw = data.result ?? {};
+      return {
+        success: true,
+        data: {
+          version: "1.0",
+          id: bundleId,
+          chainId: `0x${chainId.toString(16)}`,
+          atomic: raw.atomic ?? true,
+          status: raw.status,
+          receipts: raw.receipts,
+          capabilities: raw.capabilities,
+        },
+      };
     } catch (error) {
       console.error('[MessageHandler] wallet_getCallsStatus error:', error);
       return {
@@ -1904,7 +1948,7 @@ export class MessageHandler {
       // Verify dApp is connected
       const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
       if (!isConnected) {
-        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+        return { success: false, error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED } };
       }
 
       // Get per-origin chain ID
@@ -1962,7 +2006,7 @@ export class MessageHandler {
       // Verify dApp is connected
       const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
       if (!isConnected) {
-        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+        return { success: false, error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED } };
       }
 
       // Get per-origin chain ID
@@ -2018,7 +2062,7 @@ export class MessageHandler {
       // Verify dApp is connected
       const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
       if (!isConnected) {
-        return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+        return { success: false, error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED } };
       }
 
       // Get per-origin chain ID
@@ -2081,7 +2125,7 @@ export class MessageHandler {
       if (!dappOrigin) return { success: false, error: "Could not determine valid dApp origin" };
 
       const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
-      if (!isConnected) return { success: false, error: ERROR_MESSAGES.PERMISSION_DENIED };
+      if (!isConnected) return { success: false, error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED } };
 
       const chainId = await this.dappManager.getChainIdForOrigin(dappOrigin, account.address);
 

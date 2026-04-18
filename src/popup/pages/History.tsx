@@ -42,22 +42,18 @@ export function History() {
         const history = await popupPortoService.getCallsHistory(activeAddress);
         console.log('[History] Raw history from Porto:', JSON.stringify(history, null, 2));
 
-        // Transform Porto format to display format
+        // Porto's getCallsHistory returns entries with `transactions[]` —
+        // each carries the chainId (hex) and transactionHash. Earlier code
+        // fell back to top-level `entry.chainId` / `entry.receipts[]` but
+        // the relay doesn't populate those, so the fallbacks were dead.
         const displayTxs: DisplayTransaction[] = history.map((entry: PortoHistoryEntry) => {
-          // Porto returns chainId inside transactions array as hex string (e.g., "0x2105")
-          const txChainId = entry.transactions?.[0]?.chainId;
-          const chainIdNum = typeof txChainId === 'string'
-            ? parseInt(txChainId, 16)
-            : (typeof entry.chainId === 'string' ? parseInt(entry.chainId, 16) : entry.chainId) || 0;
-
-          // Transaction hash is also inside transactions array
-          const txHash = entry.transactions?.[0]?.transactionHash || entry.receipts?.[0]?.transactionHash;
-
+          const first = entry.transactions?.[0];
+          const chainIdHex = first?.chainId;
           return {
             id: entry.id,
-            chainId: chainIdNum,
+            chainId: chainIdHex ? parseInt(chainIdHex, 16) : 0,
             status: portoStatusToString(entry.status),
-            hash: txHash,
+            hash: first?.transactionHash,
           };
         });
 
