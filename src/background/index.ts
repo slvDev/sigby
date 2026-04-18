@@ -93,11 +93,21 @@ class BackgroundService {
       } else if (details.reason === "update") {
         this.handleUpdate(details.previousVersion);
       }
+
+      // Any persisted signing requests from before the install/update are
+      // orphans — their original dApp connections are gone. Mark rejected so
+      // pollers see a terminal state instead of hanging.
+      this.dappManager.sweepOrphanSigningRequests().catch((err) => {
+        console.error("[Background] sweepOrphanSigningRequests failed:", err);
+      });
     });
 
     // Extension started (service worker woke up)
     chrome.runtime.onStartup.addListener(() => {
       console.log("[Background] Extension started");
+      this.dappManager.sweepOrphanSigningRequests().catch((err) => {
+        console.error("[Background] sweepOrphanSigningRequests failed:", err);
+      });
     });
 
     // Window closed - cleanup pending requests
@@ -185,6 +195,10 @@ class BackgroundService {
         activeAddress: activeAddress ? `${activeAddress.slice(0, 6)}...` : null,
         chainId: settings.defaultChain,
       });
+
+      // Every SW wake-up runs this file, so this catches crash-restarts that
+      // don't fire onStartup. sweepOrphanSigningRequests is idempotent.
+      await this.dappManager.sweepOrphanSigningRequests();
     } catch (error) {
       console.error("[Background] Failed to load state:", error);
     }

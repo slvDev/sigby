@@ -4,7 +4,23 @@
  */
 
 import type { Account, ConnectedDapp, Settings, Transaction, TokenMetadata } from "../types/account";
+import type { SigningRequest } from "../types/messages";
 import { STORAGE_KEYS, DEFAULT_CHAIN_ID } from "./constants";
+
+/**
+ * Persisted signing request — survives service-worker termination so the dApp
+ * promise can still be settled after the SW cold-starts. The popup reads this
+ * to render the approval UI; the content script polls it to recover when its
+ * `chrome.runtime.sendMessage` channel drops mid-request.
+ */
+export interface PersistedSigningRequest {
+  request: SigningRequest;
+  state: "pending" | "approved" | "rejected";
+  result?: string;
+  error?: { code: number; message: string };
+  createdAt: number;
+  settledAt?: number;
+}
 
 /**
  * Storage schema definition
@@ -34,6 +50,9 @@ export interface StorageData {
   [STORAGE_KEYS.CUSTOM_TOKENS]?: Record<string, Record<number, string[]>>;
   /** Token metadata cache: tokenAddress:chainId -> TokenMetadata */
   [STORAGE_KEYS.TOKEN_METADATA_CACHE]?: Record<string, TokenMetadata>;
+
+  /** Persisted signing requests keyed by requestId */
+  [STORAGE_KEYS.PENDING_SIGNING_REQUESTS]?: Record<string, PersistedSigningRequest>;
 
   // Legacy keys (for migration)
   /** Legacy: Single user account */

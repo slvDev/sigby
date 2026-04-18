@@ -3,10 +3,11 @@
  * Manages dApp connections, signing requests, and approval flows per account
  */
 
-import { StorageManager } from "../utils/storage";
+import { StorageManager, type PersistedSigningRequest } from "../utils/storage";
 import type { ConnectedDapp } from "../types/account";
-import type { SigningRequest } from "../types/messages";
-import { CHAIN_CONFIGS, DEFAULT_CHAIN_ID } from "../utils/constants";
+import type { SigningRequest, PollSigningRequestResponse } from "../types/messages";
+import { CHAIN_CONFIGS, DEFAULT_CHAIN_ID, STORAGE_KEYS } from "../utils/constants";
+import { RPC_ERROR_CODES } from "../utils/rpcError";
 
 /**
  * Pending connection request
@@ -466,9 +467,60 @@ export class DappManager {
       });
       this.signingDedupeKeys.set(dedupeKey, requestId);
 
+      // Persist to storage BEFORE opening the popup so that if the service
+      // worker is terminated mid-flow, the popup and the content-script
+      // recovery poll can both still find the request.
+      this.persistSigningRequest({
+        request,
+        state: "pending",
+        createdAt: Date.now(),
+      }).catch((err) => {
+        console.error("[DappManager] Failed to persist signing request:", err);
+      });
+
       // Open popup with signing request
       this.openSigningPopup(request);
     });
+  }
+
+  /**
+   * Write a single persisted entry to chrome.storage.local.
+   */
+  private async persistSigningRequest(entry: PersistedSigningRequest): Promise<void> {
+    const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
+    all[entry.request.requestId] = entry;
+    await this.storageManager.set(STORAGE_KEYS.PENDING_SIGNING_REQUESTS, all);
+  }
+
+  /**
+   * Remove a persisted entry.
+   */
+  private async removePersistedSigningRequest(requestId: string): Promise<void> {
+    const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
+    if (requestId in all) {
+      delete all[requestId];
+      await this.storageManager.set(STORAGE_KEYS.PENDING_SIGNING_REQUESTS, all);
+    }
+  }
+
+  /**
+   * Mark a persisted entry as settled. We keep the row around briefly so that
+   * a late-polling content script can still observe the terminal state, then
+   * drop it so storage doesn't grow unbounded.
+   */
+  private async settlePersistedSigningRequest(
+    requestId: string,
+    patch: Partial<PersistedSigningRequest>
+  ): Promise<void> {
+    const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
+    const current = all[requestId];
+    if (!current) return;
+    all[requestId] = { ...current, ...patch, settledAt: Date.now() };
+    await this.storageManager.set(STORAGE_KEYS.PENDING_SIGNING_REQUESTS, all);
+    // Remove after a grace period so late pollers can still read the result.
+    setTimeout(() => {
+      this.removePersistedSigningRequest(requestId).catch(() => {});
+    }, 30_000);
   }
 
   /**
@@ -487,12 +539,32 @@ export class DappManager {
   }
 
   /**
-   * Get a pending signing request by ID
+   * Get a pending signing request by ID.
+   * Falls through to chrome.storage.local so the popup can still find the
+   * request even if the service worker restarted since the popup was opened.
    * @param requestId - Request ID
-   * @returns SigningRequest or undefined
    */
-  getPendingSigningRequest(requestId: string): SigningRequest | undefined {
-    return this.pendingSigningRequests.get(requestId)?.request;
+  async getPendingSigningRequest(requestId: string): Promise<SigningRequest | undefined> {
+    const inMemory = this.pendingSigningRequests.get(requestId)?.request;
+    if (inMemory) return inMemory;
+
+    const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
+    const persisted = all[requestId];
+    if (persisted && persisted.state === "pending") return persisted.request;
+    return undefined;
+  }
+
+  /**
+   * Poll the current state of a signing request. Used by the content script
+   * to recover after `chrome.runtime.sendMessage` drops mid-request (SW death).
+   */
+  async pollSigningRequest(requestId: string): Promise<PollSigningRequestResponse> {
+    const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
+    const entry = all[requestId];
+    if (!entry) return { state: "not-found" };
+    if (entry.state === "approved") return { state: "approved", result: entry.result };
+    if (entry.state === "rejected") return { state: "rejected", error: entry.error };
+    return { state: "pending" };
   }
 
   /**
@@ -504,25 +576,24 @@ export class DappManager {
   }
 
   /**
-   * Approve a pending signing request
-   * @param requestId - Request ID
-   * @param result - Signed result (tx hash or signature)
+   * Approve a pending signing request.
+   * Always writes the terminal state to storage so content-script pollers
+   * (post-SW-restart) can still observe the result.
    */
-  approveSigning(requestId: string, result: string): void {
+  async approveSigning(requestId: string, result: string): Promise<void> {
     const pending = this.pendingSigningRequests.get(requestId);
 
     if (pending) {
       console.log("[DappManager] Signing approved:", requestId);
       clearTimeout(pending.timeout);
       this.pendingSigningRequests.delete(requestId);
-
-      // Clean up dedupe key
       this.cleanupDedupeKey(requestId);
-
       pending.resolve(result);
     } else {
-      console.warn("[DappManager] No pending signing request found for:", requestId);
+      console.warn("[DappManager] No in-memory pending request for:", requestId, "(may be a cold-start approval)");
     }
+
+    await this.settlePersistedSigningRequest(requestId, { state: "approved", result });
   }
 
   /**
@@ -538,21 +609,57 @@ export class DappManager {
   }
 
   /**
-   * Reject a pending signing request
-   * @param requestId - Request ID
+   * Reject a pending signing request.
+   * @param reason Optional structured error; defaults to user-reject (4001).
    */
-  rejectSigning(requestId: string): void {
+  async rejectSigning(
+    requestId: string,
+    reason: { code: number; message: string } = {
+      code: RPC_ERROR_CODES.USER_REJECTED,
+      message: "User rejected the signing request",
+    }
+  ): Promise<void> {
     const pending = this.pendingSigningRequests.get(requestId);
 
     if (pending) {
-      console.log("[DappManager] Signing rejected:", requestId);
+      console.log("[DappManager] Signing rejected:", requestId, reason.code);
       clearTimeout(pending.timeout);
       this.pendingSigningRequests.delete(requestId);
-
-      // Clean up dedupe key
       this.cleanupDedupeKey(requestId);
+      pending.reject(new Error(reason.message));
+    }
 
-      pending.reject(new Error("User rejected the signing request"));
+    await this.settlePersistedSigningRequest(requestId, { state: "rejected", error: reason });
+  }
+
+  /**
+   * Cold-start sweep: mark any stored pending requests older than 30s as
+   * rejected with `disconnected`. Called from the background entrypoint on
+   * onStartup / onInstalled so dApp promises don't hang forever after a
+   * browser restart or extension update.
+   */
+  async sweepOrphanSigningRequests(): Promise<void> {
+    const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
+    const now = Date.now();
+    const STALE_MS = 30_000;
+    let touched = false;
+    for (const [id, entry] of Object.entries(all)) {
+      if (entry.state !== "pending") continue;
+      if (now - entry.createdAt < STALE_MS) continue;
+      console.log("[DappManager] Sweeping orphan signing request:", id);
+      all[id] = {
+        ...entry,
+        state: "rejected",
+        error: {
+          code: RPC_ERROR_CODES.DISCONNECTED,
+          message: "Wallet background restarted; please retry.",
+        },
+        settledAt: now,
+      };
+      touched = true;
+    }
+    if (touched) {
+      await this.storageManager.set(STORAGE_KEYS.PENDING_SIGNING_REQUESTS, all);
     }
   }
 
@@ -595,7 +702,7 @@ export class DappManager {
     } catch (error) {
       console.error("[DappManager] Failed to open signing popup:", error);
       // Reject the request if popup fails to open
-      this.rejectSigning(request.requestId);
+      void this.rejectSigning(request.requestId);
     }
   }
 
@@ -615,7 +722,7 @@ export class DappManager {
 
     if (requestInfo.type === "signing") {
       // Reject the signing request
-      this.rejectSigning(requestInfo.id);
+      void this.rejectSigning(requestInfo.id);
     } else if (requestInfo.type === "connection") {
       // Reject the connection request
       const [origin, accountAddress] = requestInfo.id.split(":");

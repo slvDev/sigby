@@ -9,6 +9,20 @@ import { MessageType } from "../types/messages";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
+/** Methods that route through the approval popup and are worth recovering from
+ *  a service-worker restart via chrome.storage.local. */
+const RECOVERABLE_METHODS = new Set([
+  "eth_sendTransaction",
+  "personal_sign",
+  "eth_sign",
+  "eth_signTypedData",
+  "eth_signTypedData_v3",
+  "eth_signTypedData_v4",
+  "wallet_sendCalls",
+]);
+const isRecoverableMethod = (m: unknown): boolean =>
+  typeof m === "string" && RECOVERABLE_METHODS.has(m);
+
 /**
  * Check if the extension context is still valid
  * Returns false if extension was reloaded/updated and this content script is orphaned
@@ -200,29 +214,80 @@ class DappBridge {
     } catch (error) {
       console.error("[DappBridge] Failed to handle provider request:", error);
 
-      // Check if this is a context invalidation error
       const errorMessage = error instanceof Error ? error.message : "Request failed";
-      const isContextError = errorMessage.includes("Extension context invalidated") ||
-                             errorMessage.includes("message port closed") ||
-                             errorMessage.includes("Receiving end does not exist");
+      const isPortClosed =
+        errorMessage.includes("message port closed") ||
+        errorMessage.includes("Receiving end does not exist");
+      const isInvalidated = errorMessage.includes("Extension context invalidated");
 
-      if (isContextError) {
+      // SW died mid-request (port closed). If this is a signing/transaction
+      // method, the request was persisted to storage before the popup opened
+      // — poll for the terminal state rather than rejecting immediately.
+      if (isPortClosed && !isInvalidated && isRecoverableMethod(method)) {
+        console.log("[DappBridge] SW channel dropped, polling for", requestId);
+        const recovered = await this.pollPersistedRequest(requestId);
+        window.postMessage(
+          {
+            type: "PORTO_RESPONSE",
+            requestId,
+            result: recovered.result,
+            error: recovered.error,
+          },
+          window.location.origin
+        );
+        return;
+      }
+
+      if (isInvalidated) {
         this.contextValid = false;
       }
 
-      // Send error back to page (use specific origin for security)
-      // Provide a user-friendly message for context errors
       window.postMessage(
         {
           type: "PORTO_RESPONSE",
           requestId,
-          error: isContextError
+          error: isInvalidated
             ? "Extension was updated or reloaded. Please refresh the page to reconnect."
             : errorMessage,
         },
         window.location.origin
       );
     }
+  }
+
+  /**
+   * Poll the background for a persisted signing request until it settles or
+   * the 5-minute signing-timeout elapses.
+   */
+  private async pollPersistedRequest(
+    requestId: string
+  ): Promise<{ result?: unknown; error?: unknown }> {
+    const deadline = Date.now() + 5 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!isExtensionContextValid()) {
+        return { error: "Extension was updated or reloaded. Please refresh the page." };
+      }
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          type: MessageType.POLL_SIGNING_REQUEST,
+          payload: { requestId },
+        });
+        if (!resp?.success) continue;
+        const state = resp.data?.state;
+        if (state === "approved") return { result: resp.data.result };
+        if (state === "rejected") return { error: resp.data.error };
+        if (state === "not-found") {
+          return {
+            error: { code: -32603, message: "Request lost (wallet background restarted)" },
+          };
+        }
+        // state === "pending" — keep polling.
+      } catch {
+        // Port might still be flaky; try again.
+      }
+    }
+    return { error: { code: 4001, message: "Signing request timed out" } };
   }
 
   /**

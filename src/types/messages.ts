@@ -79,6 +79,7 @@ export enum MessageType {
   GET_PENDING_SIGNING = "GET_PENDING_SIGNING",
   APPROVE_SIGNING = "APPROVE_SIGNING",
   REJECT_SIGNING = "REJECT_SIGNING",
+  POLL_SIGNING_REQUEST = "POLL_SIGNING_REQUEST",
 
   // Token Management (Phase 7)
   GET_TOKEN_BALANCES = "GET_TOKEN_BALANCES",
@@ -369,6 +370,26 @@ export interface ApproveSigningPayload {
 export interface RejectSigningPayload {
   /** Request ID */
   requestId: string;
+}
+
+/**
+ * Poll signing request payload (from content script, after SW restart)
+ */
+export interface PollSigningRequestPayload {
+  /** Request ID to poll */
+  requestId: string;
+}
+
+/**
+ * Poll signing request response (sent back to content script)
+ */
+export interface PollSigningRequestResponse {
+  /** Current state of the request */
+  state: "pending" | "approved" | "rejected" | "not-found";
+  /** Signed result when state is approved */
+  result?: string;
+  /** Error shape when state is rejected */
+  error?: { code: number; message: string };
 }
 
 // ==================== TOKEN MANAGEMENT PAYLOADS (Phase 7) ====================

@@ -21,6 +21,8 @@ import type {
   GetPendingSigningPayload,
   ApproveSigningPayload,
   RejectSigningPayload,
+  PollSigningRequestPayload,
+  PollSigningRequestResponse,
   GetTokenBalancesPayload,
   GetTokenBalancePayload,
   AddCustomTokenPayload,
@@ -233,6 +235,10 @@ export class MessageHandler {
 
         case MT.REJECT_SIGNING:
           response = await this.handleRejectSigning(message.payload as RejectSigningPayload);
+          break;
+
+        case MT.POLL_SIGNING_REQUEST:
+          response = await this.handlePollSigningRequest(message.payload as PollSigningRequestPayload);
           break;
 
         // dApp requests
@@ -2011,7 +2017,7 @@ export class MessageHandler {
         return { success: false, error: "Request ID is required" };
       }
 
-      const request = this.dappManager.getPendingSigningRequest(payload.requestId);
+      const request = await this.dappManager.getPendingSigningRequest(payload.requestId);
       if (!request) {
         return { success: false, error: "Signing request not found or expired" };
       }
@@ -2038,10 +2044,10 @@ export class MessageHandler {
       }
 
       // Get the request before approving (it will be deleted)
-      const request = this.dappManager.getPendingSigningRequest(payload.requestId);
+      const request = await this.dappManager.getPendingSigningRequest(payload.requestId);
 
       // Resolve the pending promise
-      this.dappManager.approveSigning(payload.requestId, payload.result);
+      await this.dappManager.approveSigning(payload.requestId, payload.result);
 
       // Save transaction to history if this was a transaction (not just a message signature)
       if (request && request.method === "eth_sendTransaction") {
@@ -2084,7 +2090,7 @@ export class MessageHandler {
         return { success: false, error: "Request ID is required" };
       }
 
-      this.dappManager.rejectSigning(payload.requestId);
+      await this.dappManager.rejectSigning(payload.requestId);
 
       return { success: true, data: { requestId: payload.requestId } };
     } catch (error) {
@@ -2093,5 +2099,18 @@ export class MessageHandler {
         error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
+  }
+
+  /**
+   * Handle POLL_SIGNING_REQUEST - content-script recovery poll after SW restart.
+   */
+  private async handlePollSigningRequest(
+    payload: PollSigningRequestPayload
+  ): Promise<MessageResponse<PollSigningRequestResponse>> {
+    if (!payload?.requestId) {
+      return { success: false, error: "Request ID is required" };
+    }
+    const state = await this.dappManager.pollSigningRequest(payload.requestId);
+    return { success: true, data: state };
   }
 }

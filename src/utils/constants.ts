@@ -90,7 +90,7 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
   [CHAIN_IDS.POLYGON]: {
     id: 137,
     name: "Polygon",
-    shortName: "MATIC",
+    shortName: "POL",
     nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
     rpcUrls: ["https://polygon-rpc.com", "https://polygon.llamarpc.com"],
     blockExplorerUrls: ["https://polygonscan.com"],
@@ -201,6 +201,9 @@ export const STORAGE_KEYS = {
   // Token management (Phase 7)
   CUSTOM_TOKENS: "customTokens", // Record<address, Record<chainId, string[]>>
   TOKEN_METADATA_CACHE: "tokenMetadataCache", // Record<tokenAddress, TokenMetadata>
+
+  // Persisted signing requests (survives SW termination)
+  PENDING_SIGNING_REQUESTS: "pendingSigningRequests", // Record<requestId, PersistedSigningRequest>
 
   // Legacy keys (kept for migration)
   ACCOUNT: "account",
