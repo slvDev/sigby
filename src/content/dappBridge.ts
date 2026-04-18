@@ -9,8 +9,18 @@ import { MessageType } from "../types/messages";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
-/** Methods that route through the approval popup and are worth recovering from
- *  a service-worker restart via chrome.storage.local. */
+/**
+ * Methods whose dApp-boundary requests are persisted to chrome.storage.local
+ * and can therefore be recovered via POLL_SIGNING_REQUEST after a service
+ * worker restart.
+ *
+ * NOTE: connection approvals (eth_requestAccounts, wallet_requestPermissions
+ * with eth_accounts) also open a popup but are NOT persisted today, so they
+ * cannot be recovered here — SW death during a connection prompt still hangs
+ * the dApp until its own timeout. wallet_switchEthereumChain /
+ * wallet_addEthereumChain respond synchronously and do not open a popup, so
+ * SW death is not a hang risk for them.
+ */
 const RECOVERABLE_METHODS = new Set([
   "eth_sendTransaction",
   "personal_sign",
@@ -287,7 +297,7 @@ class DappBridge {
         // Port might still be flaky; try again.
       }
     }
-    return { error: { code: 4001, message: "Signing request timed out" } };
+    return { error: { code: -32603, message: "Signing request timed out" } };
   }
 
   /**
