@@ -74,7 +74,8 @@ export function AccountKeysCard() {
     );
   }
 
-  const activePermCount = permissions.filter((p) => p.isActive).length;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const activePermCount = permissions.filter((p) => (p.expiry ?? 0) > nowSec).length;
 
   const getKeyTypeLabel = (type: string) => {
     switch (type) {

@@ -55,12 +55,9 @@ export function Permissions() {
     }
   };
 
-  const activePermissions = permissions.filter(
-    (p) => p.isActive && p.expiry >= Date.now() / 1000
-  );
-  const expiredPermissions = permissions.filter(
-    (p) => !p.isActive || p.expiry < Date.now() / 1000
-  );
+  const nowSec = Math.floor(Date.now() / 1000);
+  const activePermissions = permissions.filter((p) => (p.expiry ?? 0) > nowSec);
+  const expiredPermissions = permissions.filter((p) => (p.expiry ?? 0) <= nowSec);
 
   return (
     <div className="flex flex-col min-h-[600px] w-[400px] bg-white">

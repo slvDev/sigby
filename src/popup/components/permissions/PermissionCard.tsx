@@ -97,19 +97,6 @@ export function PermissionCard({ permission, onRevoke, isRevoking }: PermissionC
             )}
           </div>
 
-          {/* Usage stats if available */}
-          {permission.usageCount !== undefined && (
-            <div className="text-xs text-gray-400 mt-2">
-              Used {permission.usageCount} time{permission.usageCount !== 1 ? "s" : ""}
-              {permission.lastUsed && (
-                <span>
-                  {" "}
-                  - Last used{" "}
-                  {new Date(permission.lastUsed * 1000).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Revoke button */}

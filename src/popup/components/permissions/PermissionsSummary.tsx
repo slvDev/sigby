@@ -41,8 +41,9 @@ export function PermissionsSummary() {
     return <Skeleton className="h-16 rounded-xl" />;
   }
 
-  const activeCount = permissions.filter((p) => p.isActive).length;
-  const expiredCount = permissions.filter((p) => !p.isActive || p.expiry < Date.now() / 1000).length;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const activeCount = permissions.filter((p) => (p.expiry ?? 0) > nowSec).length;
+  const expiredCount = permissions.filter((p) => (p.expiry ?? 0) <= nowSec).length;
 
   return (
     <div

@@ -195,13 +195,10 @@ export interface GrantedPermission {
 }
 
 /**
- * Active permission (from wallet_getPermissions)
+ * Active permission (from wallet_getPermissions).
+ * Porto emits the same shape as GrantedPermission; liveness is derived from `expiry`.
  */
-export interface Permission extends GrantedPermission {
-  isActive: boolean;
-  usageCount?: number;
-  lastUsed?: number;
-}
+export type Permission = GrantedPermission;
 
 // ==================== KEY TYPES ====================
 
