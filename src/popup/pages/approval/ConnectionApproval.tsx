@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageType } from "../../../types/messages";
+import { errorToString } from "../../../utils/rpcError";
 
 export function ConnectionApproval() {
   const [searchParams] = useSearchParams();
@@ -35,7 +36,7 @@ export function ConnectionApproval() {
       if (response.success) {
         window.close();
       } else {
-        setError(response.error || "Failed to approve connection");
+        setError(errorToString(response.error) || "Failed to approve connection");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve");

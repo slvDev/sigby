@@ -46,6 +46,7 @@ import {
   validateTypedDataParams,
   extractValidOrigin,
 } from "../utils/validators";
+import { RPC_ERROR_CODES, type SerializedRpcError } from "../utils/rpcError";
 
 /**
  * Map Porto SDK errors to user-friendly messages
@@ -76,6 +77,48 @@ function mapPortoError(error: Error): string {
   }
 
   return error.message; // Fallback to original
+}
+
+/**
+ * Convert any thrown value caught inside a signing/transaction handler into
+ * a dApp-boundary error response with the correct EIP-1193 numeric code.
+ *
+ * - DappManager.rejectSigning throws `Error("User rejected the signing request")`
+ *   when the approval popup is closed; map that to 4001.
+ * - WebAuthn/Passkey cancel surfaces as "not allowed" / "cancelled" / "canceled"
+ *   from the platform authenticator — also user-driven, map to 4001.
+ * - Everything else is internal (-32603) with the user-friendly mapPortoError
+ *   message so the popup error banners stay legible.
+ */
+function toDappErrorResponse(error: unknown): {
+  success: false;
+  error: SerializedRpcError;
+} {
+  const raw = error instanceof Error ? error : new Error(String(error ?? ERROR_MESSAGES.UNKNOWN_ERROR));
+  const lower = raw.message.toLowerCase();
+  const isUserReject =
+    /user rejected|user denied|user cancel/.test(lower) ||
+    lower.includes("not allowed") ||
+    lower.includes("cancelled") ||
+    lower.includes("canceled");
+
+  if (isUserReject) {
+    return {
+      success: false,
+      error: {
+        code: RPC_ERROR_CODES.USER_REJECTED,
+        message: "User rejected the request",
+      },
+    };
+  }
+
+  return {
+    success: false,
+    error: {
+      code: RPC_ERROR_CODES.INTERNAL,
+      message: mapPortoError(raw),
+    },
+  };
 }
 
 /**
@@ -494,15 +537,15 @@ export class MessageHandler {
           console.warn("[MessageHandler] Unsupported method:", method);
           return {
             success: false,
-            error: `Unsupported method: ${method}`,
+            error: {
+              code: RPC_ERROR_CODES.UNSUPPORTED_METHOD,
+              message: `Method not supported: ${method}`,
+            },
           };
       }
     } catch (error) {
       console.error("[MessageHandler] dApp request error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : ERROR_MESSAGES.INVALID_REQUEST,
-      };
+      return toDappErrorResponse(error);
     }
   }
 
@@ -1420,12 +1463,11 @@ export class MessageHandler {
 
       // Validate chain is supported
       if (!CHAIN_CONFIGS[chainId]) {
-        return {
-          success: false,
-          error: "Unrecognized chain ID",
-          // EIP-3326 error code for unrecognized chain
-          data: { code: 4902, message: "Unrecognized chain ID" },
+        const err: SerializedRpcError = {
+          code: RPC_ERROR_CODES.UNRECOGNIZED_CHAIN,
+          message: "Unrecognized chain ID",
         };
+        return { success: false, error: err };
       }
 
       const account = await this.accountManager.getAccount();
@@ -1491,11 +1533,11 @@ export class MessageHandler {
       }
 
       // Custom chains not supported yet
-      return {
-        success: false,
-        error: "Custom chains not yet supported. Only built-in chains are available.",
-        data: { code: 4902, message: "Custom chains not yet supported" },
+      const err: SerializedRpcError = {
+        code: RPC_ERROR_CODES.UNRECOGNIZED_CHAIN,
+        message: "Custom chains not yet supported. Only built-in chains are available.",
       };
+      return { success: false, error: err };
     } catch (error) {
       return {
         success: false,
@@ -1725,8 +1767,7 @@ export class MessageHandler {
       return { success: true, data: { id: bundleId } };
     } catch (error) {
       console.error("[MessageHandler] wallet_sendCalls error:", error);
-      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
-      return { success: false, error: errorMessage };
+      return toDappErrorResponse(error);
     }
   }
 
@@ -1843,11 +1884,7 @@ export class MessageHandler {
       return { success: true, data: txHash };
     } catch (error) {
       console.error("[MessageHandler] eth_sendTransaction error:", error);
-      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return toDappErrorResponse(error);
     }
   }
 
@@ -1903,11 +1940,7 @@ export class MessageHandler {
       return { success: true, data: signature };
     } catch (error) {
       console.error("[MessageHandler] personal_sign error:", error);
-      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return toDappErrorResponse(error);
     }
   }
 
@@ -1963,11 +1996,7 @@ export class MessageHandler {
       return { success: true, data: signature };
     } catch (error) {
       console.error("[MessageHandler] eth_signTypedData error:", error);
-      const errorMessage = error instanceof Error ? mapPortoError(error) : ERROR_MESSAGES.UNKNOWN_ERROR;
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return toDappErrorResponse(error);
     }
   }
 

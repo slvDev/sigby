@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageType, SigningRequest } from "../../../types/messages";
 import { popupPortoService } from "../../portoService";
+import { errorToString } from "../../../utils/rpcError";
 
 export function SigningApproval() {
   const [searchParams] = useSearchParams();
@@ -30,7 +31,7 @@ export function SigningApproval() {
         if (response.success && response.data) {
           setRequest(response.data);
         } else {
-          setError(response.error || "Request not found");
+          setError(errorToString(response.error) || "Request not found");
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch request");

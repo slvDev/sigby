@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { MessageType } from "../../../types/messages";
 import type { TokenBalance } from "../../../types/account";
+import { errorToString } from "../../../utils/rpcError";
 
 interface AddTokenModalProps {
   /** Whether modal is open */
@@ -76,7 +77,7 @@ export function AddTokenModal({
         onSuccess(response.data);
         handleClose();
       } else {
-        setError(response.error || "Failed to add token. Make sure it's a valid ERC-20 contract.");
+        setError(errorToString(response.error) || "Failed to add token. Make sure it's a valid ERC-20 contract.");
       }
     } catch (err) {
       console.error("[AddTokenModal] Error adding token:", err);

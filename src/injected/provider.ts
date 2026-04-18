@@ -7,6 +7,31 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
+/**
+ * EIP-1193 ProviderRpcError, inlined here because the injected script is built
+ * as a standalone bundle (see vite.injected.config.ts) and we don't want to
+ * pull in TS/utils barrels. Kept in sync with src/utils/rpcError.ts.
+ */
+class ProviderRpcError extends Error {
+  readonly code: number;
+  readonly data?: unknown;
+  constructor(code: number, message: string, data?: unknown) {
+    super(message);
+    this.name = "ProviderRpcError";
+    this.code = code;
+    this.data = data;
+  }
+}
+
+function errorFromResponse(err: unknown): Error {
+  if (err && typeof err === "object" && typeof (err as any).code === "number" && typeof (err as any).message === "string") {
+    const e = err as { code: number; message: string; data?: unknown };
+    return new ProviderRpcError(e.code, e.message, e.data);
+  }
+  // Legacy string error — -32603 (internal) is the least-bad fallback per JSON-RPC 2.0.
+  return new ProviderRpcError(-32603, typeof err === "string" ? err : "Unknown error");
+}
+
 // Extend Window interface for TypeScript (this gets stripped in build)
 interface EthereumProvider {
   isBerth: boolean;
@@ -188,7 +213,7 @@ class BerthProvider implements EthereumProvider {
 
       if (error) {
         console.log("[Berth] Rejecting with error:", error);
-        pending.reject(new Error(error));
+        pending.reject(errorFromResponse(error));
       } else {
         console.log("[Berth] Resolving with result:", result);
         pending.resolve(result);

@@ -9,6 +9,7 @@ import { useWalletStore, syncStoreWithBackground } from "../store";
 import { popupPortoService } from "../portoService";
 import { Header } from "../components/layout/Header";
 import { BottomNav } from "../components/layout/BottomNav";
+import { errorToString } from "../../utils/rpcError";
 
 export function Home() {
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export function Home() {
         setWalletName("");
         setAccountCount((c) => c + 1);
       } else {
-        setError(response.error || "Failed to save account");
+        setError(errorToString(response.error) || "Failed to save account");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
@@ -107,7 +108,7 @@ export function Home() {
       if (response.success) {
         await syncStoreWithBackground();
       } else {
-        setError(response.error || "Failed to save account");
+        setError(errorToString(response.error) || "Failed to save account");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect account");

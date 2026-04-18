@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useWalletStore, syncStoreWithBackground } from "../../store";
 import { ChainSelector } from "../chain";
 import { ConfirmModal, IconButton } from "../common";
+import { errorToString } from "../../../utils/rpcError";
 
 export function Header() {
   const {
@@ -70,7 +71,7 @@ export function Header() {
       if (response.success) {
         await syncStoreWithBackground();
       } else {
-        setError(response.error || "Failed to switch account");
+        setError(errorToString(response.error) || "Failed to switch account");
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to switch account");
@@ -101,7 +102,7 @@ export function Header() {
       if (response.success) {
         await syncStoreWithBackground();
       } else {
-        setError(response.error || "Failed to rename account");
+        setError(errorToString(response.error) || "Failed to rename account");
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to rename account");
@@ -123,7 +124,7 @@ export function Header() {
       if (response.success) {
         await syncStoreWithBackground();
       } else {
-        setError(response.error || "Failed to delete account");
+        setError(errorToString(response.error) || "Failed to delete account");
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to delete account");

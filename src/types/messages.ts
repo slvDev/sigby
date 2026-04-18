@@ -101,15 +101,21 @@ export interface Message<T = any> {
 }
 
 /**
- * Standard response structure for all messages
+ * Standard response structure for all messages.
+ *
+ * `error` may be a plain string (legacy / internal-only paths) or a structured
+ * `{ code, message, data? }` shape when the error will be surfaced to a dApp.
+ * dApp-boundary handlers in messageHandler.ts should prefer the structured
+ * form so the injected provider can rehydrate a ProviderRpcError with the
+ * EIP-1193 numeric code the dApp expects.
  */
 export interface MessageResponse<T = any> {
   /** Whether the operation succeeded */
   success: boolean;
   /** Response data (if successful) */
   data?: T;
-  /** Error message (if failed) */
-  error?: string;
+  /** Error (string for internal paths, structured for dApp-boundary errors) */
+  error?: string | { code: number; message: string; data?: unknown };
   /** Original request ID for correlation */
   requestId?: string;
 }

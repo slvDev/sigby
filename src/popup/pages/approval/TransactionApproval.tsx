@@ -9,6 +9,7 @@ import { MessageType, SigningRequest } from "../../../types/messages";
 import type { FeeToken } from "../../../types/porto";
 import { popupPortoService } from "../../portoService";
 import { FeeTokenDropdown } from "../../components/token/FeeTokenDropdown";
+import { errorToString } from "../../../utils/rpcError";
 
 export function TransactionApproval() {
   const [searchParams] = useSearchParams();
@@ -67,7 +68,7 @@ export function TransactionApproval() {
             console.warn("Failed to fetch fee tokens:", e);
           }
         } else {
-          setError(response.error || "Request not found");
+          setError(errorToString(response.error) || "Request not found");
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch request");

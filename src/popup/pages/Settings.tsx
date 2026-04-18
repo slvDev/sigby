@@ -11,6 +11,7 @@ import { Header } from "../components/layout/Header";
 import { BottomNav } from "../components/layout/BottomNav";
 import { RelayStatusCard } from "../components/relay";
 import { AccountKeysCard } from "../components/keys";
+import { errorToString } from "../../utils/rpcError";
 
 export function Settings() {
   const {
@@ -70,7 +71,7 @@ export function Settings() {
         setShowAddAccount(false);
         setAccountCount((c) => c + 1);
       } else {
-        setError(response.error || "Failed to save account");
+        setError(errorToString(response.error) || "Failed to save account");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
@@ -94,7 +95,7 @@ export function Settings() {
         await syncStoreWithBackground();
         setShowAddAccount(false);
       } else {
-        setError(response.error || "Failed to save account");
+        setError(errorToString(response.error) || "Failed to save account");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect account");
