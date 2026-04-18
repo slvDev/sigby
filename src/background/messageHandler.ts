@@ -472,7 +472,11 @@ export class MessageHandler {
           return await this.handleWalletRequestPermissions(params || [], sender, origin);
 
         case "wallet_getPermissions":
-          return await this.handleWalletGetPermissions(origin);
+          // Porto-aware dApps expect session-key permissions (Porto shape) here,
+          // not the EIP-2255 dApp-connection shape we used to return. We can't
+          // serve the Porto shape from the background without a Porto instance,
+          // so return [] and let dApps fall back to eth_accounts for connectivity.
+          return { success: true, data: [] };
 
         // EIP-5792: Wallet capabilities
         case "wallet_getCapabilities":
@@ -1591,50 +1595,6 @@ export class MessageHandler {
       }
 
       // No supported permissions requested
-      return {
-        success: true,
-        data: [],
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
-      };
-    }
-  }
-
-  /**
-   * Handle wallet_getPermissions (EIP-2255)
-   * Returns current permissions for the dApp
-   */
-  private async handleWalletGetPermissions(origin?: string): Promise<MessageResponse> {
-    try {
-      const account = await this.accountManager.getAccount();
-
-      if (!account || !origin) {
-        return {
-          success: true,
-          data: [],
-        };
-      }
-
-      const isConnected = await this.dappManager.isConnected(origin, account.address);
-
-      if (isConnected) {
-        return {
-          success: true,
-          data: [{
-            parentCapability: "eth_accounts",
-            invoker: origin,
-            caveats: [{
-              type: "restrictReturnedAccounts",
-              value: [account.address],
-            }],
-            date: Date.now(),
-          }],
-        };
-      }
-
       return {
         success: true,
         data: [],
