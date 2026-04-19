@@ -1,6 +1,5 @@
-import { Toggle, ConfirmModal, Button } from "../../components/common";
-import { Header } from "../../components/layout/Header";
-import { BottomNav } from "../../components/layout/BottomNav";
+import { ConfirmModal } from "../../components/common";
+import { GlassCard, PillButton, Icon } from "../../components/ui";
 import { RelayStatusCard } from "../../components/relay";
 import { AccountKeysCard } from "../../components/keys";
 import { useSettings } from "./useSettings";
@@ -30,14 +29,12 @@ export function Settings() {
   } = useSettings();
 
   return (
-    <div className="flex flex-col flex-1">
-      <Header />
-
+    <div className="flex flex-col flex-1 min-h-0 gap-4 overflow-y-auto pb-2">
       <ConfirmModal
         isOpen={showDeleteConfirm}
         onClose={closeDeleteConfirm}
         onConfirm={handleDeleteAccount}
-        title="Remove Account"
+        title="Remove account"
         message="Remove this account from the wallet?\n\nYour passkey will remain in your keychain and can be reconnected later."
         confirmText="Remove"
         cancelText="Cancel"
@@ -45,73 +42,75 @@ export function Settings() {
         isLoading={isLoading}
       />
 
-      <div className="p-4 space-y-6 overflow-y-auto flex-1">
+      {activeAccount && (
         <section>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Active Account
+          <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+            Active account
           </h3>
-          {activeAccount ? (
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <div className="font-medium text-gray-900">
-                {activeAccount.displayName}
-              </div>
-              <div className="text-sm text-gray-500 font-mono mt-1">
-                {activeAddress?.slice(0, 10)}...{activeAddress?.slice(-8)}
-              </div>
+          <GlassCard className="p-4">
+            <div className="text-[14px] font-semibold text-zinc-900">
+              {activeAccount.displayName}
             </div>
-          ) : (
-            <p className="text-gray-500">No active account</p>
-          )}
+            <div className="text-[12px] text-zinc-500 font-mono mt-1 break-all">
+              {activeAddress}
+            </div>
+          </GlassCard>
         </section>
+      )}
 
-        <section>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Accounts ({accountOrder.length})
-          </h3>
-          <div className="space-y-2">
+      <section>
+        <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+          Accounts ({accountOrder.length})
+        </h3>
+        <GlassCard className="overflow-hidden">
+          <ul className="divide-y divide-zinc-200/60">
             {accountOrder.map((addr) => {
               const acc = accounts[addr];
               if (!acc) return null;
+              const isActive = addr === activeAddress;
               return (
-                <div
-                  key={addr}
-                  className={`flex items-center gap-3 p-3 rounded-xl ${
-                    addr === activeAddress ? "bg-primary-50" : "hover:bg-gray-50"
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                    {acc.displayName?.charAt(0) || "A"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">
-                      {acc.displayName}
-                    </div>
-                    <div className="text-xs text-gray-500 font-mono">
-                      {addr.slice(0, 6)}...{addr.slice(-4)}
-                    </div>
-                  </div>
-                  {addr === activeAddress && (
-                    <span className="text-xs text-primary-600 font-medium">
-                      Active
+                <li key={addr}>
+                  <div
+                    className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5 ${
+                      isActive ? "bg-blue-50/60" : ""
+                    }`}
+                  >
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-[12px] font-semibold">
+                      {acc.displayName?.charAt(0).toUpperCase() || "A"}
                     </span>
-                  )}
-                </div>
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-semibold text-zinc-900 truncate">
+                        {acc.displayName}
+                      </div>
+                      <div className="text-[11px] text-zinc-500 font-mono tabular-nums">
+                        {addr.slice(0, 6)}…{addr.slice(-4)}
+                      </div>
+                    </div>
+                    {isActive && (
+                      <span className="text-[11px] font-semibold text-blue-600">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                </li>
               );
             })}
-          </div>
-        </section>
+          </ul>
+        </GlassCard>
+      </section>
 
-        {showAddAccount ? (
-          <section className="space-y-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Add Account
-            </h3>
-            <div className="space-y-2">
+      {showAddAccount ? (
+        <section className="space-y-3">
+          <h3 className="px-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+            Add account
+          </h3>
+          <GlassCard className="p-4 space-y-3">
+            <div className="space-y-1.5">
               <label
                 htmlFor="new-wallet-name"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-[12px] font-medium text-zinc-700"
               >
-                Name your new wallet:
+                Name your new wallet
               </label>
               <input
                 id="new-wallet-name"
@@ -120,9 +119,9 @@ export function Settings() {
                 onChange={(e) => setWalletName(e.target.value)}
                 placeholder="e.g. Trading, Savings"
                 disabled={isLoading}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none disabled:opacity-50"
+                className="w-full px-3 py-2.5 text-[13px] bg-white/80 border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50"
               />
-              <p className="text-xs text-gray-400">
+              <p className="text-[11px] text-zinc-400">
                 Touch ID: "Berth {accountCount + 1}"
               </p>
             </div>
@@ -130,83 +129,89 @@ export function Settings() {
               <button
                 onClick={handleCreateAccount}
                 disabled={isLoading}
-                className="w-full py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                className="w-full py-2.5 text-[13px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
               >
-                {isLoading ? "Creating..." : "Create"}
+                {isLoading ? "Creating…" : "Create"}
               </button>
               <button
                 onClick={handleConnectAccount}
                 disabled={isLoading}
-                className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="w-full py-2.5 text-[13px] font-semibold bg-white/80 border border-white/80 text-zinc-800 rounded-xl hover:bg-white disabled:opacity-50"
               >
-                {isLoading ? "..." : "Connect Existing"}
+                {isLoading ? "…" : "Connect existing"}
               </button>
               <button
                 onClick={closeAddAccount}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors py-2"
+                className="text-[12px] text-zinc-500 hover:text-zinc-800 py-1"
               >
                 Cancel
               </button>
             </div>
-          </section>
-        ) : (
-          <button
-            onClick={openAddAccount}
-            className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-          >
-            + Add Account
-          </button>
-        )}
+          </GlassCard>
+        </section>
+      ) : (
+        <PillButton variant="secondary" onClick={openAddAccount}>
+          <Icon name="plus" className="w-3.5 h-3.5" />
+          Add account
+        </PillButton>
+      )}
 
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
+          {error}
+        </div>
+      )}
 
-        <section>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Network
-          </h3>
-          <div className="space-y-3">
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <Toggle
+      <section>
+        <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+          Network
+        </h3>
+        <div className="space-y-3">
+          <GlassCard className="px-4 py-3.5">
+            <label className="flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <div className="text-[13px] font-semibold text-zinc-900">
+                  Show test networks
+                </div>
+                <div className="text-[11px] text-zinc-500 mt-0.5">
+                  Sepolia, Holesky, Amoy, and other testnets
+                </div>
+              </div>
+              <input
+                type="checkbox"
                 checked={showTestnets}
-                onChange={setShowTestnets}
-                label="Show test networks"
-                description="Display Sepolia, Holesky, and other testnets"
+                onChange={(e) => setShowTestnets(e.target.checked)}
+                className="w-5 h-5 accent-blue-600"
               />
-            </div>
-            <RelayStatusCard />
-          </div>
-        </section>
+            </label>
+          </GlassCard>
+          <RelayStatusCard />
+        </div>
+      </section>
 
-        <section>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Account Keys
-          </h3>
-          <AccountKeysCard />
-        </section>
+      <section>
+        <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+          Account keys
+        </h3>
+        <AccountKeysCard />
+      </section>
 
-        <section className="pt-4 border-t border-gray-200">
-          <h3 className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-3">
-            Danger Zone
-          </h3>
-          <Button
-            variant="danger"
-            fullWidth
-            onClick={openDeleteConfirm}
-            disabled={!activeAddress}
-          >
-            Remove Current Account
-          </Button>
-          <p className="text-xs text-gray-400 mt-2">
-            Your passkey will remain in your keychain and can be reconnected.
-          </p>
-        </section>
-      </div>
-
-      <BottomNav />
+      <section className="pt-2 border-t border-zinc-200/60">
+        <h3 className="px-1 mb-2 text-[11px] font-semibold text-rose-600 uppercase tracking-[0.1em]">
+          Danger zone
+        </h3>
+        <PillButton
+          variant="danger"
+          onClick={openDeleteConfirm}
+          disabled={!activeAddress}
+          className="w-full"
+        >
+          Remove current account
+        </PillButton>
+        <p className="text-[11px] text-zinc-400 mt-2 px-1">
+          Your passkey will remain in your keychain and can be reconnected.
+        </p>
+      </section>
     </div>
   );
 }
