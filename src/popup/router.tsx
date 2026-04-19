@@ -4,12 +4,11 @@
  *
  * Route shape:
  *   /                     <App>
- *     <TopTabsLayout>         — sticky header + tab strip
- *       /                   Home (Wallet tab)
+ *     <TopTabsLayout>         — sticky header + 3-tab strip
+ *       /                   Home (Wallet tab — balance, actions, tokens)
  *       /history            History (Activity tab)
- *       /tokens             Tokens tab
  *       /settings           Settings tab
- *     — flow pages (own header, no tabs)
+ *     — flow pages (own FlowHeader, no tabs)
  *       /send
  *       /receive
  *       /send-token/:address
@@ -29,7 +28,6 @@ import { SendToken } from "./pages/SendToken";
 import { Receive } from "./pages/Receive";
 import { Settings } from "./pages/Settings";
 import { History } from "./pages/History";
-import { Tokens } from "./pages/Tokens";
 import { TokenDetail } from "./pages/TokenDetail";
 import { Permissions } from "./pages/Permissions";
 
@@ -49,21 +47,22 @@ export const router = createHashRouter([
         children: [
           { index: true, element: <Home /> },
           { path: "history", element: <History /> },
-          { path: "tokens", element: <Tokens /> },
           { path: "settings", element: <Settings /> },
         ],
       },
-      // Flow routes — render their own page chrome (back button, etc.)
+      // Flow routes — render their own page chrome
       { path: "send", element: <Send /> },
       { path: "receive", element: <Receive /> },
       { path: "token/:address", element: <TokenDetail /> },
       { path: "send-token/:address", element: <SendToken /> },
       { path: "permissions", element: <Permissions /> },
-      // Approval routes — standalone popup windows, no layout chrome
+      // Approval routes — standalone popup windows
       { path: "connect", element: <ConnectionApproval /> },
       { path: "transaction", element: <TransactionApproval /> },
       { path: "sign", element: <SigningApproval /> },
       { path: "grant-permissions", element: <GrantPermissionsApproval /> },
+      // Legacy redirect — /tokens was a dedicated tab; folded into Wallet.
+      { path: "tokens", element: <Navigate to="/" replace /> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

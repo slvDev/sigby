@@ -102,7 +102,7 @@ export function useSendToken() {
   };
 
   const handleBack = () => navigate(-1);
-  const handleGoToTokens = () => navigate("/tokens");
+  const handleGoToTokens = () => navigate("/");
 
   return {
     token,

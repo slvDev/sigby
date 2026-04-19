@@ -9,7 +9,7 @@ export function useTokenDetail() {
   const token = location.state?.token as TokenBalance | undefined;
 
   const handleBack = () => navigate(-1);
-  const handleGoToTokens = () => navigate("/tokens");
+  const handleGoToTokens = () => navigate("/");
   const handleSend = () => {
     if (!token) return;
     navigate(`/send-token/${token.address}`, { state: { token } });

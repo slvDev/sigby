@@ -1,4 +1,6 @@
+import { useNavigate } from "react-router-dom";
 import { PendingApprovalsCard } from "../../components/approvals/PendingApprovalsCard";
+import { AddTokenModal } from "../../components/token";
 import {
   HeroCard,
   GlassCard,
@@ -7,11 +9,15 @@ import {
   QuickActionButton,
   ActivityRow,
   DismissibleError,
+  PillButton,
+  Icon,
 } from "../../components/ui";
 import { useHome } from "./useHome";
 import { useHistory } from "../History/useHistory";
+import { useTokens } from "../Tokens/useTokens";
 
 export function Home() {
+  const navigate = useNavigate();
   const {
     walletName,
     setWalletName,
@@ -30,11 +36,23 @@ export function Home() {
     dismissError,
   } = useHome();
 
-  // Show a preview of the most recent transactions inline on Home —
-  // full list lives on the Activity tab. Watcher polling in the
-  // background keeps this fresh on status changes.
+  // Recent activity preview — full list lives on the Activity tab.
   const { transactions, getChainName } = useHistory();
   const recent = transactions.slice(0, 3);
+
+  // Tokens inline on the Wallet tab.
+  const {
+    activeAddress: tokensAccount,
+    chainId,
+    chainName,
+    tokens,
+    isAddModalOpen,
+    handleTokenAdded,
+    handleTokenClick,
+    handleRemoveToken,
+    openAddModal,
+    closeAddModal,
+  } = useTokens();
 
   if (!hasAccounts) {
     return (
@@ -109,7 +127,7 @@ export function Home() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-2">
       <PendingApprovalsCard />
 
       <HeroCard className="p-5">
@@ -134,12 +152,89 @@ export function Home() {
 
       <DismissibleError message={error} onDismiss={dismissError} />
 
+      {/* Tokens section — merged into Wallet tab. */}
+      <div className="flex flex-col">
+        <div className="flex items-center justify-between px-1 mb-2">
+          <h2 className="text-[13px] font-semibold text-zinc-900 tracking-tight">
+            Tokens
+          </h2>
+          <PillButton variant="secondary" onClick={openAddModal}>
+            <Icon name="plus" className="w-3 h-3" />
+            Add
+          </PillButton>
+        </div>
+        {tokens.length === 0 ? (
+          <div className="text-center px-6 py-4">
+            <p className="text-[12px] text-zinc-500">
+              {assetsLoading ? "Loading tokens…" : "No tokens on this network."}
+            </p>
+          </div>
+        ) : (
+          <GlassCard className="overflow-hidden">
+            <ul className="divide-y divide-zinc-200/60">
+              {tokens.map((token) => (
+                <li key={token.address}>
+                  <button
+                    type="button"
+                    onClick={() => handleTokenClick(token)}
+                    className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5 hover:bg-white/70 focus:outline-none focus-visible:bg-white/70 text-left"
+                  >
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-[10px] font-semibold">
+                      {token.symbol.slice(0, 2).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-semibold text-zinc-900 truncate">
+                        {token.name}
+                      </div>
+                      <div className="text-[11px] text-zinc-500 tabular-nums">
+                        {token.formatted} {token.symbol}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {token.usdValue && (
+                        <div className="text-[12px] font-semibold text-zinc-900 tabular-nums">
+                          $
+                          {parseFloat(token.usdValue).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </div>
+                      )}
+                      {token.isCustom && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveToken(token);
+                          }}
+                          className="text-[10px] text-zinc-400 hover:text-rose-600"
+                          aria-label={`Remove ${token.symbol}`}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </GlassCard>
+        )}
+      </div>
+
       {recent.length > 0 && (
-        <div className="flex flex-col min-h-0">
+        <div className="flex flex-col">
           <div className="flex items-center justify-between px-1 mb-2">
             <h2 className="text-[13px] font-semibold text-zinc-900 tracking-tight">
               Recent activity
             </h2>
+            <button
+              type="button"
+              onClick={() => navigate("/history")}
+              className="text-[11px] text-zinc-500 hover:text-zinc-800"
+            >
+              View all
+            </button>
           </div>
           <GlassCard className="overflow-hidden">
             <ul className="divide-y divide-zinc-200/60">
@@ -160,6 +255,17 @@ export function Home() {
             </ul>
           </GlassCard>
         </div>
+      )}
+
+      {tokensAccount && (
+        <AddTokenModal
+          isOpen={isAddModalOpen}
+          onClose={closeAddModal}
+          onSuccess={handleTokenAdded}
+          accountAddress={tokensAccount}
+          chainId={chainId}
+          chainName={chainName}
+        />
       )}
     </div>
   );
