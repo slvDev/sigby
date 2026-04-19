@@ -1,4 +1,7 @@
+import { FlowHeader } from "../../components/layout/FlowHeader";
 import { TokenIcon } from "../../components/token";
+import { GlassCard, HeroCard, BalanceDisplay } from "../../components/ui";
+import { palette, FONT_STACK } from "../../styles/theme";
 import { useTokenDetail } from "./useTokenDetail";
 
 export function TokenDetail() {
@@ -7,76 +10,76 @@ export function TokenDetail() {
 
   if (!token || !address) {
     return (
-      <div className="flex flex-col min-h-[600px] w-[400px] bg-white p-6">
-        <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-          <button
-            onClick={handleGoToTokens}
-            className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            &larr; Back
-          </button>
-          <h2 className="text-lg font-semibold text-gray-900">Token</h2>
-        </div>
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-          Token not found. Please go back and select a token.
+      <div
+        className="flex flex-col flex-1 min-h-[600px]"
+        style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      >
+        <FlowHeader title="Token" onBack={handleGoToTokens} />
+        <div className="px-4 pt-3">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
+            Token not found. Please go back and select a token.
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col min-h-[600px] w-[400px] bg-white">
-      <div className="flex items-center gap-4 p-4 border-b border-gray-200">
-        <button
-          onClick={handleBack}
-          className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          &larr; Back
-        </button>
-        <h2 className="text-lg font-semibold text-gray-900">Token Details</h2>
-      </div>
+  const fiat = token.usdValue
+    ? `$${parseFloat(token.usdValue).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : undefined;
 
-      <div className="flex-1 p-6">
-        <div className="flex flex-col items-center text-center">
+  return (
+    <div
+      className="flex flex-col flex-1 min-h-[600px]"
+      style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+    >
+      <FlowHeader
+        title={token.name}
+        subtitle={token.symbol}
+        onBack={handleBack}
+        trailing={
+          <TokenIcon
+            symbol={token.symbol}
+            address={token.address}
+            logoUrl={token.logoUrl}
+            size="sm"
+          />
+        }
+      />
+
+      <div className="flex flex-col gap-4 px-4 pt-3 pb-4 flex-1">
+        <HeroCard className="p-5 flex flex-col items-center text-center">
           <TokenIcon
             symbol={token.symbol}
             address={token.address}
             logoUrl={token.logoUrl}
             size="lg"
-            className="w-16 h-16 text-2xl mb-4"
+            className="w-14 h-14 text-2xl mb-3"
           />
+          <BalanceDisplay
+            balance={token.formatted}
+            symbol={token.symbol}
+            fiat={fiat}
+          />
+        </HeroCard>
 
-          <h1 className="text-2xl font-bold text-gray-900">{token.symbol}</h1>
-          <p className="text-sm text-gray-500 mt-1">{token.name}</p>
-
-          <div className="mt-8">
-            <p className="text-3xl font-semibold text-gray-900">
-              {token.formatted} <span className="text-xl">{token.symbol}</span>
-            </p>
-            {token.usdValue && (
-              <p className="text-lg text-gray-500 mt-1">
-                ≈ $
-                {parseFloat(token.usdValue).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </p>
-            )}
+        <GlassCard className="p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">
+            Contract address
           </div>
-
-          <div className="mt-8 w-full">
-            <p className="text-xs text-gray-400 mb-1">Contract Address</p>
-            <p className="text-xs font-mono text-gray-600 bg-gray-50 p-2 rounded-lg break-all">
-              {token.address}
-            </p>
+          <div className="mt-2 text-[11px] font-mono text-zinc-700 break-all">
+            {token.address}
           </div>
-        </div>
-      </div>
+        </GlassCard>
 
-      <div className="p-4 border-t border-gray-200">
+        <div className="flex-1" />
+
         <button
           onClick={handleSend}
-          className="w-full py-3.5 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition-colors"
+          className="w-full py-3.5 text-[14px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
         >
           Send {token.symbol}
         </button>
