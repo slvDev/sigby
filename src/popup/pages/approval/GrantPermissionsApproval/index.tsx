@@ -1,4 +1,6 @@
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
+import { GlassCard, PillButton } from "../../../components/ui";
+import { palette, FONT_STACK } from "../../../styles/theme";
 import {
   useGrantPermissionsApproval,
   formatAddress,
@@ -21,27 +23,30 @@ export function GrantPermissionsApproval() {
 
   if (isFetching) {
     return (
-      <div className="w-[400px] min-h-[600px] bg-white flex items-center justify-center text-gray-500">
-        Loading permission request...
+      <div
+        className="w-[400px] min-h-[600px] flex items-center justify-center text-zinc-500 text-[13px]"
+        style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      >
+        Loading permission request…
       </div>
     );
   }
 
   if (!request || !permissionRequest) {
     return (
-      <div className="flex flex-col min-h-[600px] p-6 gap-4">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Permission Request
+      <div
+        className="flex flex-col min-h-[600px] px-6 pt-6 pb-5 gap-4"
+        style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      >
+        <h2 className="text-[18px] font-semibold tracking-tight text-zinc-900">
+          Permission request
         </h2>
-        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
           {error || "Request not found or expired"}
         </div>
-        <button
-          onClick={handleClose}
-          className="py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
-        >
+        <PillButton variant="primary" onClick={handleClose} className="py-3">
           Close
-        </button>
+        </PillButton>
       </div>
     );
   }
@@ -50,123 +55,133 @@ export function GrantPermissionsApproval() {
   const spendLimits = permissionRequest.permissions.spend ?? [];
 
   return (
-    <div className="flex flex-col min-h-[600px] p-6 gap-4">
-      <div className="text-center pb-3 border-b border-gray-100">
-        <h2 className="text-xl font-semibold text-gray-900">Grant Session Key</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          The dApp will be able to sign within these limits without prompting
-          you each time.
+    <div
+      className="flex flex-col min-h-[600px] px-6 pt-6 pb-5 gap-4"
+      style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+    >
+      <div className="text-center pb-3 border-b border-zinc-200/60">
+        <h2 className="text-[18px] font-semibold tracking-tight text-zinc-900">
+          Grant session key
+        </h2>
+        <p className="text-[11px] text-zinc-500 mt-0.5">
+          The dApp will sign within these limits without prompting you each
+          time.
         </p>
       </div>
 
-      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+      <GlassCard className="flex items-center gap-3 p-3">
         {request.metadata?.favicon && (
           <img
             src={request.metadata.favicon}
             alt=""
-            className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 shadow-sm"
+            className="w-8 h-8 rounded-lg object-contain bg-white/90 p-0.5 shadow-sm"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = "none";
             }}
           />
         )}
-        <div className="font-medium text-gray-700 truncate">{displayOrigin}</div>
-      </div>
+        <div className="text-[13px] font-medium text-zinc-700 truncate">
+          {displayOrigin}
+        </div>
+      </GlassCard>
+
       <OriginSecurityBanner analysis={originAnalysis} />
 
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <GlassCard className="p-3.5">
+        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
           Expires
-        </h3>
-        <p className="text-sm text-gray-800">
+        </div>
+        <div className="mt-1 text-[13px] text-zinc-900">
           {formatExpiry(permissionRequest.expiry)}
-        </p>
-      </section>
+        </div>
+      </GlassCard>
 
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <GlassCard className="p-3.5">
+        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em] mb-2">
           Allowed calls ({calls.length})
-        </h3>
-        <div className="flex flex-col gap-1">
+        </div>
+        <div className="space-y-1.5">
           {calls.map((call, idx) => (
             <div
               key={idx}
-              className="px-3 py-2 bg-gray-50 rounded-lg text-xs font-mono text-gray-700 break-all"
+              className="px-3 py-2 bg-white/60 rounded-lg text-[11px] font-mono text-zinc-700 break-all"
             >
               {call.to && <div>to {formatAddress(call.to)}</div>}
               {call.signature && (
-                <div className="text-gray-500">{call.signature}</div>
+                <div className="text-zinc-500">{call.signature}</div>
               )}
               {call.selector && (
-                <div className="text-gray-500">selector {call.selector}</div>
+                <div className="text-zinc-500">selector {call.selector}</div>
               )}
             </div>
           ))}
         </div>
-      </section>
+      </GlassCard>
 
       {spendLimits.length > 0 && (
-        <section className="space-y-2">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <GlassCard className="p-3.5">
+          <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em] mb-2">
             Spend limits
-          </h3>
-          <div className="flex flex-col gap-1">
+          </div>
+          <div className="space-y-1.5">
             {spendLimits.map((limit, idx) => (
               <div
                 key={idx}
-                className="px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-700"
+                className="px-3 py-2 bg-white/60 rounded-lg text-[12px] text-zinc-700"
               >
-                <span className="font-mono">{limit.limit}</span> per{" "}
-                {limit.period} on{" "}
+                <span className="font-mono tabular-nums">{limit.limit}</span>{" "}
+                per {limit.period} on{" "}
                 <span className="font-mono">{formatAddress(limit.token)}</span>
               </div>
             ))}
           </div>
-        </section>
+        </GlassCard>
       )}
 
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <GlassCard className="p-3.5">
+        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
           Fee token
-        </h3>
-        <div className="px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-700">
+        </div>
+        <div className="mt-1 text-[12px] text-zinc-700">
           {permissionRequest.feeToken ? (
             <>
               Up to{" "}
-              <span className="font-mono">
+              <span className="font-mono tabular-nums">
                 {permissionRequest.feeToken.limit}
               </span>{" "}
               {permissionRequest.feeToken.symbol ?? "native"}
             </>
           ) : (
-            <span className="text-gray-500">
+            <span className="text-zinc-500">
               No fee allowance — session key cannot pay gas.
             </span>
           )}
         </div>
-      </section>
+      </GlassCard>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
           {error}
         </div>
       )}
 
-      <div className="flex gap-3 mt-auto pt-4 border-t border-gray-100">
-        <button
+      <div className="flex gap-2 mt-auto">
+        <PillButton
+          variant="secondary"
           onClick={handleReject}
           disabled={isLoading}
-          className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+          className="flex-1 py-3"
         >
           Reject
-        </button>
-        <button
+        </PillButton>
+        <PillButton
+          variant="primary"
           onClick={handleApprove}
           disabled={isLoading}
-          className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+          className="flex-1 py-3"
         >
-          {isLoading ? "Approving..." : "Approve"}
-        </button>
+          {isLoading ? "Approving…" : "Approve"}
+        </PillButton>
       </div>
     </div>
   );

@@ -1,4 +1,6 @@
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
+import { GlassCard, PillButton, Icon } from "../../../components/ui";
+import { palette, FONT_STACK } from "../../../styles/theme";
 import { useSigningApproval } from "./useSigningApproval";
 
 export function SigningApproval() {
@@ -20,64 +22,75 @@ export function SigningApproval() {
 
   if (isFetching) {
     return (
-      <div className="w-[400px] min-h-[600px] bg-white flex items-center justify-center text-gray-500">
-        Loading request...
+      <div
+        className="w-[400px] min-h-[600px] flex items-center justify-center text-zinc-500 text-[13px]"
+        style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      >
+        Loading request…
       </div>
     );
   }
 
   if (!request) {
     return (
-      <div className="flex flex-col min-h-[600px] p-6 gap-4">
-        <h2 className="text-xl font-semibold text-gray-900">Signature Request</h2>
-        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+      <div
+        className="flex flex-col min-h-[600px] px-6 pt-6 pb-5 gap-4"
+        style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      >
+        <h2 className="text-[18px] font-semibold tracking-tight text-zinc-900">
+          Signature request
+        </h2>
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
           {error || "Request not found or expired"}
         </div>
-        <button
-          onClick={handleClose}
-          className="py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
-        >
+        <PillButton variant="primary" onClick={handleClose} className="py-3">
           Close
-        </button>
+        </PillButton>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-[600px] p-6 gap-4">
-      <div className="text-center pb-3 border-b border-gray-100">
-        <h2 className="text-xl font-semibold text-gray-900">
-          {isPersonalSign ? "Signature Request" : "Typed Data Signature"}
+    <div
+      className="flex flex-col min-h-[600px] px-6 pt-6 pb-5 gap-4"
+      style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+    >
+      <div className="text-center pb-3 border-b border-zinc-200/60">
+        <h2 className="text-[18px] font-semibold tracking-tight text-zinc-900">
+          {isPersonalSign ? "Signature request" : "Typed data signature"}
         </h2>
       </div>
 
-      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+      <GlassCard className="flex items-center gap-3 p-3">
         {request.metadata?.favicon && (
           <img
             src={request.metadata.favicon}
             alt=""
-            className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 shadow-sm"
+            className="w-8 h-8 rounded-lg object-contain bg-white/90 p-0.5 shadow-sm"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = "none";
             }}
           />
         )}
-        <div className="font-medium text-gray-700 truncate">{displayOrigin}</div>
-      </div>
+        <div className="text-[13px] font-medium text-zinc-700 truncate">
+          {displayOrigin}
+        </div>
+      </GlassCard>
+
       <OriginSecurityBanner analysis={originAnalysis} />
 
       {typedDataDomain && (
-        <div className="p-3 bg-primary-50 border border-primary-200 rounded-xl text-xs text-gray-700 space-y-1">
+        <GlassCard className="p-3.5 space-y-1 text-[12px] text-zinc-700">
           {typedDataDomain.name && (
             <div>
-              <span className="text-gray-500">Domain:</span>{" "}
-              <span className="font-medium">{typedDataDomain.name}</span>
+              <span className="text-zinc-500">Domain:</span>{" "}
+              <span className="font-semibold">{typedDataDomain.name}</span>
             </div>
           )}
           {typedDataDomain.chainId !== undefined && (
             <div>
-              <span className="text-gray-500">Chain ID:</span>{" "}
-              <span className="font-mono">
+              <span className="text-zinc-500">Chain ID:</span>{" "}
+              <span className="font-mono tabular-nums">
                 {typeof typedDataDomain.chainId === "string"
                   ? typedDataDomain.chainId
                   : String(typedDataDomain.chainId)}
@@ -86,53 +99,58 @@ export function SigningApproval() {
           )}
           {typedDataDomain.verifyingContract && (
             <div className="break-all">
-              <span className="text-gray-500">Verifying contract:</span>{" "}
+              <span className="text-zinc-500">Verifying contract:</span>{" "}
               <span className="font-mono">
                 {typedDataDomain.verifyingContract}
               </span>
             </div>
           )}
-        </div>
+        </GlassCard>
       )}
 
       <div className="flex-1 flex flex-col gap-2 min-h-0">
-        <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-          {isPersonalSign ? "Message to sign:" : "Typed data to sign:"}
+        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em] px-1">
+          {isPersonalSign ? "Message to sign" : "Typed data to sign"}
         </div>
         {hasInvisibleChars && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-            This message contains invisible or directional characters that can
-            disguise its true content. Review carefully before signing.
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[12px] text-amber-900 flex items-start gap-2">
+            <Icon name="warning" className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>
+              This message contains invisible or directional characters that
+              can disguise its true content. Review carefully before signing.
+            </span>
           </div>
         )}
-        <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-4 overflow-auto max-h-[300px]">
-          <pre className="font-mono text-sm leading-relaxed text-gray-700 whitespace-pre-wrap break-words m-0">
+        <GlassCard className="flex-1 p-4 overflow-auto max-h-[300px]">
+          <pre className="font-mono text-[12px] leading-relaxed text-zinc-700 whitespace-pre-wrap break-words m-0">
             {messageContent}
           </pre>
-        </div>
+        </GlassCard>
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
           {error}
         </div>
       )}
 
-      <div className="flex gap-3 mt-auto pt-4 border-t border-gray-100">
-        <button
+      <div className="flex gap-2 mt-auto">
+        <PillButton
+          variant="secondary"
           onClick={handleReject}
           disabled={isLoading}
-          className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+          className="flex-1 py-3"
         >
           Reject
-        </button>
-        <button
+        </PillButton>
+        <PillButton
+          variant="primary"
           onClick={handleApprove}
           disabled={isLoading}
-          className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+          className="flex-1 py-3"
         >
-          {isLoading ? "Signing..." : "Sign"}
-        </button>
+          {isLoading ? "Signing…" : "Sign"}
+        </PillButton>
       </div>
     </div>
   );
