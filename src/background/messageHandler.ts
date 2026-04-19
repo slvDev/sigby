@@ -1713,7 +1713,7 @@ export class MessageHandler {
 
       const raw = (data.result ?? {}) as Record<string, {
         contracts?: unknown;
-        fees?: { tokens?: unknown[] };
+        fees?: { tokens?: Array<{ interop?: boolean; [k: string]: unknown }> };
         [key: string]: unknown;
       }>;
       const flattened: Record<string, Record<string, unknown>> = {};
@@ -1722,18 +1722,23 @@ export class MessageHandler {
         // Drop the relay-internal `contracts` / `fees` fields — they're
         // implementation detail, not EIP-5792 capabilities.
         const { contracts: _c, fees: _f, ...passthrough } = rawCaps;
-        // Mirror the shape Porto's own relay-mode action returns (see
-        // node_modules/porto/src/core/internal/modes/relay.ts:208-229).
-        // `atomicBatch` is NOT in Porto's schema — earlier version of this
-        // handler invented it; dropped so dApps don't rely on a field that
-        // will disappear.
+        // Mirror Porto's relay-mode capability shape
+        // (node_modules/porto/src/core/internal/modes/relay.ts:236-253).
+        // Popup runs the SDK with `multichain: true`, so the dApp-facing
+        // proxy here must advertise the same — otherwise dApps that hit
+        // the provider see `requiredFunds.supported: false` while the SDK
+        // path reports `true`. Spread passthrough FIRST so canonical fields
+        // win if the relay ever starts emitting matching keys.
         flattened[chainHex] = {
+          ...passthrough,
           atomic: { status: "supported" },
           feeToken: { supported: true, tokens: feeTokens },
           merchant: { supported: true },
           permissions: { supported: true },
-          requiredFunds: { supported: false, tokens: [] },
-          ...passthrough,
+          requiredFunds: {
+            supported: true,
+            tokens: feeTokens.filter((t) => t.interop === true),
+          },
         };
       }
 
@@ -1852,8 +1857,6 @@ export class MessageHandler {
         return { success: false, error: { code: RPC_ERROR_CODES.UNAUTHORIZED, message: ERROR_MESSAGES.PERMISSION_DENIED } };
       }
 
-      const chainId = await this.dappManager.getChainIdForOrigin(origin, account.address);
-
       // Call Porto Relay to get bundle status
       const response = await fetch(PORTO_CONFIG.RELAY_URL, {
         method: 'POST',
@@ -1872,16 +1875,23 @@ export class MessageHandler {
       }
 
       // EIP-5792 consumers expect `{ chainId, status, atomic, receipts, … }`
-      // with `atomic` always present and `chainId` as the requesting chain's
-      // hex id. Porto's relay returns the raw receipt list without those
-      // envelope fields; fill them in here so dApps can switch on them.
+      // with `atomic` always present and `chainId` as the bundle's chain
+      // (not the requesting origin's current chain — those can diverge if
+      // the dApp called `wallet_switchEthereumChain` between send and poll).
+      // Porto's SDK derives chainId from `client.chain.id` of the sending
+      // mode; from the receipt list we can do the same.
       const raw = data.result ?? {};
+      const receiptChainIdHex = raw?.receipts?.[0]?.chainId;
+      const bundleChainIdHex =
+        typeof receiptChainIdHex === "string"
+          ? receiptChainIdHex
+          : `0x${(await this.dappManager.getChainIdForOrigin(origin, account.address)).toString(16)}`;
       return {
         success: true,
         data: {
           version: "1.0",
           id: bundleId,
-          chainId: `0x${chainId.toString(16)}`,
+          chainId: bundleChainIdHex,
           atomic: raw.atomic ?? true,
           status: raw.status,
           receipts: raw.receipts,
@@ -2105,14 +2115,24 @@ export class MessageHandler {
         return { success: false, error: "Missing permission request" };
       }
       // Minimum viable request per Porto schema: expiry, >=1 call, feeToken.limit.
-      if (typeof request.expiry !== "number") {
-        return { success: false, error: "expiry is required" };
+      // Porto's schema is z.number().gte(1) — reject 0, negative, and NaN
+      // up-front so the SDK's zod error doesn't leak to the dApp as a
+      // generic validation failure.
+      if (
+        typeof request.expiry !== "number" ||
+        !Number.isFinite(request.expiry) ||
+        request.expiry < 1
+      ) {
+        return { success: false, error: "expiry must be a positive number" };
       }
       if (!Array.isArray(request.permissions?.calls) || request.permissions.calls.length === 0) {
         return { success: false, error: "permissions.calls must contain at least one entry" };
       }
-      if (!request.feeToken?.limit) {
-        return { success: false, error: "feeToken.limit is required" };
+      // Porto schema makes feeToken nullable — `null` means "this session
+      // key cannot pay fees at all" (schema/permissions.ts:23). Only
+      // validate `limit` when feeToken is actually supplied.
+      if (request.feeToken != null && !request.feeToken.limit) {
+        return { success: false, error: "feeToken.limit is required when feeToken is set" };
       }
 
       const account = await this.accountManager.getAccount();

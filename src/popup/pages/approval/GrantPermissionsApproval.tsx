@@ -212,8 +212,14 @@ export function GrantPermissionsApproval() {
       <section className="space-y-2">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Fee token</h3>
         <div className="px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-700">
-          Up to <span className="font-mono">{permissionRequest.feeToken.limit}</span>{" "}
-          {permissionRequest.feeToken.symbol ?? "native"}
+          {permissionRequest.feeToken ? (
+            <>
+              Up to <span className="font-mono">{permissionRequest.feeToken.limit}</span>{" "}
+              {permissionRequest.feeToken.symbol ?? "native"}
+            </>
+          ) : (
+            <span className="text-gray-500">No fee allowance — session key cannot pay gas.</span>
+          )}
         </div>
       </section>
 

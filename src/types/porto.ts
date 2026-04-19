@@ -177,19 +177,20 @@ export interface PermissionFeeToken {
 }
 
 /**
- * Permission request structure
- * Note: When calling wallet_grantPermissions, Porto requires:
- * - At least 1 call in permissions.calls
- * - feeToken with a non-zero limit (either chain-native or an ERC-20)
+ * Permission request structure.
+ * Porto schema (`core/internal/schema/permissions.ts:22-23`):
+ * - `expiry` is `z.number().gte(1)`.
+ * - `feeToken` is `z.nullable(Key.FeeToken)` — `null` explicitly means
+ *   "this session key cannot pay fees".
  */
 export interface PermissionRequest {
-  expiry: number;                // Unix timestamp
+  expiry: number;                       // Unix timestamp, >= 1
   permissions: {
-    calls?: PermissionCall[];    // Allowed contract calls
-    spend?: SpendLimit[];        // Spend limits
+    calls?: PermissionCall[];           // Allowed contract calls
+    spend?: SpendLimit[];               // Spend limits
   };
-  feeToken: PermissionFeeToken;  // Fee token for gas (required)
-  key?: {                        // Optional custom key
+  feeToken: PermissionFeeToken | null;  // null = no fee-paying capability
+  key?: {                               // Optional custom key
     publicKey: string;
     type: 'secp256k1' | 'p256' | 'webauthn-p256';
   };
