@@ -13,6 +13,7 @@ import { errorToString } from "../../../utils/rpcError";
 import { analyzeOrigin } from "../../utils/originCheck";
 import { OriginSecurityBanner } from "../../components/approvals/OriginSecurityBanner";
 import { CHAIN_CONFIGS } from "../../../utils/constants";
+import { getAddress, isAddress } from "viem";
 
 export function TransactionApproval() {
   const [searchParams] = useSearchParams();
@@ -226,11 +227,15 @@ export function TransactionApproval() {
   const displayOrigin = originAnalysis.hostname;
   const nativeSymbol = CHAIN_CONFIGS[request.chainId]?.nativeCurrency.symbol || "ETH";
 
-  // Helper function to format a single call
+  // Helper function to format a single call. The recipient is rendered
+  // full + checksummed (EIP-55) so homograph swaps — vanity-mined
+  // addresses that share prefix/suffix with a real recipient — can't hide
+  // in a truncated `0xabcd...1234` display.
   const formatCall = (call: any) => {
-    const shortTo = call.to ? `${call.to.slice(0, 10)}...${call.to.slice(-8)}` : "Contract creation";
+    const toRaw = typeof call.to === "string" ? call.to : "";
+    const to = toRaw && isAddress(toRaw) ? getAddress(toRaw) : toRaw;
     const valueInEth = call.value ? (parseInt(call.value, 16) / 1e18).toFixed(6) : "0";
-    return { shortTo, valueInEth, data: call.data };
+    return { to, valueInEth, data: call.data };
   };
 
   const gasHex = gasEstimate || requestParams.gas || requestParams.gasLimit;
@@ -267,7 +272,7 @@ export function TransactionApproval() {
       {/* Transaction Details */}
       <div className="flex-1 overflow-auto space-y-3">
         {calls.map((call: any, index: number) => {
-          const { shortTo, valueInEth, data } = formatCall(call);
+          const { to, valueInEth, data } = formatCall(call);
           return (
             <div key={index} className="p-4 bg-gray-50 rounded-xl space-y-3">
               {calls.length > 1 && (
@@ -275,10 +280,10 @@ export function TransactionApproval() {
                   Transaction {index + 1}
                 </div>
               )}
-              <div className="flex justify-between items-start gap-3">
+              <div className="flex flex-col gap-1">
                 <span className="text-sm text-gray-500">To:</span>
-                <span className="font-medium text-gray-900 font-mono text-sm text-right">
-                  {shortTo}
+                <span className="font-medium text-gray-900 font-mono text-xs break-all">
+                  {to || "Contract creation"}
                 </span>
               </div>
               <div className="flex justify-between items-start gap-3">

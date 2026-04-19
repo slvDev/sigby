@@ -439,27 +439,16 @@ class BerthProvider implements EthereumProvider {
     // Create provider instance
     const provider = new BerthProvider();
 
-    // Inject as window.ethereum if not already present
+    // Inject as window.ethereum if not already present. If another wallet
+    // got there first, leave its object alone — multi-wallet discovery is
+    // EIP-6963's job (we already announce). Mutating another wallet's
+    // `providers` array was a pre-6963 shim that can interfere with the
+    // other wallet's freezing / isolation guarantees.
     if (!window.ethereum) {
       (window as any).ethereum = provider;
       console.log("[Berth] Set as window.ethereum");
     } else {
-      console.log("[Berth] window.ethereum already exists, registering as additional provider");
-
-      // Register in providers array (multi-wallet pattern used by some dApps)
-      const existingEthereum = (window as any).ethereum;
-
-
-      // Initialize providers array if needed
-      if (!existingEthereum.providers) {
-        existingEthereum.providers = [existingEthereum];
-      }
-
-      // Add our provider to the array
-      if (!existingEthereum.providers.includes(provider)) {
-        existingEthereum.providers.push(provider);
-        console.log("[Berth] Added to providers array");
-      }
+      console.log("[Berth] window.ethereum already exists — relying on EIP-6963 for discovery");
     }
 
     // Dispatch initialization event
