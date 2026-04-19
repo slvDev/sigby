@@ -542,7 +542,7 @@ export class MessageHandler {
         };
       }
 
-      // Extract and validate origin (prefer sender.tab.url for security)
+      // Extract and validate origin (frame-authoritative sender.origin)
       const dappOrigin = extractValidOrigin(sender, origin);
 
       if (!dappOrigin) {
@@ -1852,7 +1852,7 @@ export class MessageHandler {
         return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
       }
 
-      // Extract and validate origin (prefer sender.tab.url for security)
+      // Extract and validate origin (frame-authoritative sender.origin)
       const dappOrigin = extractValidOrigin(sender, origin);
       if (!dappOrigin) {
         return { success: false, error: "Could not determine valid dApp origin" };
@@ -1926,7 +1926,7 @@ export class MessageHandler {
         return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
       }
 
-      // Extract and validate origin (prefer sender.tab.url for security)
+      // Extract and validate origin (frame-authoritative sender.origin)
       const dappOrigin = extractValidOrigin(sender, origin);
       if (!dappOrigin) {
         return { success: false, error: "Could not determine valid dApp origin" };
@@ -1982,7 +1982,7 @@ export class MessageHandler {
         return { success: false, error: ERROR_MESSAGES.NO_ACCOUNT };
       }
 
-      // Extract and validate origin (prefer sender.tab.url for security)
+      // Extract and validate origin (frame-authoritative sender.origin)
       const dappOrigin = extractValidOrigin(sender, origin);
       if (!dappOrigin) {
         return { success: false, error: "Could not determine valid dApp origin" };

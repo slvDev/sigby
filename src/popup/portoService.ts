@@ -647,11 +647,14 @@ class PopupPortoService {
 
     console.log('[Berth:Popup] Granting permissions:', JSON.stringify(params, null, 2));
 
-    // Porto's schema (key.ts:50) requires `feeToken.limit`; there's no safe
-    // default (limit 0 = the session key can pay no fees), so the caller
-    // (dApp or manual grant UI) must supply it explicitly.
-    if (!params.permissions.feeToken?.limit) {
-      throw new Error('feeToken.limit is required for wallet_grantPermissions');
+    // Porto's schema allows feeToken to be `null` — that grants a session
+    // key that cannot pay fees at all. Only enforce `limit` when the caller
+    // supplied a non-null token.
+    if (
+      params.permissions.feeToken != null &&
+      !params.permissions.feeToken.limit
+    ) {
+      throw new Error('feeToken.limit is required when feeToken is set');
     }
 
     try {

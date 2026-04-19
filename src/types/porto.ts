@@ -109,12 +109,17 @@ export function portoStatusToString(status: number): 'pending' | 'confirmed' | '
 }
 
 /**
- * Fee token info from wallet_getCapabilities
+ * Fee token info from wallet_getCapabilities.
+ * Mirrors Porto's relay Token schema
+ * (node_modules/porto/src/core/internal/relay/schema/token.ts).
  */
 export interface FeeToken {
   address: string;
   decimals: number;
   symbol: string;
+  uid: string;
+  feeToken?: boolean;
+  interop?: boolean;
   nativeRate?: string;
 }
 
