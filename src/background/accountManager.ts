@@ -388,46 +388,6 @@ export class AccountManager {
     }
   }
 
-  /**
-   * Disconnect current account (logout from active account only)
-   * @deprecated Use deleteAccount() for removing accounts
-   */
-  async disconnect(): Promise<void> {
-    try {
-      console.log("[AccountManager] Disconnecting active account...");
-
-      const address = await this.getActiveAccountAddress();
-      const removedOrigins = address
-        ? Object.keys(await this.storageManager.getAccountDapps(address))
-        : [];
-
-      if (address) {
-        await this.deleteAccount(address);
-      }
-
-      // Check if any accounts remain
-      const newActiveAddress = await this.getActiveAccountAddress();
-
-      // Notify origins the removed account was connected to — they lose
-      // access. If a different account is now active, origins already
-      // connected to that one switch to [newActive]; others get [].
-      const newOriginsMap = newActiveAddress
-        ? await this.storageManager.getAccountDapps(newActiveAddress)
-        : {};
-      const newOrigins = new Set(Object.keys(newOriginsMap));
-
-      for (const origin of removedOrigins) {
-        const accounts = newOrigins.has(origin) ? [newActiveAddress!] : [];
-        await eventBroadcaster.accountsChangedForOrigin(accounts, origin);
-      }
-
-      console.log("[AccountManager] Account disconnected");
-    } catch (error) {
-      console.error("[AccountManager] Failed to disconnect:", error);
-      throw error;
-    }
-  }
-
   // ==================== ACCOUNT ORDER ====================
 
   /**

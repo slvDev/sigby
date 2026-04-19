@@ -178,10 +178,6 @@ export class MessageHandler {
           response = await this.handleConnectAccount(message.payload);
           break;
 
-        case MT.DISCONNECT_ACCOUNT:
-          response = await this.handleDisconnectAccount();
-          break;
-
         case MT.GET_ACCOUNT:
           response = await this.handleGetAccount();
           break;
@@ -392,24 +388,6 @@ export class MessageHandler {
       return {
         success: false,
         error: error instanceof Error ? error.message : ERROR_MESSAGES.AUTH_FAILED,
-      };
-    }
-  }
-
-  /**
-   * Handle account disconnection request
-   */
-  private async handleDisconnectAccount(): Promise<MessageResponse> {
-    try {
-      await this.accountManager.disconnect();
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
   }

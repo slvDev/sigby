@@ -10,7 +10,6 @@ export enum MessageType {
   // Authentication & Account Management (Legacy - single account)
   CREATE_ACCOUNT = "CREATE_ACCOUNT",
   CONNECT_ACCOUNT = "CONNECT_ACCOUNT",
-  DISCONNECT_ACCOUNT = "DISCONNECT_ACCOUNT",
   GET_ACCOUNT = "GET_ACCOUNT",
 
   // Multi-Account Management
