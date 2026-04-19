@@ -15,6 +15,7 @@ export function Settings() {
     accountCount,
     isLoading,
     error,
+    errorAt,
     showAddAccount,
     showDeleteConfirm,
     showTestnets,
@@ -157,7 +158,7 @@ export function Settings() {
         </PillButton>
       )}
 
-      <DismissibleError message={error} onDismiss={dismissError} />
+      <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
 
       <section>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">

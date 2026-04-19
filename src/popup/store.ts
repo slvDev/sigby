@@ -89,6 +89,8 @@ interface WalletState {
   // UI state
   isLoading: boolean;
   error: string | null;
+  /** Timestamp the current error was set (for DismissibleError countdown persistence across tab switches). */
+  errorAt: number | null;
   isAccountSwitcherOpen: boolean;
   showTestnets: boolean;
 
@@ -178,6 +180,7 @@ const initialState = {
   // UI
   isLoading: false,
   error: null as string | null,
+  errorAt: null as number | null,
   isAccountSwitcherOpen: false,
   showTestnets: true, // Visible by default per user preference
 
@@ -424,7 +427,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
   setLoading: (isLoading) => set({ isLoading }),
 
-  setError: (error) => set({ error }),
+  setError: (error) => set({ error, errorAt: error ? Date.now() : null }),
 
   setAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
 

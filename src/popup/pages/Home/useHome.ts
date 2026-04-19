@@ -17,6 +17,7 @@ export function useHome() {
     refreshAssets,
     isLoading,
     error,
+    errorAt,
     setLoading,
     setError,
   } = useWalletStore();
@@ -122,6 +123,7 @@ export function useHome() {
     assetsLoading,
     isLoading,
     error,
+    errorAt,
     handleCreateAccount,
     handleConnectAccount,
     handleCopyAddress,

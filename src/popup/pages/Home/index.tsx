@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { PendingApprovalsCard } from "../../components/approvals/PendingApprovalsCard";
 import { AddTokenModal } from "../../components/token";
 import {
@@ -7,17 +6,14 @@ import {
   AddressText,
   BalanceDisplay,
   QuickActionButton,
-  ActivityRow,
   DismissibleError,
   PillButton,
   Icon,
 } from "../../components/ui";
 import { useHome } from "./useHome";
-import { useHistory } from "../History/useHistory";
 import { useTokens } from "../Tokens/useTokens";
 
 export function Home() {
-  const navigate = useNavigate();
   const {
     walletName,
     setWalletName,
@@ -29,6 +25,7 @@ export function Home() {
     assetsLoading,
     isLoading,
     error,
+    errorAt,
     handleCreateAccount,
     handleConnectAccount,
     handleGoSend,
@@ -36,11 +33,7 @@ export function Home() {
     dismissError,
   } = useHome();
 
-  // Recent activity preview — full list lives on the Activity tab.
-  const { transactions, getChainName } = useHistory();
-  const recent = transactions.slice(0, 3);
-
-  // Tokens inline on the Wallet tab.
+  // Tokens inline on the Wallet tab. Activity has its own tab.
   const {
     activeAddress: tokensAccount,
     chainId,
@@ -65,7 +58,7 @@ export function Home() {
         </p>
 
         <div className="w-full max-w-xs mb-4">
-          <DismissibleError message={error} onDismiss={dismissError} />
+          <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
         </div>
 
         <div className="w-full max-w-xs space-y-4">
@@ -150,7 +143,7 @@ export function Home() {
         <QuickActionButton label="Swap" icon="swap" disabled />
       </div>
 
-      <DismissibleError message={error} onDismiss={dismissError} />
+      <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
 
       {/* Tokens section — merged into Wallet tab. */}
       <div className="flex flex-col">
@@ -221,41 +214,6 @@ export function Home() {
           </GlassCard>
         )}
       </div>
-
-      {recent.length > 0 && (
-        <div className="flex flex-col">
-          <div className="flex items-center justify-between px-1 mb-2">
-            <h2 className="text-[13px] font-semibold text-zinc-900 tracking-tight">
-              Recent activity
-            </h2>
-            <button
-              type="button"
-              onClick={() => navigate("/history")}
-              className="text-[11px] text-zinc-500 hover:text-zinc-800"
-            >
-              View all
-            </button>
-          </div>
-          <GlassCard className="overflow-hidden">
-            <ul className="divide-y divide-zinc-200/60">
-              {recent.map((tx) => (
-                <li key={tx.id}>
-                  <ActivityRow
-                    direction="other"
-                    title="Transaction"
-                    subtitle={`${getChainName(tx.chainId)} · ${
-                      tx.hash
-                        ? `${tx.hash.slice(0, 6)}…${tx.hash.slice(-4)}`
-                        : "pending"
-                    }`}
-                    status={tx.status}
-                  />
-                </li>
-              ))}
-            </ul>
-          </GlassCard>
-        </div>
-      )}
 
       {tokensAccount && (
         <AddTokenModal

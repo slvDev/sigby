@@ -96,7 +96,8 @@ export function App() {
         console.error("[App] Initialization failed:", error);
         // Use direct state update instead of destructured function
         useWalletStore.setState({
-          error: error instanceof Error ? error.message : "Initialization failed"
+          error: error instanceof Error ? error.message : "Initialization failed",
+          errorAt: Date.now(),
         });
       } finally {
         setInitializing(false);

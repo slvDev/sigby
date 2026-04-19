@@ -12,6 +12,7 @@ export function useSettings() {
     setLoading,
     setError,
     error,
+    errorAt,
     showTestnets,
     setShowTestnets,
   } = useWalletStore();
@@ -132,6 +133,7 @@ export function useSettings() {
     accountCount,
     isLoading,
     error,
+    errorAt,
     showAddAccount,
     showDeleteConfirm,
     showTestnets,

@@ -7,6 +7,13 @@ type DismissibleErrorProps = {
   onDismiss: () => void;
   /** Total countdown in ms (default 6 s). */
   duration?: number;
+  /**
+   * Timestamp the error was set (e.g. from the Zustand store). When
+   * provided, the countdown continues across component remounts —
+   * switching tabs doesn't reset the timer. When omitted, the timer
+   * starts fresh on every mount (for local per-page errors).
+   */
+  since?: number | null;
   className?: string;
 };
 
@@ -16,41 +23,53 @@ const TICK_MS = 60;
 
 /**
  * Error banner with a countdown-donut auto-dismiss. The ring drains
- * clockwise; when it reaches zero the `onDismiss` callback fires and
- * the error clears. Clicking the ring dismisses immediately. Hovering
- * the card pauses the countdown so the user can read long messages.
+ * clockwise from 12 o'clock; when it reaches zero `onDismiss` fires
+ * and the error clears. Clicking the ring dismisses immediately.
+ * Hovering pauses the countdown so long messages can be read.
+ *
+ * When `since` is supplied, the countdown computes remaining time
+ * from the original timestamp (not mount time) — this keeps the timer
+ * coherent across tab navigation for store-level errors.
  */
 export function DismissibleError({
   message,
   onDismiss,
   duration = 6000,
+  since = null,
   className = "",
 }: DismissibleErrorProps) {
-  const [remaining, setRemaining] = useState(duration);
+  // Anchor the countdown to either the caller-provided timestamp or
+  // the moment we first saw this message.
+  const anchorRef = useRef<number>(since ?? Date.now());
+  const lastMessageRef = useRef(message);
   const dismissedRef = useRef(false);
   const isHoveringRef = useRef(false);
-  const startRef = useRef<number>(Date.now());
-  const accumulatedRef = useRef(0);
+  const hoverAccumRef = useRef(0);
+  const hoverEnterRef = useRef<number>(0);
 
-  // Reset the timer whenever a fresh message arrives.
+  const [remaining, setRemaining] = useState(() => {
+    const base = since ?? Date.now();
+    return Math.max(0, duration - (Date.now() - base));
+  });
+
+  // Reset only when a new message arrives OR the `since` timestamp
+  // changes — not on every remount.
   useEffect(() => {
     if (!message) return;
-    dismissedRef.current = false;
-    isHoveringRef.current = false;
-    startRef.current = Date.now();
-    accumulatedRef.current = 0;
-    setRemaining(duration);
-  }, [message, duration]);
+    if (message !== lastMessageRef.current || (since != null && since !== anchorRef.current)) {
+      lastMessageRef.current = message;
+      anchorRef.current = since ?? Date.now();
+      dismissedRef.current = false;
+      hoverAccumRef.current = 0;
+      setRemaining(Math.max(0, duration - (Date.now() - anchorRef.current)));
+    }
+  }, [message, since, duration]);
 
   useEffect(() => {
     if (!message) return;
     const id = window.setInterval(() => {
-      if (isHoveringRef.current) {
-        // Freeze the clock while hovering — restart the baseline.
-        startRef.current = Date.now();
-        return;
-      }
-      const elapsed = Date.now() - startRef.current + accumulatedRef.current;
+      if (isHoveringRef.current) return;
+      const elapsed = Date.now() - anchorRef.current - hoverAccumRef.current;
       const left = Math.max(0, duration - elapsed);
       setRemaining(left);
       if (left <= 0 && !dismissedRef.current) {
@@ -64,20 +83,23 @@ export function DismissibleError({
   if (!message) return null;
 
   const progress = remaining / duration; // 1 → 0
-  const dashOffset = CIRCUMFERENCE * (1 - progress);
+  // Clockwise drain from 12 o'clock: negate the offset so the dash
+  // pattern shifts in the direction that retracts the arc's leading
+  // (clockwise) edge while the trailing edge stays pinned at the top.
+  const dashOffset = -CIRCUMFERENCE * (1 - progress);
 
   return (
     <div
       role="alert"
       onMouseEnter={() => {
         if (isHoveringRef.current) return;
-        // Capture elapsed-so-far into accumulated buffer; pause the baseline.
-        accumulatedRef.current += Date.now() - startRef.current;
         isHoveringRef.current = true;
+        hoverEnterRef.current = Date.now();
       }}
       onMouseLeave={() => {
+        if (!isHoveringRef.current) return;
         isHoveringRef.current = false;
-        startRef.current = Date.now();
+        hoverAccumRef.current += Date.now() - hoverEnterRef.current;
       }}
       className={`relative flex items-start gap-2.5 p-3 pr-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700 ${className}`}
     >
