@@ -9,6 +9,7 @@ import { useWalletStore, syncStoreWithBackground } from "./store";
 import { popupPortoService } from "./portoService";
 import { ToastProvider } from "./components/common";
 import { useTransactionWatcher } from "./hooks";
+import { FONT_STACK } from "./styles/theme";
 
 /**
  * LegacyParamHandler
@@ -68,8 +69,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Show loading while checking
   if (isLoading) {
     return (
-      <div className="w-[400px] min-h-[600px] bg-white flex flex-col">
-        <div className="flex-1 flex items-center justify-center text-gray-500">Loading...</div>
+      <div className="flex-1 flex items-center justify-center text-zinc-500">
+        Loading…
       </div>
     );
   }
@@ -107,8 +108,13 @@ export function App() {
 
   if (initializing) {
     return (
-      <div className="w-[400px] min-h-[600px] bg-white flex flex-col">
-        <div className="flex-1 flex items-center justify-center text-gray-500">Loading...</div>
+      <div
+        className="w-[400px] min-h-[600px] flex flex-col text-zinc-900"
+        style={{ fontFamily: FONT_STACK, background: "#f6f7fb" }}
+      >
+        <div className="flex-1 flex items-center justify-center text-zinc-500">
+          Loading…
+        </div>
       </div>
     );
   }
@@ -116,7 +122,10 @@ export function App() {
   return (
     <ToastProvider>
       <TransactionWatcher />
-      <div className="w-[400px] min-h-[600px] bg-white flex flex-col">
+      <div
+        className="w-[400px] min-h-[600px] flex flex-col text-zinc-900"
+        style={{ fontFamily: FONT_STACK }}
+      >
         <LegacyParamHandler />
         <AuthGuard>
           <Outlet />
