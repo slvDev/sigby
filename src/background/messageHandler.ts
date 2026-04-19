@@ -8,7 +8,6 @@ import type {
   MessageResponse,
   DappRequestPayload,
   AccountPayload,
-  TransactionPayload,
   ChainSwitchPayload,
   SwitchAccountPayload,
   UpdateAccountPayload,
@@ -32,7 +31,6 @@ import type {
   GetCustomTokensPayload,
 } from "../types/messages";
 import { TransactionStatus, type Transaction } from "../types/account";
-import { PortoService } from "./portoService";
 import { AccountManager } from "./accountManager";
 import { StorageManager } from "../utils/storage";
 import { RpcHandler } from "./rpcHandler";
@@ -130,25 +128,13 @@ function toDappErrorResponse(error: unknown): {
  */
 export class MessageHandler {
   private rpcHandler: RpcHandler;
-  private portoService: PortoService;
 
   constructor(
-    portoService: PortoService,
     private accountManager: AccountManager,
     private storageManager: StorageManager,
     private dappManager: DappManager
   ) {
-    // Store for Phase 4 transaction signing
-    this.portoService = portoService;
     this.rpcHandler = new RpcHandler();
-  }
-
-  /**
-   * Get Porto service instance (for Phase 4 transaction signing)
-   * @internal
-   */
-  getPortoService(): PortoService {
-    return this.portoService;
   }
 
   /**
@@ -262,31 +248,6 @@ export class MessageHandler {
         // dApp requests
         case MT.DAPP_REQUEST:
           response = await this.handleDappRequest(message.payload as DappRequestPayload, sender);
-          break;
-
-        case MT.ETH_REQUEST_ACCOUNTS:
-          response = await this.handleRequestAccounts(sender);
-          break;
-
-        case MT.ETH_ACCOUNTS:
-          response = await this.handleGetAccounts();
-          break;
-
-        case MT.ETH_CHAIN_ID:
-          response = await this.handleGetChainId();
-          break;
-
-        // Transaction management
-        case MT.APPROVE_TRANSACTION:
-          response = await this.handleApproveTransaction(message.payload as TransactionPayload);
-          break;
-
-        case MT.REJECT_TRANSACTION:
-          response = await this.handleRejectTransaction(message.payload as TransactionPayload);
-          break;
-
-        case MT.GET_TRANSACTION:
-          response = await this.handleGetTransaction(message.payload as TransactionPayload);
           break;
 
         // State management
@@ -752,45 +713,6 @@ export class MessageHandler {
         error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
       };
     }
-  }
-
-  /**
-   * Handle transaction approval
-   */
-  private async handleApproveTransaction(
-    _payload: TransactionPayload
-  ): Promise<MessageResponse> {
-    // TODO: Implement in Phase 4
-    return {
-      success: false,
-      error: "Not implemented yet",
-    };
-  }
-
-  /**
-   * Handle transaction rejection
-   */
-  private async handleRejectTransaction(
-    _payload: TransactionPayload
-  ): Promise<MessageResponse> {
-    // TODO: Implement in Phase 4
-    return {
-      success: false,
-      error: "Not implemented yet",
-    };
-  }
-
-  /**
-   * Handle get transaction
-   */
-  private async handleGetTransaction(
-    _payload: TransactionPayload
-  ): Promise<MessageResponse> {
-    // TODO: Implement in Phase 4
-    return {
-      success: false,
-      error: "Not implemented yet",
-    };
   }
 
   /**

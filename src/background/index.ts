@@ -4,12 +4,10 @@
  * Orchestrates all background services and handles extension lifecycle
  */
 
-import { PortoService } from "./portoService";
 import { AccountManager } from "./accountManager";
 import { MessageHandler } from "./messageHandler";
 import { DappManager } from "./dappManager";
 import { StorageManager } from "../utils/storage";
-// TransactionMonitor removed - using Porto's wallet_getCallsStatus instead
 import type { Message, MessageResponse } from "../types/messages";
 
 /**
@@ -17,7 +15,6 @@ import type { Message, MessageResponse } from "../types/messages";
  * Coordinates all background services and manages extension lifecycle
  */
 class BackgroundService {
-  private portoService: PortoService;
   private storageManager: StorageManager;
   private accountManager: AccountManager;
   private dappManager: DappManager;
@@ -27,16 +24,13 @@ class BackgroundService {
   constructor() {
     console.log("[Background] Initializing background service...");
 
-    // Initialize services in dependency order
+    // Initialize services in dependency order. The real Porto SDK lives
+    // in the popup context — WebAuthn needs a visible window — so the
+    // background never instantiates it.
     this.storageManager = new StorageManager();
-    this.portoService = new PortoService();
-    this.accountManager = new AccountManager(
-      this.storageManager,
-      this.portoService
-    );
+    this.accountManager = new AccountManager(this.storageManager);
     this.dappManager = new DappManager(this.storageManager);
     this.messageHandler = new MessageHandler(
-      this.portoService,
       this.accountManager,
       this.storageManager,
       this.dappManager
@@ -58,10 +52,6 @@ class BackgroundService {
 
       // Load persisted state
       await this.loadState();
-
-      // Always initialize Porto SDK (required for account creation and connection)
-      console.log("[Background] Initializing Porto SDK...");
-      await this.portoService.initialize();
 
       // Check if user has existing accounts
       const accounts = await this.storageManager.getAllAccounts();
@@ -252,12 +242,7 @@ class BackgroundService {
    */
   private async handleSuspend(): Promise<void> {
     try {
-      // Close offscreen document if open
-      await this.portoService.closeOffscreenDocument();
-
-      // Save any pending state
-      // For Phase 1, nothing to save
-
+      // Nothing to save — all state is persisted to chrome.storage on write.
       console.log("[Background] Suspend handled successfully");
     } catch (error) {
       console.error("[Background] Suspend handling failed:", error);

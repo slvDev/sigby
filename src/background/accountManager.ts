@@ -4,7 +4,6 @@
  */
 
 import { StorageManager } from "../utils/storage";
-import type { PortoService } from "./portoService";
 import { eventBroadcaster } from "./eventBroadcaster";
 import type { Account } from "../types/account";
 
@@ -22,23 +21,7 @@ function isValidAddress(address: string): boolean {
  * Handles multi-account creation, connection, switching, and state management
  */
 export class AccountManager {
-  private portoService: PortoService;
-
-  constructor(
-    private storageManager: StorageManager,
-    portoService: PortoService
-  ) {
-    // Store for Phase 4 transaction signing
-    this.portoService = portoService;
-  }
-
-  /**
-   * Get Porto service instance (for Phase 4 transaction signing)
-   * @internal
-   */
-  getPortoService(): PortoService {
-    return this.portoService;
-  }
+  constructor(private storageManager: StorageManager) {}
 
   // ==================== ACCOUNT CREATION ====================
 
