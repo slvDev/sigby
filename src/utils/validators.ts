@@ -217,37 +217,40 @@ export function isValidOrigin(origin: string): boolean {
 }
 
 /**
- * Extract and validate origin from sender
- * Prefers tab URL over provided origin for security
- * @param sender - Chrome runtime message sender
- * @param providedOrigin - Origin provided in message (less trusted)
- * @returns Valid origin or null
+ * Extract and validate origin from sender.
+ *
+ * CRITICAL: must return the origin of the *frame* that sent the message,
+ * not the top-frame URL. Content scripts run in every frame
+ * (`manifest.json` sets `all_frames: true`), so a malicious iframe
+ * embedded in a trusted tab would otherwise inherit the tab's permissions.
+ *
+ * Precedence:
+ *   1. `sender.origin` — Chrome populates this with the frame's origin;
+ *      authoritative for permission decisions.
+ *   2. `sender.url` — frame URL, derive origin from it.
+ *   3. The message-body `origin` field is **ignored** for security
+ *      decisions (content-script-provided, untrusted).
+ *
+ * `sender.tab.url` is deliberately NOT consulted — it's the top-frame URL
+ * and using it for permission checks is the iframe-spoofing bug.
  */
 export function extractValidOrigin(
   sender: chrome.runtime.MessageSender,
-  providedOrigin?: string
+  _providedOrigin?: string
 ): string | null {
-  // Prefer sender.tab.url as it's more trustworthy than content script-provided origin
-  if (sender.tab?.url) {
+  if (sender.origin && isValidOrigin(sender.origin)) {
+    return sender.origin;
+  }
+
+  if (sender.url) {
     try {
-      const url = new URL(sender.tab.url);
-      const origin = url.origin;
+      const origin = new URL(sender.url).origin;
       if (isValidOrigin(origin)) {
         return origin;
       }
     } catch {
       // Invalid URL, fall through
     }
-  }
-
-  // Fall back to sender.origin if available
-  if (sender.origin && isValidOrigin(sender.origin)) {
-    return sender.origin;
-  }
-
-  // Fall back to provided origin (least trusted)
-  if (providedOrigin && isValidOrigin(providedOrigin)) {
-    return providedOrigin;
   }
 
   return null;
