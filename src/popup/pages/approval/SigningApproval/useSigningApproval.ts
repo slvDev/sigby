@@ -170,5 +170,6 @@ export function useSigningApproval() {
     handleApprove,
     handleReject,
     handleClose,
+    dismissError: () => setError(null),
   };
 }

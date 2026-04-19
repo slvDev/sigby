@@ -88,5 +88,6 @@ export function useConnectionApproval() {
     error,
     handleApprove,
     handleReject,
+    dismissError: () => setError(null),
   };
 }

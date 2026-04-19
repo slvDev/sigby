@@ -121,5 +121,6 @@ export function useGrantPermissionsApproval() {
     handleApprove,
     handleReject,
     handleClose,
+    dismissError: () => setError(null),
   };
 }

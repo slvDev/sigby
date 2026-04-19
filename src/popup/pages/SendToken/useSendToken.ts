@@ -120,5 +120,6 @@ export function useSendToken() {
     handleSend,
     handleBack,
     handleGoToTokens,
+    dismissError: () => setError(null),
   };
 }

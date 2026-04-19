@@ -1,5 +1,5 @@
 import { FlowHeader } from "../../components/layout/FlowHeader";
-import { GlassCard } from "../../components/ui";
+import { GlassCard, DismissibleError } from "../../components/ui";
 import { palette, FONT_STACK } from "../../styles/theme";
 import { useSend } from "./useSend";
 
@@ -17,6 +17,7 @@ export function Send() {
     userBalance,
     handleSend,
     handleBack,
+    dismissError,
   } = useSend();
 
   if (!activeAccount) {
@@ -97,11 +98,7 @@ export function Send() {
           </div>
         </GlassCard>
 
-        {error && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
-            {error}
-          </div>
-        )}
+        <DismissibleError message={error} onDismiss={dismissError} />
 
         <div className="flex-1" />
 

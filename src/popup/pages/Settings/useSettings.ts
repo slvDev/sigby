@@ -143,5 +143,6 @@ export function useSettings() {
     closeAddAccount,
     openDeleteConfirm,
     closeDeleteConfirm,
+    dismissError: () => setError(null),
   };
 }

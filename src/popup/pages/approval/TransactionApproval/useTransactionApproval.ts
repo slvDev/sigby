@@ -221,5 +221,6 @@ export function useTransactionApproval() {
     handleApprove,
     handleReject,
     handleClose,
+    dismissError: () => setError(null),
   };
 }

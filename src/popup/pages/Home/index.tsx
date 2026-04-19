@@ -6,6 +6,7 @@ import {
   BalanceDisplay,
   QuickActionButton,
   ActivityRow,
+  DismissibleError,
 } from "../../components/ui";
 import { useHome } from "./useHome";
 import { useHistory } from "../History/useHistory";
@@ -26,6 +27,7 @@ export function Home() {
     handleConnectAccount,
     handleGoSend,
     handleGoReceive,
+    dismissError,
   } = useHome();
 
   // Show a preview of the most recent transactions inline on Home —
@@ -44,11 +46,9 @@ export function Home() {
           Sign with a passkey. Same account on every chain.
         </p>
 
-        {error && (
-          <div className="w-full max-w-xs mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
-            {error}
-          </div>
-        )}
+        <div className="w-full max-w-xs mb-4">
+          <DismissibleError message={error} onDismiss={dismissError} />
+        </div>
 
         <div className="w-full max-w-xs space-y-4">
           <div className="space-y-2 text-left">
@@ -132,11 +132,7 @@ export function Home() {
         <QuickActionButton label="Swap" icon="swap" disabled />
       </div>
 
-      {error && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
-          {error}
-        </div>
-      )}
+      <DismissibleError message={error} onDismiss={dismissError} />
 
       {recent.length > 0 && (
         <div className="flex flex-col min-h-0">

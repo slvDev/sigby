@@ -1,5 +1,5 @@
 import { ConfirmModal } from "../../components/common";
-import { GlassCard, PillButton, Icon } from "../../components/ui";
+import { GlassCard, PillButton, Icon, DismissibleError } from "../../components/ui";
 import { RelayStatusCard } from "../../components/relay";
 import { AccountKeysCard } from "../../components/keys";
 import { useSettings } from "./useSettings";
@@ -26,6 +26,7 @@ export function Settings() {
     closeAddAccount,
     openDeleteConfirm,
     closeDeleteConfirm,
+    dismissError,
   } = useSettings();
 
   return (
@@ -156,11 +157,7 @@ export function Settings() {
         </PillButton>
       )}
 
-      {error && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
-          {error}
-        </div>
-      )}
+      <DismissibleError message={error} onDismiss={dismissError} />
 
       <section>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">

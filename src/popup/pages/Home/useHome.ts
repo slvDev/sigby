@@ -127,5 +127,6 @@ export function useHome() {
     handleCopyAddress,
     handleGoSend,
     handleGoReceive,
+    dismissError: () => setError(null),
   };
 }

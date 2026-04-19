@@ -1,5 +1,5 @@
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
-import { GlassCard, PillButton } from "../../../components/ui";
+import { GlassCard, PillButton, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
 import { useConnectionApproval } from "./useConnectionApproval";
 
@@ -15,6 +15,7 @@ export function ConnectionApproval() {
     error,
     handleApprove,
     handleReject,
+    dismissError,
   } = useConnectionApproval();
 
   return (
@@ -83,11 +84,7 @@ export function ConnectionApproval() {
         </ul>
       </div>
 
-      {error && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
-          {error}
-        </div>
-      )}
+      <DismissibleError message={error} onDismiss={dismissError} />
 
       <div className="flex gap-2 mt-auto">
         <PillButton

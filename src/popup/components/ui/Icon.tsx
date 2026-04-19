@@ -56,7 +56,7 @@ export function Icon({ name, className = "" }: IconProps) {
     case "arrow-left":
       return (
         <svg viewBox="0 0 20 20" strokeWidth={1.75} {...common}>
-          <path d="M4 10h12m0 0-5-5m5 5-5 5" />
+          <path d="M16 10H4m0 0 5-5m-5 5 5 5" />
         </svg>
       );
     case "arrow-up":

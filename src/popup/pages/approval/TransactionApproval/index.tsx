@@ -1,6 +1,6 @@
 import { FeeTokenDropdown } from "../../../components/token/FeeTokenDropdown";
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
-import { GlassCard, PillButton } from "../../../components/ui";
+import { GlassCard, PillButton, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
 import { useTransactionApproval } from "./useTransactionApproval";
 
@@ -24,6 +24,7 @@ export function TransactionApproval() {
     handleApprove,
     handleReject,
     handleClose,
+    dismissError,
   } = useTransactionApproval();
 
   if (isFetching) {
@@ -155,11 +156,7 @@ export function TransactionApproval() {
         </div>
       )}
 
-      {error && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
-          {error}
-        </div>
-      )}
+      <DismissibleError message={error} onDismiss={dismissError} />
 
       <div className="flex gap-2 mt-auto">
         <PillButton

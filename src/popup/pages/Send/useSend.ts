@@ -88,5 +88,6 @@ export function useSend() {
     userBalance,
     handleSend,
     handleBack,
+    dismissError: () => setError(null),
   };
 }

@@ -9,3 +9,4 @@ export { AccountPill } from "./AccountPill";
 export { ChainPill } from "./ChainPill";
 export { QuickActionButton } from "./QuickActionButton";
 export { BalanceDisplay } from "./BalanceDisplay";
+export { DismissibleError } from "./DismissibleError";
