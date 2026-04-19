@@ -29,6 +29,8 @@ import type {
   AccountKey,
   RelayHealth,
 } from "../types/porto";
+import { isPortoStatusFailed, portoStatusToString } from "../types/porto";
+import { ProviderRpcError, RPC_ERROR_CODES } from "../utils/rpcError";
 
 /**
  * All supported chains for Porto SDK
@@ -386,18 +388,30 @@ class PopupPortoService {
           }
         }
 
-        // Porto returns numeric status codes (EIP-5792 1xx/2xx/4xx/5xx), not
-        // strings — if confirmed without a receipt, treat the bundleId as
-        // the best available identifier and return.
+        // Porto returns numeric status codes (EIP-5792 1xx/2xx/3xx/4xx/5xx).
+        // Confirmed without receipt → return bundleId as best identifier.
         if (status?.status === 200 && (!status.receipts || status.receipts.length === 0)) {
           return bundleId;
         }
 
-        // Pending or anything else: wait and retry.
+        // Terminal failure (3xx offchain / 4xx-5xx onchain revert): reject
+        // the dApp promise instead of silently returning the bundleId as if
+        // it were a successful tx hash.
+        if (typeof status?.status === 'number' && isPortoStatusFailed(status.status)) {
+          throw new ProviderRpcError(
+            RPC_ERROR_CODES.INTERNAL,
+            `Transaction ${portoStatusToString(status.status)} (status ${status.status})`,
+            { bundleId, status: status.status }
+          );
+        }
+
+        // Pending (1xx): wait and retry.
         await new Promise((resolve) => setTimeout(resolve, intervalMs));
       } catch (error) {
+        // Don't swallow our own terminal-failure rejection.
+        if (error instanceof ProviderRpcError) throw error;
         console.warn('[Berth:Popup] Error getting bundle status:', error);
-        // Some error occurred, wait and retry
+        // Transient RPC error: wait and retry.
         await new Promise(resolve => setTimeout(resolve, intervalMs));
       }
     }

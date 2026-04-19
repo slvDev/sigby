@@ -671,15 +671,21 @@ export class DappManager {
   }
 
   /**
-   * Cold-start sweep: mark any stored pending requests older than 30s as
-   * rejected with `disconnected`. Called from the background entrypoint on
-   * onStartup / onInstalled so dApp promises don't hang forever after a
-   * browser restart or extension update.
+   * Cold-start sweep: mark stored pending requests older than the signing
+   * window as rejected with `disconnected`. Called from the background
+   * entrypoint on onStartup / onInstalled so dApp promises don't hang
+   * forever after a browser restart or extension update.
+   *
+   * Threshold MUST be >= signingRequestTimeout — using a shorter threshold
+   * races the user: the SW can idle out while the popup is still open, a
+   * cold-start sweep flips the row to `rejected`, the subsequent Approve
+   * then silently no-ops against the state-guarded updater in
+   * `settlePersistedSigningRequest`.
    */
   async sweepOrphanSigningRequests(): Promise<void> {
     const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
     const now = Date.now();
-    const STALE_MS = 30_000;
+    const STALE_MS = this.signingRequestTimeout;
     let touched = false;
     for (const [id, entry] of Object.entries(all)) {
       if (entry.state !== "pending") continue;
