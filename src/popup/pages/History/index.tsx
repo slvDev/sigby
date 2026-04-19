@@ -1,23 +1,5 @@
-import { BottomNav } from "../../components/layout/BottomNav";
+import { GlassCard, ActivityRow, Icon } from "../../components/ui";
 import { useHistory } from "./useHistory";
-
-function getStatusClasses(status: string) {
-  switch (status) {
-    case "confirmed":
-      return "bg-green-100 text-green-700";
-    case "pending":
-      return "bg-yellow-100 text-yellow-700";
-    case "failed":
-      return "bg-red-100 text-red-700";
-    default:
-      return "bg-gray-100 text-gray-700";
-  }
-}
-
-function truncateHash(hash?: string) {
-  if (!hash) return "Pending...";
-  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
-}
 
 export function History() {
   const {
@@ -30,79 +12,74 @@ export function History() {
   } = useHistory();
 
   return (
-    <div className="flex flex-col flex-1">
-      <div className="p-4 border-b border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Transaction History
-        </h2>
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
+      <div className="flex items-center justify-between px-1">
+        <h1 className="text-[14px] font-semibold text-zinc-900 tracking-tight">
+          Activity
+        </h1>
         {pendingCount > 0 && (
-          <div className="flex items-center gap-2 mt-2 text-sm text-yellow-700">
+          <div className="flex items-center gap-1.5 text-[11px] text-amber-700">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
             </span>
-            Watching {pendingCount} pending transaction
-            {pendingCount > 1 ? "s" : ""}...
+            {pendingCount} pending
           </div>
         )}
       </div>
 
-      <div className="flex-1 p-4 overflow-y-auto">
-        {isLoading ? (
-          <div className="text-center text-gray-400 py-8">
-            Loading transactions...
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center text-zinc-400 text-[13px]">
+          Loading…
+        </div>
+      ) : error ? (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
+          {error}
+        </div>
+      ) : transactions.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+          <div className="text-[14px] font-semibold text-zinc-800">
+            No transactions yet
           </div>
-        ) : error ? (
-          <div className="text-center py-12">
-            <p className="text-red-600 font-medium">{error}</p>
-            <p className="text-sm text-gray-400 mt-1">Please try again later</p>
-          </div>
-        ) : transactions.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-600 font-medium">No transactions yet</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Your transaction history will appear here
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {transactions.map((tx) => (
-              <div key={tx.id} className="p-4 bg-gray-50 rounded-xl">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <div className="font-medium text-gray-900">Transaction</div>
-                    <div className="text-xs text-gray-500 font-mono mt-0.5">
-                      {truncateHash(tx.hash)}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-600">
-                      {getChainName(tx.chainId)}
-                    </div>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full inline-block mt-1 ${getStatusClasses(tx.status)}`}
+          <p className="text-[12px] text-zinc-500 mt-1">
+            Your activity will appear here.
+          </p>
+        </div>
+      ) : (
+        <GlassCard className="overflow-hidden flex-1 min-h-0">
+          <ul className="divide-y divide-zinc-200/60 overflow-y-auto max-h-full">
+            {transactions.map((tx) => {
+              const subtitle = `${getChainName(tx.chainId)}${
+                tx.hash ? ` · ${tx.hash.slice(0, 6)}…${tx.hash.slice(-4)}` : ""
+              }`;
+              const row = (
+                <ActivityRow
+                  direction="other"
+                  title="Transaction"
+                  subtitle={subtitle}
+                  status={tx.status}
+                />
+              );
+              return (
+                <li key={tx.id} className="relative group">
+                  {row}
+                  {tx.hash && (
+                    <a
+                      href={getExplorerUrl(tx.chainId, tx.hash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-700 p-1 focus:outline-none focus-visible:opacity-100"
+                      aria-label="View on explorer"
                     >
-                      {tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
-                    </span>
-                  </div>
-                </div>
-                {tx.hash && (
-                  <a
-                    href={getExplorerUrl(tx.chainId, tx.hash)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary-600 hover:underline"
-                  >
-                    View on Explorer
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <BottomNav />
+                      <Icon name="external" className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </GlassCard>
+      )}
     </div>
   );
 }
