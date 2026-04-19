@@ -379,7 +379,23 @@ export class AccountManager {
     try {
       console.log("[AccountManager] Deleting account:", address);
 
+      // Resolve the dApps this account was connected to BEFORE removing the
+      // record — storage scan is account-keyed and becomes empty once
+      // deleted. dApps connected to this account lose access; per EIP-1193
+      // §5.1 they get `accountsChanged([])` and a `disconnect` event.
+      const revokedOrigins = Object.keys(
+        await this.storageManager.getAccountDapps(address)
+      );
+
       await this.storageManager.removeAccountByAddress(address);
+
+      for (const origin of revokedOrigins) {
+        await eventBroadcaster.accountsChangedForOrigin([], origin);
+        await eventBroadcaster.disconnectForOrigin(origin, {
+          code: 4900,
+          message: "Account removed from wallet",
+        });
+      }
 
       console.log("[AccountManager] Account deleted:", address);
     } catch (error) {

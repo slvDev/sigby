@@ -8,6 +8,7 @@ import type { ConnectedDapp } from "../types/account";
 import type { SigningRequest, PollSigningRequestResponse } from "../types/messages";
 import { CHAIN_CONFIGS, DEFAULT_CHAIN_ID, STORAGE_KEYS } from "../utils/constants";
 import { RPC_ERROR_CODES } from "../utils/rpcError";
+import { eventBroadcaster } from "./eventBroadcaster";
 
 /**
  * Pending connection request
@@ -215,6 +216,14 @@ export class DappManager {
    */
   async disconnect(origin: string, accountAddress: string): Promise<void> {
     await this.storageManager.disconnectAccountFromDapp(accountAddress, origin);
+
+    // Notify the dApp its access was revoked (EIP-1193 §5.1).
+    await eventBroadcaster.accountsChangedForOrigin([], origin);
+    await eventBroadcaster.disconnectForOrigin(origin, {
+      code: 4900,
+      message: "Wallet disconnected by user",
+    });
+
     console.log("[DappManager] Disconnected:", origin, accountAddress);
   }
 
