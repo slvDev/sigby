@@ -284,6 +284,10 @@ export class AccountManager {
         throw new Error(`Account ${address} not found`);
       }
 
+      // Resolve the outgoing active account before flipping the pointer so
+      // we can notify only dApps that actually had access to it.
+      const prevAddress = await this.storageManager.getActiveAccountAddress();
+
       // Update last auth time
       account.lastAuthAt = Date.now();
       await this.storageManager.saveAccount(account);
@@ -291,8 +295,28 @@ export class AccountManager {
       // Set as active
       await this.storageManager.setActiveAccountAddress(address);
 
-      // Broadcast accountsChanged event to all dApps
-      await eventBroadcaster.accountsChanged([address]);
+      // Per EIP-1193: accountsChanged must only fire for dApps whose
+      // exposed account list actually changed. Broadcasting [newAddr]
+      // globally leaks the active account to unconnected origins and
+      // tricks dApps connected only to the old account into thinking
+      // they have access to the new one. Emit per-origin based on
+      // actual per-account dApp-connection state:
+      //   - origins connected to the old account (but not new): []
+      //   - origins connected to the new account: [newAddr]
+      const prevOrigins = prevAddress
+        ? Object.keys(await this.storageManager.getAccountDapps(prevAddress))
+        : [];
+      const newOriginsMap = await this.storageManager.getAccountDapps(address);
+      const newOrigins = new Set(Object.keys(newOriginsMap));
+
+      for (const origin of prevOrigins) {
+        if (!newOrigins.has(origin)) {
+          await eventBroadcaster.accountsChangedForOrigin([], origin);
+        }
+      }
+      for (const origin of newOrigins) {
+        await eventBroadcaster.accountsChangedForOrigin([address], origin);
+      }
 
       console.log("[AccountManager] Switched to account:", address);
     } catch (error) {
@@ -373,6 +397,10 @@ export class AccountManager {
       console.log("[AccountManager] Disconnecting active account...");
 
       const address = await this.getActiveAccountAddress();
+      const removedOrigins = address
+        ? Object.keys(await this.storageManager.getAccountDapps(address))
+        : [];
+
       if (address) {
         await this.deleteAccount(address);
       }
@@ -380,11 +408,17 @@ export class AccountManager {
       // Check if any accounts remain
       const newActiveAddress = await this.getActiveAccountAddress();
 
-      // Broadcast accountsChanged event
-      if (newActiveAddress) {
-        await eventBroadcaster.accountsChanged([newActiveAddress]);
-      } else {
-        await eventBroadcaster.accountsChanged([]);
+      // Notify origins the removed account was connected to — they lose
+      // access. If a different account is now active, origins already
+      // connected to that one switch to [newActive]; others get [].
+      const newOriginsMap = newActiveAddress
+        ? await this.storageManager.getAccountDapps(newActiveAddress)
+        : {};
+      const newOrigins = new Set(Object.keys(newOriginsMap));
+
+      for (const origin of removedOrigins) {
+        const accounts = newOrigins.has(origin) ? [newActiveAddress!] : [];
+        await eventBroadcaster.accountsChangedForOrigin(accounts, origin);
       }
 
       console.log("[AccountManager] Account disconnected");

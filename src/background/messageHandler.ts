@@ -1445,7 +1445,13 @@ export class MessageHandler {
   }
 
   /**
-   * Handle wallet_switchEthereumChain (global, for popup use)
+   * Handle wallet_switchEthereumChain fallback when origin/account is missing.
+   *
+   * Called only from `handleWalletSwitchChainForOrigin` when we can't resolve
+   * a per-origin chain (no origin in the sender, no active account). Writes
+   * the global default but does NOT broadcast — broadcasting chainChanged
+   * to every tab would stomp on per-origin chain contexts established via
+   * EIP-3326 and leak internal state to unconnected origins.
    */
   private async handleWalletSwitchChain(params: any[]): Promise<MessageResponse> {
     try {
@@ -1458,9 +1464,6 @@ export class MessageHandler {
       const settings = await this.storageManager.getSettings();
       settings.defaultChain = chainId;
       await this.storageManager.setSettings(settings);
-
-      // Broadcast chainChanged event to all dApps
-      await eventBroadcaster.chainChanged(chainId);
 
       return {
         success: true,
