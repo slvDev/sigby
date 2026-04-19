@@ -1,105 +1,27 @@
-/**
- * Send Page
- * Send ETH to another address
- */
-
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useWalletStore } from "../store";
-import { popupPortoService } from "../portoService";
-import { CHAIN_CONFIGS } from "../../utils/constants";
-import { useToast } from "../components/common";
+import { useSend } from "./useSend";
 
 export function Send() {
-  const navigate = useNavigate();
-  const { showToast } = useToast();
-  const { activeAddress, accounts, chainId, addPendingTransaction } = useWalletStore();
-  const activeAccount = activeAddress ? accounts[activeAddress] : null;
-  const chainConfig = CHAIN_CONFIGS[chainId];
-  const currencySymbol = chainConfig?.nativeCurrency?.symbol || "ETH";
-
-  const [recipient, setRecipient] = useState("");
-  const [amount, setAmount] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const isValidAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr);
-
-  const userBalance = activeAccount ? parseFloat(activeAccount.balance || "0") : 0;
-
-  const handleSend = async () => {
-    if (!recipient || !amount) {
-      setError("Please fill in all fields");
-      return;
-    }
-
-    if (!isValidAddress(recipient)) {
-      setError("Invalid recipient address");
-      return;
-    }
-
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      setError("Invalid amount");
-      return;
-    }
-
-    // Check if user has sufficient balance
-    if (amountNum > userBalance) {
-      setError(`Insufficient balance. You have ${userBalance} ${currencySymbol}`);
-      return;
-    }
-
-    // Prevent sending to self
-    if (activeAddress && recipient.toLowerCase() === activeAddress.toLowerCase()) {
-      setError("Cannot send to your own address");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Convert ETH to wei (hex string)
-      const valueWei = BigInt(Math.floor(amountNum * 1e18));
-      const valueHex = "0x" + valueWei.toString(16);
-
-      // Submit via wallet_sendCalls and let useTransactionWatcher poll for
-      // confirmation in the background — no need to block the UI on the hash.
-      const bundleId = await popupPortoService.sendCalls({
-        from: activeAddress!,
-        to: recipient,
-        value: valueHex,
-        data: "0x",
-        chainId: chainId,
-      });
-
-      addPendingTransaction({
-        id: bundleId,
-        chainId: chainId,
-        timestamp: Date.now(),
-      });
-
-      // Show success toast and navigate to history
-      showToast({
-        type: "success",
-        message: "Transaction submitted!",
-      });
-      navigate("/history");
-    } catch (err) {
-      console.error("[Send] Failed:", err);
-      setError(err instanceof Error ? err.message : "Transaction failed");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    activeAccount,
+    currencySymbol,
+    chainName,
+    recipient,
+    setRecipient,
+    amount,
+    setAmount,
+    isLoading,
+    error,
+    userBalance,
+    handleSend,
+    handleBack,
+  } = useSend();
 
   if (!activeAccount) {
     return (
       <div className="flex flex-col min-h-[600px] w-[400px] bg-white p-6">
         <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
           <button
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
           >
             &larr; Back
@@ -115,28 +37,24 @@ export function Send() {
 
   return (
     <div className="flex flex-col min-h-[600px] w-[400px] bg-white p-6">
-      {/* Header */}
       <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
           className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
         >
           &larr; Back
         </button>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Send {currencySymbol}</h2>
-          <p className="text-xs text-gray-400">{chainConfig?.name || "Unknown Network"}</p>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Send {currencySymbol}
+          </h2>
+          <p className="text-xs text-gray-400">{chainName}</p>
         </div>
       </div>
 
-      {/* Form */}
       <div className="flex flex-col gap-5 mt-6 flex-1">
-        {/* Recipient Address */}
         <div className="flex flex-col gap-2">
-          <label
-            htmlFor="recipient"
-            className="text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="recipient" className="text-sm font-medium text-gray-700">
             Recipient Address
           </label>
           <input
@@ -154,12 +72,8 @@ export function Send() {
           />
         </div>
 
-        {/* Amount */}
         <div className="flex flex-col gap-2">
-          <label
-            htmlFor="amount"
-            className="text-sm font-medium text-gray-700"
-          >
+          <label htmlFor="amount" className="text-sm font-medium text-gray-700">
             Amount ({currencySymbol})
           </label>
           <input
@@ -182,20 +96,17 @@ export function Send() {
           </p>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
             {error}
           </div>
         )}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Action Buttons */}
         <div className="flex gap-3 pt-4 border-t border-gray-200">
           <button
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             disabled={isLoading}
             className="flex-1 px-4 py-3.5 text-sm font-semibold text-gray-900 bg-gray-100
                        rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed

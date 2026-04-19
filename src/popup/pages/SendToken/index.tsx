@@ -1,68 +1,31 @@
-/**
- * Send Token Page
- * Send ERC-20 tokens to another address
- */
-
-import { useState, useEffect } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { useWalletStore } from "../store";
-import { popupPortoService } from "../portoService";
-import { useToast } from "../components/common";
-import { TokenIcon, FeeTokenSelector } from "../components/token";
-import { encodeTransfer, parseTokenAmount } from "../../utils/erc20Abi";
-import type { TokenBalance } from "../../types/account";
-import type { FeeToken } from "../../types/porto";
+import { TokenIcon, FeeTokenSelector } from "../../components/token";
+import { useSendToken } from "./useSendToken";
 
 export function SendToken() {
-  const navigate = useNavigate();
-  const { showToast } = useToast();
-  const { address: tokenAddress } = useParams<{ address: string }>();
-  const location = useLocation();
-  const { activeAddress, chainId, addPendingTransaction } = useWalletStore();
+  const {
+    token,
+    tokenAddress,
+    recipient,
+    setRecipient,
+    amount,
+    setAmount,
+    isLoading,
+    error,
+    feeTokens,
+    selectedFeeToken,
+    setSelectedFeeToken,
+    handleSetMax,
+    handleSend,
+    handleBack,
+    handleGoToTokens,
+  } = useSendToken();
 
-  // Token data passed via location state
-  const token = location.state?.token as TokenBalance | undefined;
-
-  const [recipient, setRecipient] = useState("");
-  const [amount, setAmount] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [feeTokens, setFeeTokens] = useState<FeeToken[]>([]);
-  const [selectedFeeToken, setSelectedFeeToken] = useState<string>("");
-
-  const isValidAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr);
-
-  // Fetch available fee tokens on mount
-  useEffect(() => {
-    async function fetchFeeTokens() {
-      try {
-        if (!popupPortoService.isReady()) {
-          await popupPortoService.initialize();
-        }
-        const capabilities = await popupPortoService.getCapabilities(chainId);
-        if (capabilities?.feeToken?.supported && capabilities.feeToken.tokens) {
-          const tokens = capabilities.feeToken.tokens;
-          setFeeTokens(tokens);
-          // Default to first token (usually ETH)
-          if (tokens.length > 0 && !selectedFeeToken) {
-            setSelectedFeeToken(tokens[0].symbol);
-          }
-          console.log("[SendToken] Available fee tokens:", tokens);
-        }
-      } catch (err) {
-        console.warn("[SendToken] Failed to fetch fee tokens:", err);
-      }
-    }
-    fetchFeeTokens();
-  }, [chainId]);
-
-  // If no token data, show error
   if (!token || !tokenAddress) {
     return (
       <div className="flex flex-col min-h-[600px] w-[400px] bg-white p-6">
         <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
           <button
-            onClick={() => navigate("/tokens")}
+            onClick={handleGoToTokens}
             className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
           >
             &larr; Back
@@ -76,87 +39,11 @@ export function SendToken() {
     );
   }
 
-  // Parse token balance for validation (raw units)
-  const tokenBalanceRaw = BigInt(token.balance);
-
-  const handleSetMax = () => {
-    setAmount(token.formatted);
-  };
-
-  const handleSend = async () => {
-    if (!recipient || !amount) {
-      setError("Please fill in all fields");
-      return;
-    }
-
-    if (!isValidAddress(recipient)) {
-      setError("Invalid recipient address");
-      return;
-    }
-
-    // Parse amount to raw units for validation
-    const amountRaw = parseTokenAmount(amount, token.decimals);
-    if (amountRaw <= 0n) {
-      setError("Invalid amount");
-      return;
-    }
-
-    // Check if user has sufficient balance (compare raw units)
-    if (amountRaw > tokenBalanceRaw) {
-      setError(`Insufficient balance. You have ${token.formatted} ${token.symbol}`);
-      return;
-    }
-
-    // Prevent sending to self
-    if (activeAddress && recipient.toLowerCase() === activeAddress.toLowerCase()) {
-      setError("Cannot send to your own address");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Encode ERC-20 transfer call (amountRaw already calculated above)
-      const data = encodeTransfer(recipient, amountRaw);
-
-      // Submit via wallet_sendCalls; useTransactionWatcher polls for status
-      // in the background so we don't double-poll here.
-      const bundleId = await popupPortoService.sendCalls({
-        from: activeAddress!,
-        to: token.address, // Token contract address
-        value: "0x0", // No ETH value
-        data: data,
-        chainId: chainId,
-        ...(selectedFeeToken && { feeToken: selectedFeeToken }), // Gas payment token
-      });
-
-      addPendingTransaction({
-        id: bundleId,
-        chainId: chainId,
-        timestamp: Date.now(),
-      });
-
-      // Show success toast and navigate to history
-      showToast({
-        type: "success",
-        message: "Transaction submitted!",
-      });
-      navigate("/history");
-    } catch (err) {
-      console.error("[SendToken] Failed:", err);
-      setError(err instanceof Error ? err.message : "Transaction failed");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="flex flex-col min-h-[600px] w-[400px] bg-white p-6">
-      {/* Header */}
       <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
           className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
         >
           &larr; Back
@@ -168,13 +55,13 @@ export function SendToken() {
             logoUrl={token.logoUrl}
             size="sm"
           />
-          <h2 className="text-lg font-semibold text-gray-900">Send {token.symbol}</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Send {token.symbol}
+          </h2>
         </div>
       </div>
 
-      {/* Form */}
       <div className="flex flex-col gap-5 mt-6 flex-1">
-        {/* Recipient Address */}
         <div className="flex flex-col gap-2">
           <label htmlFor="recipient" className="text-sm font-medium text-gray-700">
             Recipient Address
@@ -194,7 +81,6 @@ export function SendToken() {
           />
         </div>
 
-        {/* Amount */}
         <div className="flex flex-col gap-2">
           <label htmlFor="amount" className="text-sm font-medium text-gray-700">
             Amount ({token.symbol})
@@ -229,7 +115,6 @@ export function SendToken() {
           </p>
         </div>
 
-        {/* Fee Token Selector */}
         {feeTokens.length > 0 && (
           <FeeTokenSelector
             tokens={feeTokens}
@@ -239,20 +124,17 @@ export function SendToken() {
           />
         )}
 
-        {/* Error Message */}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
             {error}
           </div>
         )}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Action Buttons */}
         <div className="flex gap-3 pt-4 border-t border-gray-200">
           <button
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             disabled={isLoading}
             className="flex-1 px-4 py-3.5 text-sm font-semibold text-gray-900 bg-gray-100
                        rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed
