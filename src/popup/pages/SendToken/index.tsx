@@ -1,4 +1,7 @@
+import { FlowHeader } from "../../components/layout/FlowHeader";
 import { TokenIcon, FeeTokenSelector } from "../../components/token";
+import { GlassCard } from "../../components/ui";
+import { palette, FONT_STACK } from "../../styles/theme";
 import { useSendToken } from "./useSendToken";
 
 export function SendToken() {
@@ -22,98 +25,93 @@ export function SendToken() {
 
   if (!token || !tokenAddress) {
     return (
-      <div className="flex flex-col min-h-[600px] w-[400px] bg-white p-6">
-        <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-          <button
-            onClick={handleGoToTokens}
-            className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            &larr; Back
-          </button>
-          <h2 className="text-lg font-semibold text-gray-900">Send Token</h2>
-        </div>
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-          Token not found. Please go back and select a token.
+      <div
+        className="flex flex-col flex-1 min-h-[600px]"
+        style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      >
+        <FlowHeader title="Send Token" onBack={handleGoToTokens} />
+        <div className="px-4 pt-3">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
+            Token not found. Please go back and select a token.
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-[600px] w-[400px] bg-white p-6">
-      <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-        <button
-          onClick={handleBack}
-          className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          &larr; Back
-        </button>
-        <div className="flex items-center gap-2">
+    <div
+      className="flex flex-col flex-1 min-h-[600px]"
+      style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+    >
+      <FlowHeader
+        title={`Send ${token.symbol}`}
+        onBack={handleBack}
+        trailing={
           <TokenIcon
             symbol={token.symbol}
             address={token.address}
             logoUrl={token.logoUrl}
             size="sm"
           />
-          <h2 className="text-lg font-semibold text-gray-900">
-            Send {token.symbol}
-          </h2>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex flex-col gap-5 mt-6 flex-1">
-        <div className="flex flex-col gap-2">
-          <label htmlFor="recipient" className="text-sm font-medium text-gray-700">
-            Recipient Address
-          </label>
-          <input
-            id="recipient"
-            type="text"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            placeholder="0x..."
-            disabled={isLoading}
-            className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl
-                       placeholder:text-gray-400
-                       focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500
-                       disabled:bg-gray-100 disabled:cursor-not-allowed
-                       transition-colors"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label htmlFor="amount" className="text-sm font-medium text-gray-700">
-            Amount ({token.symbol})
-          </label>
-          <div className="relative">
-            <input
-              id="amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.0"
-              step="any"
-              min="0"
-              disabled={isLoading}
-              className="w-full px-4 py-3 pr-16 text-sm border-2 border-gray-200 rounded-xl
-                         placeholder:text-gray-400
-                         focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500
-                         disabled:bg-gray-100 disabled:cursor-not-allowed
-                         transition-colors"
-            />
-            <button
-              type="button"
-              onClick={handleSetMax}
-              disabled={isLoading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-semibold text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 disabled:opacity-50 transition-colors"
+      <div className="flex flex-col gap-4 px-4 pt-3 pb-4 flex-1">
+        <GlassCard className="p-4 space-y-4">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="recipient"
+              className="block text-[12px] font-medium text-zinc-700"
             >
-              MAX
-            </button>
+              Recipient address
+            </label>
+            <input
+              id="recipient"
+              type="text"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="0x…"
+              disabled={isLoading}
+              className="w-full px-3 py-2.5 text-[13px] font-mono bg-white/70 border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50"
+            />
           </div>
-          <p className="text-xs text-gray-500">
-            Available: {token.formatted} {token.symbol}
-          </p>
-        </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="amount"
+                className="text-[12px] font-medium text-zinc-700"
+              >
+                Amount
+              </label>
+              <span className="text-[11px] text-zinc-500 tabular-nums">
+                Available: {token.formatted} {token.symbol}
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                id="amount"
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.0"
+                step="any"
+                min="0"
+                disabled={isLoading}
+                className="w-full px-3 py-2.5 pr-20 text-[14px] font-semibold tabular-nums bg-white/70 border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={handleSetMax}
+                disabled={isLoading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-md hover:bg-blue-100 disabled:opacity-50"
+              >
+                MAX
+              </button>
+            </div>
+          </div>
+        </GlassCard>
 
         {feeTokens.length > 0 && (
           <FeeTokenSelector
@@ -125,31 +123,27 @@ export function SendToken() {
         )}
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
             {error}
           </div>
         )}
 
         <div className="flex-1" />
 
-        <div className="flex gap-3 pt-4 border-t border-gray-200">
+        <div className="flex gap-2">
           <button
             onClick={handleBack}
             disabled={isLoading}
-            className="flex-1 px-4 py-3.5 text-sm font-semibold text-gray-900 bg-gray-100
-                       rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-colors"
+            className="flex-1 py-3 text-[13px] font-semibold bg-white/80 border border-white/80 text-zinc-800 rounded-xl hover:bg-white disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSend}
             disabled={isLoading || !recipient || !amount}
-            className="flex-1 px-4 py-3.5 text-sm font-semibold text-white bg-primary-600
-                       rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-colors"
+            className="flex-1 py-3 text-[13px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? "Sending..." : "Send"}
+            {isLoading ? "Sending…" : "Send"}
           </button>
         </div>
       </div>

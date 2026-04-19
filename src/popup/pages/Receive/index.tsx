@@ -1,4 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
+import { FlowHeader } from "../../components/layout/FlowHeader";
+import { GlassCard, Icon } from "../../components/ui";
+import { palette, FONT_STACK } from "../../styles/theme";
 import { useReceive } from "./useReceive";
 
 export function Receive() {
@@ -14,18 +17,13 @@ export function Receive() {
 
   if (!activeAccount) {
     return (
-      <div className="flex flex-col flex-1">
-        <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-          <button
-            onClick={handleBack}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            ← Back
-          </button>
-          <h2 className="text-lg font-semibold text-gray-900">Receive</h2>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+      <div
+        className="flex flex-col flex-1 min-h-[600px]"
+        style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      >
+        <FlowHeader title="Receive" onBack={handleBack} />
+        <div className="px-4 pt-3">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
             No active account
           </div>
         </div>
@@ -34,49 +32,44 @@ export function Receive() {
   }
 
   return (
-    <div className="flex flex-col flex-1">
-      <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-        <button
-          onClick={handleBack}
-          className="text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          ← Back
-        </button>
-        <h2 className="text-lg font-semibold text-gray-900">Receive</h2>
-      </div>
+    <div
+      className="flex flex-col flex-1 min-h-[600px]"
+      style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+    >
+      <FlowHeader title="Receive" subtitle={chainName} onBack={handleBack} />
 
-      <div className="flex flex-col items-center justify-center flex-1 p-6 gap-6">
-        <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
+      <div className="flex flex-col items-center px-4 pt-4 pb-6 flex-1 gap-5">
+        <GlassCard className="p-4" radius={22}>
           <QRCodeSVG
             value={activeAddress || ""}
             size={200}
             level="H"
-            includeMargin={true}
+            includeMargin
           />
-        </div>
+        </GlassCard>
 
         <div className="text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-            Your Address
+          <div className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500 mb-2">
+            Your address
           </div>
-          <div className="font-mono text-sm text-gray-900 break-all px-4 max-w-xs">
+          <div className="font-mono text-[12px] text-zinc-900 break-all max-w-xs">
             {activeAddress}
           </div>
         </div>
 
         <button
           onClick={handleCopy}
-          className="w-full max-w-xs py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center justify-center gap-1.5 px-5 py-3 text-[13px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 transition-colors"
+          aria-label={copied ? "Address copied" : "Copy address"}
         >
-          {copied ? "Copied!" : "Copy Address"}
+          <Icon name={copied ? "check" : "copy"} className="w-4 h-4" />
+          {copied ? "Copied" : "Copy address"}
         </button>
 
-        <div className="text-center text-sm text-gray-500 max-w-xs">
-          <p>
-            Only send {nativeSymbol} and ERC-20 tokens on{" "}
-            <strong className="text-gray-700">{chainName}</strong> network to
-            this address.
-          </p>
+        <div className="text-center text-[12px] text-zinc-500 max-w-xs mt-auto">
+          Only send {nativeSymbol} and ERC-20 tokens on{" "}
+          <strong className="text-zinc-700">{chainName}</strong> to this
+          address.
         </div>
       </div>
     </div>
