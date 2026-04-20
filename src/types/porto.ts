@@ -4,6 +4,50 @@
  */
 
 /**
+ * Asset diff entry as returned on the wire by Porto.
+ * See node_modules/porto/src/core/internal/relay/schema/capabilities.ts — `assetDiffs`.
+ * `value` is a hex-encoded bigint; `fiat.value` is a decimal string; `direction`
+ * is always present; `type` discriminates native (null) vs erc20 vs erc721.
+ * The per-account assignment and per-chain grouping is preserved by
+ * `PortoAssetDiffs` below.
+ */
+export interface PortoAssetDiffEntry {
+  address?: string | null;
+  decimals?: number | null;
+  direction: 'incoming' | 'outgoing';
+  fiat?: {
+    currency: string;
+    /** Decimal string (wire format). */
+    value: string;
+  };
+  name?: string | null;
+  symbol: string;
+  /** 'erc20' | 'erc721' | null (native). */
+  type: 'erc20' | 'erc721' | null;
+  /** Hex-encoded bigint (wire format). */
+  value: string;
+  /** Present when type === 'erc721'. */
+  uri?: string;
+}
+
+/**
+ * Asset diffs keyed by chain id (hex). Each entry is a tuple of
+ * (account address, list of per-token diffs for that account).
+ */
+export type PortoAssetDiffs = Record<
+  string,
+  ReadonlyArray<readonly [string, ReadonlyArray<PortoAssetDiffEntry>]>
+>;
+
+/**
+ * Fee totals keyed by chain id (hex). `value` is a decimal string.
+ */
+export type PortoFeeTotals = Record<
+  string,
+  { currency: string; value: string }
+>;
+
+/**
  * Porto wallet_getCallsHistory response entry.
  * Status codes per EIP-5792: 1xx=pending, 2xx=success, 4xx/5xx=failure.
  */
@@ -15,6 +59,16 @@ export interface PortoHistoryEntry {
     chainId: string; // Hex string like "0x2105"
     transactionHash: string;
   }>;
+  /** Index of the bundle against the account (Porto relay ordering). */
+  index?: number;
+  /** Hash of the key that signed the bundle (admin or session). */
+  keyHash?: string;
+  /** Bundle capabilities. `quotes` left unknown — caller narrows if needed. */
+  capabilities?: {
+    assetDiffs?: PortoAssetDiffs;
+    feeTotals?: PortoFeeTotals;
+    quotes?: unknown;
+  };
   // Legacy fields (may not be present)
   chainId?: string | number;
   atomic?: boolean;
@@ -42,6 +96,16 @@ export interface PortoCallsStatus {
     blockNumber: string;
     /** Hex. */
     status: string;
+    /** Hex block hash. */
+    blockHash?: string;
+    /** Hex gas-used count. */
+    gasUsed?: string;
+    /** Raw event logs emitted by the bundle's transactions. */
+    logs?: Array<{
+      address: string;
+      data: string;
+      topics: string[];
+    }>;
   }>;
 }
 
