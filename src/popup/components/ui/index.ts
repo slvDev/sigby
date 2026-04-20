@@ -11,3 +11,6 @@ export { QuickActionButton } from "./QuickActionButton";
 export { BalanceDisplay } from "./BalanceDisplay";
 export { DismissibleError } from "./DismissibleError";
 export { NumberTicker } from "./NumberTicker";
+export { NumberScramble } from "./NumberScramble";
+export { InitialMorph } from "./InitialMorph";
+export { HexScramble } from "./HexScramble";
