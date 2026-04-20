@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { spring, tween } from "../../styles/motion";
 
 type DismissibleErrorProps = {
   /** The error text. When falsy, nothing renders. */
@@ -80,34 +82,42 @@ export function DismissibleError({
     return () => window.clearInterval(id);
   }, [message, duration, onDismiss]);
 
-  if (!message) return null;
-
-  const progress = remaining / duration; // 1 → 0
+  const progress = message ? remaining / duration : 0; // 1 → 0
   // Clockwise drain from 12 o'clock: negate the offset so the dash
   // pattern shifts in the direction that retracts the arc's leading
   // (clockwise) edge while the trailing edge stays pinned at the top.
   const dashOffset = -CIRCUMFERENCE * (1 - progress);
 
   return (
-    <div
-      role="alert"
-      onMouseEnter={() => {
-        if (isHoveringRef.current) return;
-        isHoveringRef.current = true;
-        hoverEnterRef.current = Date.now();
-      }}
-      onMouseLeave={() => {
-        if (!isHoveringRef.current) return;
-        isHoveringRef.current = false;
-        hoverAccumRef.current += Date.now() - hoverEnterRef.current;
-      }}
-      className={`relative flex items-start gap-2.5 p-3 pr-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700 ${className}`}
-    >
+    <AnimatePresence initial={false}>
+      {message && (
+        <motion.div
+          key="dismissible-error"
+          role="alert"
+          layout
+          initial={{ opacity: 0, y: -4, height: 0 }}
+          animate={{ opacity: 1, y: 0, height: "auto" }}
+          exit={{ opacity: 0, y: -4, height: 0 }}
+          transition={tween.baseOut}
+          onMouseEnter={() => {
+            if (isHoveringRef.current) return;
+            isHoveringRef.current = true;
+            hoverEnterRef.current = Date.now();
+          }}
+          onMouseLeave={() => {
+            if (!isHoveringRef.current) return;
+            isHoveringRef.current = false;
+            hoverAccumRef.current += Date.now() - hoverEnterRef.current;
+          }}
+          className={`relative flex items-start gap-2.5 p-3 pr-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700 overflow-hidden ${className}`}
+        >
       <div className="flex-1 min-w-0 break-words">{message}</div>
-      <button
+      <motion.button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss error"
+        whileTap={{ scale: 0.9 }}
+        transition={spring.snap}
         className="flex-shrink-0 relative w-5 h-5 flex items-center justify-center text-rose-400 hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 rounded-full"
       >
         <svg viewBox="0 0 20 20" className="w-5 h-5 -rotate-90">
@@ -145,7 +155,9 @@ export function DismissibleError({
         >
           <path d="M5 5l10 10M15 5 5 15" />
         </svg>
-      </button>
-    </div>
+      </motion.button>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
