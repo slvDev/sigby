@@ -67,12 +67,14 @@ export function History() {
           <ul className="divide-y divide-zinc-200/60 overflow-y-auto max-h-full">
             <AnimatePresence initial={false}>
               {rows.map((tx, i) => {
-                const dir =
+                const dir: "in" | "out" | "other" | "approve" =
                   tx.summary.direction === "send"
                     ? "out"
                     : tx.summary.direction === "receive"
                       ? "in"
-                      : "other";
+                      : tx.summary.direction === "approve"
+                        ? "approve"
+                        : "other";
                 const chainLabel = getChainName(tx.chainId);
                 const parts: string[] = [];
                 if (tx.relativeTime) parts.push(tx.relativeTime);

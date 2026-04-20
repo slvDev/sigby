@@ -3,8 +3,8 @@ import { Icon } from "./Icon";
 import { StatusChip } from "./StatusChip";
 
 type ActivityRowProps = {
-  /** Direction bubble: up arrow for out, down for in, swap for other */
-  direction: "in" | "out" | "other";
+  /** Direction bubble: up arrow for out, down for in, swap for other, lock for approve */
+  direction: "in" | "out" | "other" | "approve";
   /** First-line label (e.g. "Sent", "Received", "Swap") */
   title: string;
   /** Second-line subtitle (e.g. counterparty · time). Optional. */
@@ -36,10 +36,18 @@ export function ActivityRow({
       ? "bg-gradient-to-b from-zinc-50 to-zinc-100 border-zinc-200 text-zinc-700"
       : direction === "in"
         ? "bg-gradient-to-b from-emerald-50 to-emerald-100 border-emerald-200 text-emerald-700"
-        : "bg-gradient-to-b from-blue-50 to-blue-100 border-blue-200 text-blue-700";
+        : direction === "approve"
+          ? "bg-gradient-to-b from-indigo-50 to-indigo-100 border-indigo-200 text-indigo-700"
+          : "bg-gradient-to-b from-blue-50 to-blue-100 border-blue-200 text-blue-700";
 
   const iconName =
-    direction === "out" ? "arrow-up" : direction === "in" ? "arrow-down" : "swap";
+    direction === "out"
+      ? "arrow-up"
+      : direction === "in"
+        ? "arrow-down"
+        : direction === "approve"
+          ? "lock"
+          : "swap";
 
   const content = (
     <div

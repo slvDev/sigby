@@ -20,6 +20,7 @@ import {
 } from "../../utils/transactionSummary";
 import {
   decodeOrchestratorCalls,
+  formatDecodedAmount,
   summarizeDecodedCalls,
   resolveTokenMeta,
   truncateAddress,
@@ -249,10 +250,7 @@ export function useTransactionDetail(): TransactionDetailView {
     if (rawSummary.title === "Contract call" && rawSummary.direction === "call") {
       return {
         ...rawSummary,
-        direction:
-          decodedSummary.direction === "approve"
-            ? "call"
-            : decodedSummary.direction,
+        direction: decodedSummary.direction,
         title: decodedSummary.title,
       };
     }
@@ -269,18 +267,34 @@ export function useTransactionDetail(): TransactionDetailView {
           diffs,
           assets,
         );
-        const sym = meta.symbol || truncateAddress(c.to);
-        const amount =
-          c.args?.isInfiniteApprove
-            ? "unlimited"
-            : formatTokenAmount(c.args?.tokenAmount ?? 0n, meta.decimals ?? 0);
         const spender = c.args?.spender;
         const tail = spender ? ` → ${truncateAddress(spender)}` : "";
+        if (c.args?.isInfiniteApprove) {
+          const sym = meta.symbol || truncateAddress(c.to);
+          return {
+            kind: c.kind,
+            to: c.to,
+            counterparty: spender,
+            label: `Approve unlimited ${sym}${tail}`.trim(),
+          };
+        }
+        const { display, isUnresolved } = formatDecodedAmount(
+          c.args?.tokenAmount ?? 0n,
+          meta,
+        );
+        if (isUnresolved) {
+          return {
+            kind: c.kind,
+            to: c.to,
+            counterparty: spender,
+            label: `Approve ${display} of ${truncateAddress(c.to)}${tail}`.trim(),
+          };
+        }
         return {
           kind: c.kind,
           to: c.to,
           counterparty: spender,
-          label: `Approve ${amount} ${sym}${tail}`.trim(),
+          label: `Approve ${display} ${meta.symbol}${tail}`.trim(),
         };
       }
       if (c.kind === "transfer") {

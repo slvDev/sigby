@@ -21,6 +21,7 @@ export type TransactionDirection =
   | "send"
   | "receive"
   | "swap"
+  | "approve"
   | "call"
   | "unknown";
 
