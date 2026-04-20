@@ -1,7 +1,9 @@
+import { AnimatePresence, motion } from "motion/react";
 import { ConfirmModal } from "../../components/common";
 import { GlassCard, PillButton, Icon, DismissibleError } from "../../components/ui";
 import { RelayStatusCard } from "../../components/relay";
 import { AccountKeysCard } from "../../components/keys";
+import { fadeUp, spring, stagger, tween } from "../../styles/motion";
 import { useSettings } from "./useSettings";
 
 export function Settings() {
@@ -31,7 +33,15 @@ export function Settings() {
   } = useSettings();
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 gap-4 overflow-y-auto pb-2">
+    <motion.div
+      className="flex flex-col flex-1 min-h-0 gap-4 overflow-y-auto pb-2"
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: stagger.base } },
+      }}
+    >
       <ConfirmModal
         isOpen={showDeleteConfirm}
         onClose={closeDeleteConfirm}
@@ -45,7 +55,7 @@ export function Settings() {
       />
 
       {activeAccount && (
-        <section>
+        <motion.section variants={fadeUp}>
           <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
             Active account
           </h3>
@@ -57,10 +67,10 @@ export function Settings() {
               {activeAddress}
             </div>
           </GlassCard>
-        </section>
+        </motion.section>
       )}
 
-      <section>
+      <motion.section variants={fadeUp}>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
           Accounts ({accountOrder.length})
         </h3>
@@ -71,16 +81,21 @@ export function Settings() {
               if (!acc) return null;
               const isActive = addr === activeAddress;
               return (
-                <li key={addr}>
+                <motion.li key={addr} layout transition={spring.soft}>
                   <div
-                    className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5 ${
-                      isActive ? "bg-blue-50/60" : ""
-                    }`}
+                    className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5`}
                   >
-                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-[12px] font-semibold">
+                    {isActive && (
+                      <motion.div
+                        layoutId="settings-active-row"
+                        className="absolute inset-0 bg-blue-50/60"
+                        transition={spring.soft}
+                      />
+                    )}
+                    <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-[12px] font-semibold">
                       {acc.displayName?.charAt(0).toUpperCase() || "A"}
                     </span>
-                    <div className="min-w-0">
+                    <div className="relative min-w-0">
                       <div className="text-[13px] font-semibold text-zinc-900 truncate">
                         {acc.displayName}
                       </div>
@@ -89,78 +104,105 @@ export function Settings() {
                       </div>
                     </div>
                     {isActive && (
-                      <span className="text-[11px] font-semibold text-blue-600">
+                      <span className="relative text-[11px] font-semibold text-blue-600">
                         Active
                       </span>
                     )}
                   </div>
-                </li>
+                </motion.li>
               );
             })}
           </ul>
         </GlassCard>
-      </section>
+      </motion.section>
 
-      {showAddAccount ? (
-        <section className="space-y-3">
-          <h3 className="px-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
-            Add account
-          </h3>
-          <GlassCard className="p-4 space-y-3">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="new-wallet-name"
-                className="block text-[12px] font-medium text-zinc-700"
-              >
-                Name your new wallet
-              </label>
-              <input
-                id="new-wallet-name"
-                type="text"
-                value={walletName}
-                onChange={(e) => setWalletName(e.target.value)}
-                placeholder="e.g. Trading, Savings"
-                disabled={isLoading}
-                className="w-full px-3 py-2.5 text-[13px] bg-white/80 border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50"
-              />
-              <p className="text-[11px] text-zinc-400">
-                Touch ID: "Berth {accountCount + 1}"
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={handleCreateAccount}
-                disabled={isLoading}
-                className="w-full py-2.5 text-[13px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isLoading ? "Creating…" : "Create"}
-              </button>
-              <button
-                onClick={handleConnectAccount}
-                disabled={isLoading}
-                className="w-full py-2.5 text-[13px] font-semibold bg-white/80 border border-white/80 text-zinc-800 rounded-xl hover:bg-white disabled:opacity-50"
-              >
-                {isLoading ? "…" : "Connect existing"}
-              </button>
-              <button
-                onClick={closeAddAccount}
-                className="text-[12px] text-zinc-500 hover:text-zinc-800 py-1"
-              >
-                Cancel
-              </button>
-            </div>
-          </GlassCard>
-        </section>
-      ) : (
-        <PillButton variant="secondary" onClick={openAddAccount}>
-          <Icon name="plus" className="w-3.5 h-3.5" />
-          Add account
-        </PillButton>
-      )}
+      <motion.div variants={fadeUp} layout>
+        <AnimatePresence mode="wait" initial={false}>
+          {showAddAccount ? (
+            <motion.section
+              key="add-account"
+              layout
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={tween.baseOut}
+              className="space-y-3"
+            >
+              <h3 className="px-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+                Add account
+              </h3>
+              <GlassCard className="p-4 space-y-3">
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="new-wallet-name"
+                    className="block text-[12px] font-medium text-zinc-700"
+                  >
+                    Name your new wallet
+                  </label>
+                  <input
+                    id="new-wallet-name"
+                    type="text"
+                    value={walletName}
+                    onChange={(e) => setWalletName(e.target.value)}
+                    placeholder="e.g. Trading, Savings"
+                    disabled={isLoading}
+                    className="w-full px-3 py-2.5 text-[13px] bg-white/80 border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 transition-colors disabled:opacity-50"
+                  />
+                  <p className="text-[11px] text-zinc-400">
+                    Touch ID: "Berth {accountCount + 1}"
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <motion.button
+                    onClick={handleCreateAccount}
+                    disabled={isLoading}
+                    whileHover={isLoading ? undefined : { y: -1 }}
+                    whileTap={isLoading ? undefined : { scale: 0.98 }}
+                    transition={spring.snap}
+                    className="w-full py-2.5 text-[13px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading ? "Creating…" : "Create"}
+                  </motion.button>
+                  <motion.button
+                    onClick={handleConnectAccount}
+                    disabled={isLoading}
+                    whileHover={isLoading ? undefined : { y: -1 }}
+                    whileTap={isLoading ? undefined : { scale: 0.98 }}
+                    transition={spring.snap}
+                    className="w-full py-2.5 text-[13px] font-semibold bg-white/80 border border-white/80 text-zinc-800 rounded-xl hover:bg-white disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading ? "…" : "Connect existing"}
+                  </motion.button>
+                  <button
+                    onClick={closeAddAccount}
+                    className="text-[12px] text-zinc-500 hover:text-zinc-800 py-1 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </GlassCard>
+            </motion.section>
+          ) : (
+            <motion.div
+              key="add-account-pill"
+              layout
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={tween.baseOut}
+            >
+              <PillButton variant="secondary" onClick={openAddAccount}>
+                <Icon name="plus" className="w-3.5 h-3.5" />
+                Add account
+              </PillButton>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
 
-      <section>
+      <motion.section variants={fadeUp}>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
           Network
         </h3>
@@ -185,16 +227,16 @@ export function Settings() {
           </GlassCard>
           <RelayStatusCard />
         </div>
-      </section>
+      </motion.section>
 
-      <section>
+      <motion.section variants={fadeUp}>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
           Account keys
         </h3>
         <AccountKeysCard />
-      </section>
+      </motion.section>
 
-      <section className="pt-2 border-t border-zinc-200/60">
+      <motion.section className="pt-2 border-t border-zinc-200/60" variants={fadeUp}>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-rose-600 uppercase tracking-[0.1em]">
           Danger zone
         </h3>
@@ -209,7 +251,7 @@ export function Settings() {
         <p className="text-[11px] text-zinc-400 mt-2 px-1">
           Your passkey will remain in your keychain and can be reconnected.
         </p>
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 }
