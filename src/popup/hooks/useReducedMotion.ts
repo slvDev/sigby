@@ -1,27 +1,19 @@
-import { useEffect, useState } from "react";
-
-const MEDIA_QUERY = "(prefers-reduced-motion: reduce)";
+import { useWalletStore } from "../store";
 
 /**
- * Reads `prefers-reduced-motion: reduce` with live updates. Safe for
- * SSR / first-paint because it reads `matchMedia` only inside the
- * effect; initial render returns `false` and corrects on hydration.
+ * In-app motion preference — NOT the OS `prefers-reduced-motion` flag.
  *
- * Motion's `<MotionConfig reducedMotion="user">` already gates
- * `transform`/`layout` animations globally, but bespoke CSS animations
- * and JS branches (e.g. substituting a number-ticker for an instant
- * swap) still need this boolean.
+ * Returns the user's Settings toggle. Defaults to `false` so a fresh
+ * install opens lively; anyone who wants reduced motion flips it in
+ * Settings. Research §15.8 calls this the "defensive layer": owning
+ * the preference avoids Chromium's false-positive OS flag reports
+ * (battery saver, post-update macOS defaults, Linux mis-reporting)
+ * that would otherwise show users a static wallet on first run.
+ *
+ * The `<html data-reduce-motion="true">` attribute is mirrored once at
+ * the App root (see App.tsx) so `tailwind.css` can key its reduced-
+ * motion substitutions off the same source of truth.
  */
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia(MEDIA_QUERY);
-    setReduced(mq.matches);
-    const listener = (event: MediaQueryListEvent) => setReduced(event.matches);
-    mq.addEventListener("change", listener);
-    return () => mq.removeEventListener("change", listener);
-  }, []);
-
-  return reduced;
+  return useWalletStore((s) => s.reduceMotion);
 }

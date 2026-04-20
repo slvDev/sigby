@@ -85,6 +85,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
  */
 export function App() {
   const [initializing, setInitializing] = useState(true);
+  // Mirror the in-app motion preference onto <html> once per change so
+  // `tailwind.css`'s reduced-motion block can key off the same source
+  // of truth as `useReducedMotion()`.
+  const reduceMotion = useWalletStore((s) => s.reduceMotion);
+  useEffect(() => {
+    if (reduceMotion) {
+      document.documentElement.dataset.reduceMotion = "true";
+    } else {
+      delete document.documentElement.dataset.reduceMotion;
+    }
+  }, [reduceMotion]);
 
   useEffect(() => {
     async function initialize() {
@@ -122,8 +133,12 @@ export function App() {
     );
   }
 
+  // reducedMotion="never" — our own in-app toggle (Settings →
+  // Reduce motion) drives per-primitive substitutions via
+  // `useReducedMotion`, so Motion itself should not second-guess
+  // based on the OS flag.
   return (
-    <MotionConfig reducedMotion="user" transition={tween.baseOut}>
+    <MotionConfig reducedMotion="never" transition={tween.baseOut}>
       <ToastProvider>
         <TransactionWatcher />
         <div
