@@ -9,6 +9,8 @@ type BalanceDisplayProps = {
   changePct?: string;
   /** Size variant for different contexts. */
   size?: "hero" | "jumbo" | "sm";
+  /** Uppercase caption above the number. Defaults to "Total balance". */
+  label?: string;
   /**
    * When true, renders `balance` as a spring-animated ticker (parses
    * the string numerically, formats with the same digit count). When
@@ -38,6 +40,7 @@ export function BalanceDisplay({
   fiat,
   changePct,
   size = "hero",
+  label = "Total balance",
   animateValue = false,
   scrambleKey,
 }: BalanceDisplayProps) {
@@ -60,7 +63,7 @@ export function BalanceDisplay({
   return (
     <>
       <div className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
-        Total balance
+        {label}
       </div>
       <div className="mt-2 flex items-baseline gap-2">
         {canTick ? (
