@@ -17,9 +17,9 @@ export const duration = {
   micro: 120,
   short: 200,
   base: 300,
-  medium: 420,
-  long: 560,
-  ceremony: 720,
+  medium: 600,
+  long: 800,
+  ceremony: 900,
 } as const;
 
 /**
@@ -100,8 +100,8 @@ export const stagger = {
 } as const;
 
 /**
- * Canonical entrance for cards / rows. Translate 6 px + fade, short
- * easing. Reduced-motion path drops the translate; callers that read
+ * Canonical entrance for cards / rows. Translate 12 px + fade.
+ * Reduced-motion path drops the translate; callers that read
  * `useReducedMotion()` substitute manually.
  *
  * Keys are `hidden` / `show` / `exit` (not `initial` / `animate` /
@@ -111,9 +111,9 @@ export const stagger = {
  * static.
  */
 export const fadeUp = {
-  hidden: { opacity: 0, y: 6 },
+  hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -4 },
+  exit: { opacity: 0, y: -6 },
 } as const;
 
 /** Backdrop / scrim fade — opacity only, no translate. */
