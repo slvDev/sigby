@@ -5,12 +5,13 @@ import { useHistory } from "./useHistory";
 
 export function History() {
   const {
-    transactions,
+    rows,
     isLoading,
     error,
     pendingCount,
     getChainName,
     getExplorerUrl,
+    openDetail,
   } = useHistory();
 
   return (
@@ -47,7 +48,7 @@ export function History() {
         <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-[13px] text-rose-700">
           {error}
         </div>
-      ) : transactions.length === 0 ? (
+      ) : rows.length === 0 ? (
         <motion.div
           className="flex-1 flex flex-col items-center justify-center text-center px-6"
           initial={fadeUp.hidden}
@@ -65,10 +66,24 @@ export function History() {
         <GlassCard className="overflow-hidden flex-1 min-h-0">
           <ul className="divide-y divide-zinc-200/60 overflow-y-auto max-h-full">
             <AnimatePresence initial={false}>
-              {transactions.map((tx, i) => {
-                const subtitle = `${getChainName(tx.chainId)}${
-                  tx.hash ? ` · ${tx.hash.slice(0, 6)}…${tx.hash.slice(-4)}` : ""
-                }`;
+              {rows.map((tx, i) => {
+                const dir =
+                  tx.summary.direction === "send"
+                    ? "out"
+                    : tx.summary.direction === "receive"
+                      ? "in"
+                      : "other";
+                const chainLabel = getChainName(tx.chainId);
+                const parts: string[] = [];
+                if (tx.relativeTime) parts.push(tx.relativeTime);
+                parts.push(chainLabel);
+                if (tx.summary.counterparty) {
+                  const c = tx.summary.counterparty;
+                  parts.push(`${c.slice(0, 6)}…${c.slice(-4)}`);
+                } else if (tx.hash) {
+                  parts.push(`${tx.hash.slice(0, 6)}…${tx.hash.slice(-4)}`);
+                }
+                const subtitle = parts.join(" · ");
                 return (
                   <motion.li
                     key={tx.id}
@@ -84,16 +99,21 @@ export function History() {
                     className="relative group"
                   >
                     <ActivityRow
-                      direction="other"
-                      title="Transaction"
+                      direction={dir}
+                      title={tx.summary.title}
                       subtitle={subtitle}
+                      amount={tx.summary.primary?.signedAmount
+                        ? `${tx.summary.primary.signedAmount} ${tx.summary.primary.symbol}`
+                        : undefined}
                       status={tx.status}
+                      onClick={() => openDetail(tx.id)}
                     />
                     {tx.hash && (
                       <a
                         href={getExplorerUrl(tx.chainId, tx.hash)}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-700 p-1 focus:outline-none focus-visible:opacity-100 transition-opacity"
                         aria-label="View on explorer"
                       >
