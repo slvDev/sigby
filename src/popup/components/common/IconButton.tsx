@@ -1,12 +1,13 @@
 /**
  * IconButton Component
- * Accessible icon-only button with required aria-label
+ * Icon-only button; spring press state.
  */
 
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
+import { motion, type HTMLMotionProps } from "motion/react";
+import { spring } from "../../styles/motion";
 
-export interface IconButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface IconButtonProps extends HTMLMotionProps<"button"> {
   icon: ReactNode;
   "aria-label": string; // Required for accessibility
   variant?: "default" | "danger";
@@ -36,9 +37,11 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
     ref
   ) => {
     return (
-      <button
+      <motion.button
         ref={ref}
         disabled={disabled}
+        whileTap={disabled ? undefined : { scale: 0.9 }}
+        transition={spring.snap}
         className={`
           inline-flex items-center justify-center
           rounded-lg
@@ -52,7 +55,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         {...props}
       >
         {icon}
-      </button>
+      </motion.button>
     );
   }
 );

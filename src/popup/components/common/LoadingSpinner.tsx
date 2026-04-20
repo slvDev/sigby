@@ -1,6 +1,8 @@
 /**
  * LoadingSpinner Component
- * Reusable loading spinner with size and color variants
+ * Tailwind `animate-spin` keyframe — compositor-only transform, ok
+ * for long-running spinners. Delay the *appearance* at the call site
+ * if the op is expected to finish under ~200 ms.
  */
 
 export interface LoadingSpinnerProps {

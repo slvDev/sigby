@@ -1,6 +1,7 @@
 /**
  * Toast Component and Provider
- * Toast notifications to replace native alert()
+ * Stacks top-right; Motion `layout` collapses the stack on dismissal
+ * (research §6.15). No `top` animation — transform-only.
  */
 
 import {
@@ -10,6 +11,8 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { spring } from "../../styles/motion";
 
 export interface ToastProps {
   type: "success" | "error" | "info";
@@ -66,10 +69,14 @@ function Toast({
   onClose,
 }: ToastItem & { onClose: (id: string) => void }) {
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: 12, scale: 0.98 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 24, scale: 0.97 }}
+      transition={spring.soft}
       className={`
         flex items-start gap-3 p-4 rounded-xl shadow-lg border-l-4
-        animate-slide-in-right
         ${typeStyles[type]}
       `}
       role="alert"
@@ -85,7 +92,7 @@ function Toast({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
-    </div>
+    </motion.div>
   );
 }
 
@@ -103,7 +110,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
       setToasts((prev) => [...prev, newToast]);
 
-      // Auto-dismiss
       if (duration > 0) {
         setTimeout(() => {
           removeToast(id);
@@ -122,11 +128,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         aria-live="polite"
         aria-atomic="true"
       >
-        {toasts.map((toast) => (
-          <div key={toast.id} className="pointer-events-auto">
-            <Toast {...toast} onClose={removeToast} />
-          </div>
-        ))}
+        <AnimatePresence initial={false}>
+          {toasts.map((toast) => (
+            <div key={toast.id} className="pointer-events-auto">
+              <Toast {...toast} onClose={removeToast} />
+            </div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );

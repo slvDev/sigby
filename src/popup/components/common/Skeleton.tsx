@@ -1,6 +1,8 @@
 /**
  * Skeleton Component
- * Loading placeholder with animated pulse
+ * Horizontal sheen over a muted rectangle — feels closer to
+ * Linear/Vercel than the default Material pulse. Single-direction,
+ * linear ease, no bounce (research §6.8).
  */
 
 export interface SkeletonProps {
@@ -16,7 +18,8 @@ export function Skeleton({
   height,
   className = "",
 }: SkeletonProps) {
-  const baseStyles = "bg-gray-200 animate-pulse";
+  const baseStyles =
+    "relative overflow-hidden bg-zinc-200/70 before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent before:animate-[sheen_1.4s_linear_infinite]";
 
   const variantStyles = {
     text: "rounded h-4",

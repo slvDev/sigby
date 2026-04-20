@@ -1,9 +1,12 @@
 /**
  * Alert Component
- * Inline alert messages with variants
+ * Inline alert messages with variants. Wrapped in `AnimatePresence` by
+ * call sites that mount/unmount it; the exit animation runs cleanly.
  */
 
 import type { ReactNode } from "react";
+import { motion } from "motion/react";
+import { fadeUp, tween } from "../../styles/motion";
 
 export interface AlertProps {
   variant: "error" | "success" | "warning" | "info";
@@ -51,7 +54,12 @@ export function Alert({
   className = "",
 }: AlertProps) {
   return (
-    <div
+    <motion.div
+      layout
+      initial={fadeUp.initial}
+      animate={fadeUp.animate}
+      exit={fadeUp.exit}
+      transition={tween.baseOut}
       className={`
         flex items-start gap-2 p-3
         border rounded-xl text-sm
@@ -75,6 +83,6 @@ export function Alert({
           </svg>
         </button>
       )}
-    </div>
+    </motion.div>
   );
 }

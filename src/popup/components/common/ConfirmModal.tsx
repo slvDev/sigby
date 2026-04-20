@@ -1,10 +1,14 @@
 /**
  * ConfirmModal Component
- * Accessible confirmation dialog to replace native confirm()
+ * Accessible confirmation dialog to replace native confirm(). Backdrop
+ * fades, card scale+fades. Exit runs via AnimatePresence so the modal
+ * doesn't blink out — compositor-only transitions.
  */
 
 import { useEffect, useRef, useCallback } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Button } from "./Button";
+import { fade, scaleFade, spring, tween } from "../../styles/motion";
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -69,68 +73,79 @@ export function ConfirmModal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // Auto-focus confirm button when modal opens
+  // Auto-focus confirm button after mount animation lands
   useEffect(() => {
     if (isOpen) {
       confirmButtonRef.current?.focus();
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isLoading) {
-          onClose();
-        }
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-modal-title"
-    >
-      <div
-        ref={modalRef}
-        className="bg-white rounded-2xl shadow-xl w-[320px] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 pt-5 pb-2">
-          <h2
-            id="confirm-modal-title"
-            className="text-lg font-semibold text-gray-900"
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="confirm-modal-scrim"
+          initial={fade.initial}
+          animate={fade.animate}
+          exit={fade.exit}
+          transition={tween.shortInQuiet}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isLoading) {
+              onClose();
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-modal-title"
+        >
+          <motion.div
+            ref={modalRef}
+            initial={scaleFade.initial}
+            animate={scaleFade.animate}
+            exit={scaleFade.exit}
+            transition={spring.soft}
+            className="bg-white rounded-2xl shadow-xl w-[320px] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
           >
-            {title}
-          </h2>
-        </div>
+            {/* Header */}
+            <div className="px-5 pt-5 pb-2">
+              <h2
+                id="confirm-modal-title"
+                className="text-lg font-semibold text-gray-900"
+              >
+                {title}
+              </h2>
+            </div>
 
-        {/* Content */}
-        <div className="px-5 pb-5">
-          <p className="text-sm text-gray-600 whitespace-pre-line">{message}</p>
-        </div>
+            {/* Content */}
+            <div className="px-5 pb-5">
+              <p className="text-sm text-gray-600 whitespace-pre-line">{message}</p>
+            </div>
 
-        {/* Actions */}
-        <div className="flex gap-3 px-5 pb-5">
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            {cancelText}
-          </Button>
-          <Button
-            ref={confirmButtonRef}
-            variant={variant === "danger" ? "danger" : "primary"}
-            fullWidth
-            onClick={onConfirm}
-            loading={isLoading}
-          >
-            {confirmText}
-          </Button>
-        </div>
-      </div>
-    </div>
+            {/* Actions */}
+            <div className="flex gap-3 px-5 pb-5">
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={onClose}
+                disabled={isLoading}
+              >
+                {cancelText}
+              </Button>
+              <Button
+                ref={confirmButtonRef}
+                variant={variant === "danger" ? "danger" : "primary"}
+                fullWidth
+                onClick={onConfirm}
+                loading={isLoading}
+              >
+                {confirmText}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

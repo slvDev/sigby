@@ -1,7 +1,12 @@
 /**
  * Toggle Component
- * Reusable toggle switch with label and description
+ * iOS-style switch. Thumb travel is a spring so the motion conveys
+ * commitment; the track color is a CSS transition (color is not a
+ * property worth springing).
  */
+
+import { motion } from "motion/react";
+import { spring } from "../../styles/motion";
 
 interface ToggleProps {
   checked: boolean;
@@ -24,7 +29,7 @@ export function Toggle({ checked, onChange, label, description, disabled = false
         aria-checked={checked}
         onClick={() => !disabled && onChange(!checked)}
         className={`
-          relative inline-flex h-6 w-11
+          relative inline-flex h-6 w-11 p-0.5
           items-center rounded-full
           transition-colors duration-200
           focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
@@ -33,14 +38,15 @@ export function Toggle({ checked, onChange, label, description, disabled = false
         `}
         disabled={disabled}
       >
-        <span
+        <motion.span
+          layout
+          transition={spring.snap}
           className={`
-            inline-block h-4 w-4
-            transform rounded-full
+            inline-block h-5 w-5
+            rounded-full
             bg-white shadow-sm
-            transition-transform duration-200
-            ${checked ? "translate-x-6" : "translate-x-1"}
           `}
+          style={{ marginLeft: checked ? "auto" : 0 }}
         />
       </button>
     </label>

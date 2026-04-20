@@ -1,12 +1,18 @@
 /**
  * Button Component
- * Reusable button with variants, sizes, and loading state
+ * Reusable button with variants, sizes, and loading state.
+ *
+ * Motion: subtle press scale via motion whileTap + hover translate via
+ * whileHover. MotionConfig on the app root disables transform on
+ * reduced-motion users, so no manual substitution needed here.
  */
 
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
+import { motion, type HTMLMotionProps } from "motion/react";
 import { LoadingSpinner } from "./LoadingSpinner";
+import { spring } from "../../styles/motion";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends HTMLMotionProps<"button"> {
   variant?: "primary" | "secondary" | "danger" | "ghost";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
@@ -52,9 +58,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const isDisabled = disabled || loading;
 
     return (
-      <button
+      <motion.button
         ref={ref}
         disabled={isDisabled}
+        whileHover={isDisabled ? undefined : { y: -1 }}
+        whileTap={isDisabled ? undefined : { scale: 0.98 }}
+        transition={spring.snap}
         className={`
           inline-flex items-center justify-center
           font-medium rounded-xl
@@ -78,7 +87,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {children}
         {!loading && rightIcon}
-      </button>
+      </motion.button>
     );
   }
 );
