@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { GlassCard, ActivityRow, Icon } from "../../components/ui";
+import { GlassCard, ActivityRow, Icon, PillButton } from "../../components/ui";
 import { fadeUp, stagger, tween } from "../../styles/motion";
 import { useHistory } from "./useHistory";
 
@@ -7,11 +7,14 @@ export function History() {
   const {
     rows,
     isLoading,
+    isLoadingMore,
+    hasMore,
     error,
     pendingCount,
     getChainName,
     getExplorerUrl,
     openDetail,
+    loadMore,
   } = useHistory();
 
   return (
@@ -63,6 +66,7 @@ export function History() {
           </p>
         </motion.div>
       ) : (
+        <div className="flex flex-col flex-1 min-h-0 gap-3">
         <GlassCard className="overflow-hidden flex-1 min-h-0">
           <ul className="divide-y divide-zinc-200/60 overflow-y-auto max-h-full">
             <AnimatePresence initial={false}>
@@ -128,6 +132,18 @@ export function History() {
             </AnimatePresence>
           </ul>
         </GlassCard>
+        {hasMore && (
+          <div className="flex justify-center pb-1">
+            <PillButton
+              variant="secondary"
+              onClick={loadMore}
+              disabled={isLoadingMore}
+            >
+              {isLoadingMore ? "Loading…" : "Load more"}
+            </PillButton>
+          </div>
+        )}
+        </div>
       )}
     </div>
   );

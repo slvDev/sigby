@@ -484,24 +484,29 @@ class PopupPortoService {
   // ==================== PORTO SDK METHODS ====================
 
   /**
-   * Get transaction history via Porto SDK (wallet_getCallsHistory)
-   * @param address Account address
-   * @returns Array of history entries
+   * Get transaction history via Porto SDK (wallet_getCallsHistory).
+   * Porto's RPC supports `{ index, limit, sort }` for paging; caller
+   * bumps `index` by `limit` to fetch the next page.
    */
-  async getCallsHistory(address: string): Promise<PortoHistoryEntry[]> {
+  async getCallsHistory(
+    address: string,
+    opts: { index?: number; limit?: number; sort?: 'asc' | 'desc' } = {},
+  ): Promise<PortoHistoryEntry[]> {
     if (!this.provider) {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Getting calls history for:', address);
+    const { index = 0, limit = 50, sort = 'desc' } = opts;
+    console.log('[Berth:Popup] Getting calls history for:', address, { index, limit, sort });
 
     try {
       const history = await this.provider.request({
         method: 'wallet_getCallsHistory',
         params: [{
           address,
-          limit: 50,
-          sort: 'desc',
+          index,
+          limit,
+          sort,
         }],
       });
 
