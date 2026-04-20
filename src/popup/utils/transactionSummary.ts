@@ -13,6 +13,7 @@
 import type {
   PortoAssetDiffEntry,
   PortoAssetDiffs,
+  PortoFeeTotals,
   PortoHistoryEntry,
 } from "../../types/porto";
 
@@ -111,6 +112,94 @@ export function flattenAssetDiffs(
   return out;
 }
 
+/**
+ * Pick the fee-total entry for the chain the bundle ran on. Porto's
+ * `feeTotals` keying has been observed as both lower-cased hex and
+ * mixed-case hex; try both before giving up.
+ */
+function pickFeeTotal(
+  feeTotals: PortoFeeTotals | undefined,
+  chainKey: string,
+): { currency: string; value: string } | undefined {
+  if (!feeTotals || !chainKey) return undefined;
+  if (feeTotals[chainKey]) return feeTotals[chainKey];
+  const lower = chainKey.toLowerCase();
+  if (feeTotals[lower]) return feeTotals[lower];
+  return undefined;
+}
+
+/**
+ * Parse a human-unit decimal string (e.g. "0.001323") into the raw bigint
+ * at the given decimals. Returns null on malformed input.
+ */
+function decimalStringToRaw(value: string, decimals: number): bigint | null {
+  if (!value) return null;
+  const d = Math.max(0, Number.isFinite(decimals) ? decimals : 0);
+  const trimmed = value.trim();
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) return null;
+  const negative = trimmed.startsWith("-");
+  const unsigned = negative ? trimmed.slice(1) : trimmed;
+  const [wholePart, fracPart = ""] = unsigned.split(".");
+  const fracPadded = (fracPart + "0".repeat(d)).slice(0, d);
+  try {
+    const raw = BigInt(wholePart) * 10n ** BigInt(d) + BigInt(fracPadded || "0");
+    return negative ? -raw : raw;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove the Porto fee transfer from a user's asset diffs. Porto records
+ * the fee payment as an outgoing ERC-20 Transfer on the user side even
+ * though the "Network fee" card already shows it; without this filter the
+ * summary table double-counts and approval-only txs get misclassified as
+ * sends of the fee token.
+ *
+ * Matches by currency symbol + approximate magnitude (within 1 token base
+ * unit). Removes the single closest match; never partially subtracts from
+ * a larger diff — that would introduce more confusion than it removes.
+ */
+export function excludeFeeFromDiffs(
+  mine: PortoAssetDiffEntry[],
+  feeTotals: PortoFeeTotals | undefined,
+  chainKey: string,
+): PortoAssetDiffEntry[] {
+  const total = pickFeeTotal(feeTotals, chainKey);
+  if (!total || !total.currency || mine.length === 0) return mine;
+
+  const currency = total.currency.toUpperCase();
+  const candidates = mine
+    .map((d, i) => ({ entry: d, index: i }))
+    .filter(
+      (c) =>
+        c.entry.direction === "outgoing" &&
+        (c.entry.symbol || "").toUpperCase() === currency,
+    );
+  if (candidates.length === 0) return mine;
+
+  const best = candidates
+    .map((c) => {
+      const decimals = c.entry.decimals ?? 0;
+      const raw = hexToBigInt(c.entry.value);
+      const abs = raw < 0n ? -raw : raw;
+      const feeRaw = decimalStringToRaw(total.value, decimals);
+      if (feeRaw === null) return null;
+      const diff = abs > feeRaw ? abs - feeRaw : feeRaw - abs;
+      return { index: c.index, diff, abs, feeRaw };
+    })
+    .filter((x): x is { index: number; diff: bigint; abs: bigint; feeRaw: bigint } => x !== null)
+    .sort((a, b) => (a.diff < b.diff ? -1 : a.diff > b.diff ? 1 : 0))[0];
+  if (!best) return mine;
+
+  // Tolerance: 1 unit of the smallest denomination. If the closest match
+  // is wildly off (e.g. the fee currency happens to coincide with the
+  // user's outgoing swap leg), leave everything alone.
+  if (best.diff > 1n) return mine;
+
+  return mine.filter((_, i) => i !== best.index);
+}
+
 /** Entries relating to accounts OTHER than the active one. Used to derive counterparties. */
 function otherPartyDiffs(
   diffs: PortoAssetDiffs | undefined,
@@ -171,7 +260,13 @@ export function deriveSummary(
   account: string,
 ): TransactionSummary {
   const diffs = entry.capabilities?.assetDiffs;
-  const mine = flattenAssetDiffs(diffs, account);
+  const rawMine = flattenAssetDiffs(diffs, account);
+  const chainKey = entry.transactions?.[0]?.chainId || "";
+  const mine = excludeFeeFromDiffs(
+    rawMine,
+    entry.capabilities?.feeTotals,
+    chainKey,
+  );
 
   if (mine.length === 0) {
     return { direction: "call", title: "Contract call" };
