@@ -1,5 +1,6 @@
 import { Icon } from "./Icon";
 import { NumberTicker } from "./NumberTicker";
+import { NumberScramble } from "./NumberScramble";
 
 type BalanceDisplayProps = {
   balance: string;
@@ -15,6 +16,14 @@ type BalanceDisplayProps = {
    * loading ellipsis placeholder.
    */
   animateValue?: boolean;
+  /**
+   * When supplied, changes to this key trigger a scramble (chaotic
+   * intermediate values before landing). In-place balance updates
+   * that leave `scrambleKey` stable continue to use the smooth ticker.
+   * Typical use: pass `activeAddress` so an account switch scrambles,
+   * while a balance refresh within the same account tickers.
+   */
+  scrambleKey?: string | number;
 };
 
 /**
@@ -30,6 +39,7 @@ export function BalanceDisplay({
   changePct,
   size = "hero",
   animateValue = false,
+  scrambleKey,
 }: BalanceDisplayProps) {
   const sizes = {
     hero: { num: "text-[38px]", sym: "text-[18px]" },
@@ -54,12 +64,22 @@ export function BalanceDisplay({
       </div>
       <div className="mt-2 flex items-baseline gap-2">
         {canTick ? (
-          <NumberTicker
-            value={parsed}
-            format={format}
-            className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
-            ariaLabel="Balance"
-          />
+          scrambleKey !== undefined ? (
+            <NumberScramble
+              value={parsed}
+              format={format}
+              scrambleKey={scrambleKey}
+              className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
+              ariaLabel="Balance"
+            />
+          ) : (
+            <NumberTicker
+              value={parsed}
+              format={format}
+              className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
+              ariaLabel="Balance"
+            />
+          )
         ) : (
           <span
             className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900 tabular-nums`}

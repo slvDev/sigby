@@ -145,9 +145,13 @@ export function Home() {
             balance={assetsLoading ? "…" : balance}
             symbol={nativeSymbol}
             animateValue={!assetsLoading}
+            scrambleKey={activeAccount.address}
           />
           <div className="mt-3">
-            <AddressText address={activeAccount.address} />
+            <AddressText
+              address={activeAccount.address}
+              scrambleKey={activeAccount.address}
+            />
           </div>
         </HeroCard>
       </motion.div>
