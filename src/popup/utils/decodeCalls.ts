@@ -34,6 +34,7 @@ import type {
   PortoAssetDiffs,
   PortoAsset,
 } from "../../types/porto";
+import { formatTokenAmount } from "./transactionSummary";
 
 export interface DecodedCall {
   to: string;
@@ -456,6 +457,29 @@ export function resolveTokenMeta(
 export function truncateAddress(addr: string): string {
   if (!addr || addr.length < 10) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+/**
+ * Format a decoded ERC-20 amount, degrading safely when the token's
+ * symbol or decimals aren't known. Rendering `formatTokenAmount(raw, 0)`
+ * for an unresolved token silently strips 6–18 implied decimals and
+ * makes `0.1 USDC` look like `100000` — worse than showing nothing,
+ * because the user acts on the false number. When unresolved we
+ * return the raw hex instead so the ambiguity is explicit.
+ */
+export function formatDecodedAmount(
+  raw: bigint,
+  meta: TokenMeta,
+): { display: string; isUnresolved: boolean } {
+  if (meta.symbol && meta.decimals !== undefined) {
+    return {
+      display: formatTokenAmount(raw, meta.decimals),
+      isUnresolved: false,
+    };
+  }
+  const hex = `0x${raw.toString(16)}`;
+  const display = hex.length > 10 ? `${hex.slice(0, 10)}…` : hex;
+  return { display, isUnresolved: true };
 }
 
 // ────────────────────────────────────────────────────────────────────────
