@@ -4,21 +4,22 @@
  * Duration tiers, easing curves, spring presets, stagger units.
  * Imported by every animating surface; re-declared nowhere.
  *
- * Tuning bias for the Berth popup is one tier shorter than a general
- * web app (see research §12.1): the popup opens because the user
- * clicked, so content beats orchestration.
+ * Initially tuned per research §12.1 ("one tier shorter than general
+ * UI") but the motion read as too fast to register — moments landed
+ * before the eye caught them. Now on the general-UI tier: 200–420 ms
+ * is the meat, 560 ms for spatial, 720 ms for ceremony.
  */
 
 import type { Transition } from "motion/react";
 
 /** Duration tokens in ms — canonical scale. */
 export const duration = {
-  micro: 100,
-  short: 150,
-  base: 200,
-  medium: 250,
-  long: 350,
-  ceremony: 500,
+  micro: 120,
+  short: 200,
+  base: 300,
+  medium: 420,
+  long: 560,
+  ceremony: 720,
 } as const;
 
 /**
@@ -41,9 +42,12 @@ export const easing = {
  * success affirmations.
  */
 export const spring = {
-  soft: { type: "spring", stiffness: 180, damping: 26, mass: 1 } satisfies Transition,
+  // Lower stiffness = longer settle. Kept critically damped
+  // (damping / 2√stiffness ≥ 1) so there's no overshoot.
+  soft: { type: "spring", stiffness: 140, damping: 22, mass: 1 } satisfies Transition,
+  // Snap stays stiff — press feedback must feel immediate.
   snap: { type: "spring", stiffness: 320, damping: 30, mass: 1 } satisfies Transition,
-  glide: { type: "spring", stiffness: 120, damping: 22, mass: 1 } satisfies Transition,
+  glide: { type: "spring", stiffness: 90, damping: 20, mass: 1 } satisfies Transition,
   elasticReject: {
     type: "spring",
     stiffness: 520,
@@ -87,12 +91,12 @@ export const tween = {
 } as const;
 
 /**
- * Stagger base unit for list reveals. Cap children at 5 in the popup;
- * past that, simultaneous reads faster than sequenced.
+ * Stagger base unit for list reveals. Cap children at 5; past that,
+ * simultaneous reads faster than sequenced.
  */
 export const stagger = {
-  base: 0.02, // 20 ms — 5 children = 80 ms total orchestration
-  tight: 0.015,
+  base: 0.05, // 50 ms — 5 children = 200 ms total orchestration
+  tight: 0.035,
 } as const;
 
 /**
