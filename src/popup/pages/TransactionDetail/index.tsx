@@ -170,6 +170,48 @@ export function TransactionDetail() {
           </motion.div>
         )}
 
+        {/* 4a. What happened — decoded Orchestrator inner calls. */}
+        {view.decodedRows.length > 0 && (
+          <motion.div variants={fadeUp}>
+            <GlassCard className="p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500 mb-2">
+                What happened
+              </div>
+              <ul className="divide-y divide-zinc-200/60">
+                {view.decodedRows.map((row, i) => (
+                  <li
+                    key={`${row.kind}-${row.to}-${i}`}
+                    className="flex items-start gap-3 py-2"
+                  >
+                    <Icon
+                      name={
+                        row.kind === "approve"
+                          ? "lock"
+                          : row.kind === "swap"
+                            ? "swap"
+                            : row.kind === "transfer" ||
+                                row.kind === "transferFrom" ||
+                                row.kind === "native-transfer"
+                              ? "send"
+                              : "activity"
+                      }
+                      className="w-3.5 h-3.5 mt-0.5 text-zinc-500 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-medium text-zinc-900 truncate">
+                        {row.label}
+                      </div>
+                      {row.counterparty && (
+                        <AddressText address={row.counterparty} />
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </GlassCard>
+          </motion.div>
+        )}
+
         {/* 4. Fees. */}
         <motion.div variants={fadeUp}>
           <GlassCard className="p-4">

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { createPublicClient, http, type Hex } from "viem";
 import { useWalletStore } from "../../store";
 import { popupPortoService } from "../../portoService";
 import type {
@@ -9,6 +10,7 @@ import type {
 import { CHAIN_CONFIGS } from "../../../utils/constants";
 import {
   deriveSummary,
+  excludeFeeFromDiffs,
   flattenAssetDiffs,
   formatAbsoluteTime,
   formatRelativeTime,
@@ -16,6 +18,14 @@ import {
   formatUsd,
   type TransactionSummary,
 } from "../../utils/transactionSummary";
+import {
+  decodeOrchestratorCalls,
+  summarizeDecodedCalls,
+  resolveTokenMeta,
+  truncateAddress,
+  type DecodedCall,
+  type DecodedSummary,
+} from "../../utils/decodeCalls";
 
 export interface DetailAssetRow {
   address?: string | null;
@@ -44,6 +54,16 @@ export interface DetailTransactionRow {
   explorerUrl?: string;
 }
 
+export interface DetailDecodedRow {
+  kind: DecodedCall["kind"];
+  /** Human-readable action line, e.g. "Approve 0.1 USDC → 0xabcd…". */
+  label: string;
+  /** Raw target address (checksummed). For erc20 kinds this is the token. */
+  to: string;
+  /** Optional counterparty — spender for approves, recipient for transfers. */
+  counterparty?: string;
+}
+
 export interface TransactionDetailView {
   loading: boolean;
   error: string | null;
@@ -64,6 +84,7 @@ export interface TransactionDetailView {
   signerLabel: string;
   signerIsAdmin: boolean;
   primaryExplorerUrl?: string;
+  decodedRows: DetailDecodedRow[];
   devOpen: boolean;
   toggleDev: () => void;
   handleBack: () => void;
@@ -94,7 +115,7 @@ export function useTransactionDetail(): TransactionDetailView {
   const navigate = useNavigate();
   const { bundleId: rawBundleId } = useParams<{ bundleId: string }>();
   const bundleId = rawBundleId || "";
-  const { activeAddress, accountKeys } = useWalletStore();
+  const { activeAddress, accountKeys, assets } = useWalletStore();
 
   const [entry, setEntry] = useState<PortoHistoryEntry | null>(null);
   const [status, setStatus] = useState<PortoCallsStatus | null>(null);
@@ -102,6 +123,7 @@ export function useTransactionDetail(): TransactionDetailView {
   const [error, setError] = useState<string | null>(null);
   const [fetchNonce, setFetchNonce] = useState(0);
   const [devOpen, setDevOpen] = useState(false);
+  const [decodedCalls, setDecodedCalls] = useState<DecodedCall[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +165,7 @@ export function useTransactionDetail(): TransactionDetailView {
     };
   }, [bundleId, activeAddress, fetchNonce]);
 
-  const summary = useMemo<TransactionSummary>(
+  const rawSummary = useMemo<TransactionSummary>(
     () =>
       entry && activeAddress
         ? deriveSummary(entry, activeAddress)
@@ -165,9 +187,179 @@ export function useTransactionDetail(): TransactionDetailView {
     return 0;
   }, [firstTx, status]);
 
+  // Fetch the outer tx input from a public RPC so we can decode the
+  // Orchestrator's inner calls. Best-effort: any failure (chain down, tx
+  // not yet indexed) degrades gracefully — detail page still works on
+  // diff-based summary alone.
+  useEffect(() => {
+    let cancelled = false;
+    const hash = firstTx?.transactionHash;
+    if (!hash || !primaryChainId) {
+      setDecodedCalls(null);
+      return;
+    }
+    const config = CHAIN_CONFIGS[primaryChainId];
+    const rpcUrls = config?.rpcUrls || [];
+    if (rpcUrls.length === 0) {
+      setDecodedCalls(null);
+      return;
+    }
+    async function run() {
+      try {
+        const client = createPublicClient({
+          transport: http(rpcUrls[0], { timeout: 5000 }),
+        });
+        const tx = await client.getTransaction({ hash: hash as Hex });
+        if (cancelled) return;
+        if (!tx || !tx.input || !tx.to) {
+          setDecodedCalls(null);
+          return;
+        }
+        const calls = decodeOrchestratorCalls(tx.to, tx.input);
+        if (!cancelled) setDecodedCalls(calls);
+      } catch {
+        if (!cancelled) setDecodedCalls(null);
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [firstTx, primaryChainId]);
+
+  const nativeSymbol = primaryChainId
+    ? CHAIN_CONFIGS[primaryChainId]?.nativeCurrency.symbol
+    : undefined;
+
+  const decodedSummary = useMemo<DecodedSummary | null>(() => {
+    if (!decodedCalls || decodedCalls.length === 0) return null;
+    return summarizeDecodedCalls(decodedCalls, {
+      diffs: entry?.capabilities?.assetDiffs,
+      assets,
+      nativeSymbol,
+    });
+  }, [decodedCalls, entry, assets, nativeSymbol]);
+
+  // Prefer the decoded title only when it carries strictly more info than
+  // the diff-based one — i.e. when diffs gave us the generic "Contract
+  // call" fallback. Diff-based swap/send titles already carry amounts and
+  // shouldn't be replaced with amount-less decoded titles.
+  const summary = useMemo<TransactionSummary>(() => {
+    if (!decodedSummary) return rawSummary;
+    if (rawSummary.title === "Contract call" && rawSummary.direction === "call") {
+      return {
+        ...rawSummary,
+        direction:
+          decodedSummary.direction === "approve"
+            ? "call"
+            : decodedSummary.direction,
+        title: decodedSummary.title,
+      };
+    }
+    return rawSummary;
+  }, [rawSummary, decodedSummary]);
+
+  const decodedRows = useMemo<DetailDecodedRow[]>(() => {
+    if (!decodedCalls || decodedCalls.length === 0) return [];
+    const diffs = entry?.capabilities?.assetDiffs;
+    return decodedCalls.map((c) => {
+      if (c.kind === "approve") {
+        const meta = resolveTokenMeta(
+          c.args?.tokenAddress || c.to,
+          diffs,
+          assets,
+        );
+        const sym = meta.symbol || truncateAddress(c.to);
+        const amount =
+          c.args?.isInfiniteApprove
+            ? "unlimited"
+            : formatTokenAmount(c.args?.tokenAmount ?? 0n, meta.decimals ?? 0);
+        const spender = c.args?.spender;
+        const tail = spender ? ` → ${truncateAddress(spender)}` : "";
+        return {
+          kind: c.kind,
+          to: c.to,
+          counterparty: spender,
+          label: `Approve ${amount} ${sym}${tail}`.trim(),
+        };
+      }
+      if (c.kind === "transfer") {
+        const meta = resolveTokenMeta(
+          c.args?.tokenAddress || c.to,
+          diffs,
+          assets,
+        );
+        const sym = meta.symbol || truncateAddress(c.to);
+        const amount = formatTokenAmount(
+          c.args?.tokenAmount ?? 0n,
+          meta.decimals ?? 0,
+        );
+        const recipient = c.args?.recipient;
+        const tail = recipient ? ` → ${truncateAddress(recipient)}` : "";
+        return {
+          kind: c.kind,
+          to: c.to,
+          counterparty: recipient,
+          label: `Transfer ${amount} ${sym}${tail}`.trim(),
+        };
+      }
+      if (c.kind === "transferFrom") {
+        const meta = resolveTokenMeta(
+          c.args?.tokenAddress || c.to,
+          diffs,
+          assets,
+        );
+        const sym = meta.symbol || truncateAddress(c.to);
+        const amount = formatTokenAmount(
+          c.args?.tokenAmount ?? 0n,
+          meta.decimals ?? 0,
+        );
+        const recipient = c.args?.recipient;
+        const tail = recipient ? ` → ${truncateAddress(recipient)}` : "";
+        return {
+          kind: c.kind,
+          to: c.to,
+          counterparty: recipient,
+          label: `Transfer ${amount} ${sym}${tail}`.trim(),
+        };
+      }
+      if (c.kind === "native-transfer") {
+        const amount = formatTokenAmount(
+          c.args?.tokenAmount ?? c.value,
+          18,
+        );
+        const tail = c.args?.recipient ? ` → ${truncateAddress(c.args.recipient)}` : "";
+        return {
+          kind: c.kind,
+          to: c.to,
+          counterparty: c.args?.recipient,
+          label: `Transfer ${amount} ${nativeSymbol || "ETH"}${tail}`.trim(),
+        };
+      }
+      if (c.kind === "swap") {
+        return {
+          kind: c.kind,
+          to: c.to,
+          label: `Swap via ${truncateAddress(c.to)}`,
+        };
+      }
+      return {
+        kind: c.kind,
+        to: c.to,
+        label: `Contract call → ${truncateAddress(c.to)}`,
+      };
+    });
+  }, [decodedCalls, entry, assets, nativeSymbol]);
+
   const assetRows = useMemo<DetailAssetRow[]>(() => {
     if (!entry || !activeAddress) return [];
-    const mine = flattenAssetDiffs(entry.capabilities?.assetDiffs, activeAddress);
+    const raw = flattenAssetDiffs(entry.capabilities?.assetDiffs, activeAddress);
+    const chainKey = entry.transactions?.[0]?.chainId || "";
+    const mine = excludeFeeFromDiffs(
+      raw,
+      entry.capabilities?.feeTotals,
+      chainKey,
+    );
     return mine.map((d) => {
       const raw = (() => {
         try {
@@ -324,6 +516,7 @@ export function useTransactionDetail(): TransactionDetailView {
     signerLabel,
     signerIsAdmin,
     primaryExplorerUrl,
+    decodedRows,
     devOpen,
     toggleDev,
     handleBack,
