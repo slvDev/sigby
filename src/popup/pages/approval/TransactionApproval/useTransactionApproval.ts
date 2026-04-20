@@ -6,6 +6,7 @@ import { popupPortoService } from "../../../portoService";
 import { errorToString } from "../../../../utils/rpcError";
 import { analyzeOrigin } from "../../../utils/originCheck";
 import { CHAIN_CONFIGS } from "../../../../utils/constants";
+import { useWalletStore } from "../../../store";
 import { getAddress, isAddress } from "viem";
 
 export function useTransactionApproval() {
@@ -24,6 +25,7 @@ export function useTransactionApproval() {
   const [dappRequiredFeeToken, setDappRequiredFeeToken] = useState<string | null>(
     null
   );
+  const awaitCelebration = useWalletStore((s) => s.awaitCelebration);
 
   useEffect(() => {
     async function fetchRequest() {
@@ -153,6 +155,10 @@ export function useTransactionApproval() {
         payload: { requestId, result },
       });
 
+      // Order: isTrusted → sign → approve message → celebrate+settle → close.
+      // The settle gives the CTA's CelebrationGlow frames to play before
+      // `chrome.windows.create` tears the window down.
+      await awaitCelebration("passkey-success");
       window.close();
     } catch (err) {
       console.error("Transaction failed:", err);

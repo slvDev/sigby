@@ -14,3 +14,4 @@ export { NumberTicker } from "./NumberTicker";
 export { NumberScramble } from "./NumberScramble";
 export { InitialMorph } from "./InitialMorph";
 export { HexScramble } from "./HexScramble";
+export { CelebrationGlow } from "./CelebrationGlow";

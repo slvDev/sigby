@@ -25,18 +25,23 @@ type HeroCardProps = {
 export function HeroCard({ children, className = "", style }: HeroCardProps) {
   const chainId = useWalletStore((s) => s.chainId);
   const chainCommittedAt = useWalletStore((s) => s.chainCommittedAt);
+  const passkeyAt = useWalletStore((s) => s.celebrations["passkey-success"]);
   const reduced = useReducedMotion();
   const palette = getChainPalette(chainId);
 
   // Pulse debounced on timestamp change, not value change. A `null`
-  // run means no commit has happened yet — orbs render static with
-  // palette colours (no entrance keyframe burst). Each commit after
-  // that increments `pulseRun` which keys the orbs so a fresh
+  // run means no signal has fired yet — orbs render static with
+  // palette colours (no entrance keyframe burst). Each advance of
+  // either `chainCommittedAt` (tide shift) or the passkey-success
+  // celebration bumps `pulseRun`, which keys the orbs so a fresh
   // keyframe animation mounts.
   const [pulseRun, setPulseRun] = useState<number | null>(null);
   useEffect(() => {
     if (chainCommittedAt) setPulseRun((n) => (n ?? 0) + 1);
   }, [chainCommittedAt]);
+  useEffect(() => {
+    if (passkeyAt) setPulseRun((n) => (n ?? 0) + 1);
+  }, [passkeyAt]);
 
   const orbATarget = reduced
     ? { opacity: 0.5, backgroundImage: palette.orbA }

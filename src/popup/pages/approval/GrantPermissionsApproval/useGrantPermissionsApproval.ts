@@ -5,6 +5,7 @@ import type { PermissionRequest } from "../../../../types/porto";
 import { popupPortoService } from "../../../portoService";
 import { errorToString } from "../../../../utils/rpcError";
 import { analyzeOrigin } from "../../../utils/originCheck";
+import { useWalletStore } from "../../../store";
 
 export function formatAddress(addr: string): string {
   if (!addr || addr.length < 12) return addr;
@@ -31,6 +32,7 @@ export function useGrantPermissionsApproval() {
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [request, setRequest] = useState<SigningRequest | null>(null);
+  const awaitCelebration = useWalletStore((s) => s.awaitCelebration);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +86,8 @@ export function useGrantPermissionsApproval() {
         type: MessageType.APPROVE_SIGNING,
         payload: { requestId, result: JSON.stringify(granted) },
       });
+      // Order: isTrusted → grant → approve message → celebrate+settle → close.
+      await awaitCelebration("passkey-success");
       window.close();
     } catch (err) {
       console.error("[GrantPermissionsApproval] failed:", err);

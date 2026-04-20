@@ -6,7 +6,16 @@
 import { create } from "zustand";
 import { DEFAULT_CHAIN_ID } from "../utils/constants";
 import { popupPortoService } from "./portoService";
+import { passkeyBeat } from "./styles/signatureMotion";
 import type { PortoAsset, Permission, AccountKey, RelayHealth } from "../types/porto";
+
+/**
+ * One-beat celebration signals. Views subscribe to the timestamp of
+ * the latest fire per kind and animate once per advance. Currently
+ * one kind: `passkey-success`, emitted after a biometric-gated action
+ * (create/connect account, sign message, approve transaction) resolves.
+ */
+export type CelebrationKind = "passkey-success";
 
 /**
  * Account state (simplified for UI)
@@ -104,6 +113,14 @@ interface WalletState {
   // Connection state
   isAuthenticated: boolean;
 
+  /**
+   * Per-kind timestamp of the latest celebration event (e.g. passkey
+   * success beat). Views compare the last-seen timestamp to advance
+   * their one-beat animations — never on value equality, always on
+   * timestamp change.
+   */
+  celebrations: Partial<Record<CelebrationKind, number>>;
+
   // Legacy single-account (for backward compatibility)
   account: AccountState | null;
 
@@ -136,6 +153,24 @@ interface WalletState {
   setChainId: (chainId: number) => void;
   /** Mark a chain commit as confirmed — fires the tide-shift beat. */
   markChainCommitted: () => void;
+  /**
+   * Fire a celebration beat synchronously. Views observing the
+   * `celebrations[kind]` timestamp will mount a fresh keyframe run.
+   */
+  celebrate: (kind: CelebrationKind) => void;
+  /**
+   * Fire `celebrate(kind)` and return a promise that resolves after
+   * `settleMs` (default: the beat's own perceived duration). Approval
+   * hooks call this between the APPROVE background message and
+   * `window.close()` so the beat gets frames to play before teardown.
+   *
+   * The isTrusted gate must still run BEFORE this — ordering is:
+   *   isTrusted → biometric sign → approve message → awaitCelebration → close
+   */
+  awaitCelebration: (
+    kind: CelebrationKind,
+    opts?: { settleMs?: number }
+  ) => Promise<void>;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
   setAuthenticated: (isAuthenticated: boolean) => void;
@@ -196,6 +231,9 @@ const initialState = {
 
   // Connection
   isAuthenticated: false,
+
+  // Celebration timestamps
+  celebrations: {} as Partial<Record<CelebrationKind, number>>,
 
   // Legacy
   account: null as AccountState | null,
@@ -436,6 +474,19 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   setChainId: (chainId) => set({ chainId, assets: [], assetsLastFetched: null }),
 
   markChainCommitted: () => set({ chainCommittedAt: Date.now() }),
+
+  celebrate: (kind) =>
+    set((state) => ({
+      celebrations: { ...state.celebrations, [kind]: Date.now() },
+    })),
+
+  awaitCelebration: async (kind, opts) => {
+    const settleMs = opts?.settleMs ?? passkeyBeat.settleMs;
+    set((state) => ({
+      celebrations: { ...state.celebrations, [kind]: Date.now() },
+    }));
+    await new Promise<void>((resolve) => setTimeout(resolve, settleMs));
+  },
 
   setLoading: (isLoading) => set({ isLoading }),
 

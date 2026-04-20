@@ -4,6 +4,7 @@ import { MessageType, SigningRequest } from "../../../../types/messages";
 import { popupPortoService } from "../../../portoService";
 import { errorToString } from "../../../../utils/rpcError";
 import { analyzeOrigin } from "../../../utils/originCheck";
+import { useWalletStore } from "../../../store";
 
 // Raw decoded text; JSX renders as a text child so React auto-escapes.
 function decodeMessage(hex: string): string {
@@ -67,6 +68,7 @@ export function useSigningApproval() {
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [request, setRequest] = useState<SigningRequest | null>(null);
+  const awaitCelebration = useWalletStore((s) => s.awaitCelebration);
 
   useEffect(() => {
     async function fetchRequest() {
@@ -116,6 +118,8 @@ export function useSigningApproval() {
         type: MessageType.APPROVE_SIGNING,
         payload: { requestId, result },
       });
+      // Order: isTrusted → sign → approve message → celebrate+settle → close.
+      await awaitCelebration("passkey-success");
       window.close();
     } catch (err) {
       console.error("Signing failed:", err);

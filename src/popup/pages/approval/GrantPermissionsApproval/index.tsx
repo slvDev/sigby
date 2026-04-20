@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
-import { GlassCard, PillButton, DismissibleError } from "../../../components/ui";
+import { CelebrationGlow, GlassCard, PillButton, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
 import { fadeUp, stagger } from "../../../styles/motion";
 import { docking } from "../../../styles/signatureMotion";
@@ -210,14 +210,16 @@ export function GrantPermissionsApproval() {
         >
           Reject
         </PillButton>
-        <PillButton
-          variant="primary"
-          onClick={handleApprove}
-          disabled={isLoading}
-          className="flex-1 py-3"
-        >
-          {isLoading ? "Approving…" : "Approve"}
-        </PillButton>
+        <CelebrationGlow kind="passkey-success" className="flex-1 rounded-full">
+          <PillButton
+            variant="primary"
+            onClick={handleApprove}
+            disabled={isLoading}
+            className="w-full py-3"
+          >
+            {isLoading ? "Approving…" : "Approve"}
+          </PillButton>
+        </CelebrationGlow>
       </motion.div>
     </motion.div>
   );
