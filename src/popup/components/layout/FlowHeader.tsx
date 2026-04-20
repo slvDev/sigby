@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { motion } from "motion/react";
 import { Icon } from "../ui";
 import { palette } from "../../styles/theme";
+import { spring } from "../../styles/motion";
 
 type FlowHeaderProps = {
   title: string;
@@ -31,14 +33,16 @@ export function FlowHeader({
       }}
     >
       <div className="flex items-center gap-3">
-        <button
+        <motion.button
           type="button"
           onClick={onBack}
           aria-label="Go back"
+          whileTap={{ scale: 0.92 }}
+          transition={spring.snap}
           className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/70 border border-white/80 text-zinc-700 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
         >
           <Icon name="arrow-left" className="w-4 h-4" />
-        </button>
+        </motion.button>
         <div className="flex-1 min-w-0">
           <h1 className="text-[14px] font-semibold text-zinc-900 tracking-tight truncate">
             {title}

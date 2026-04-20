@@ -1,5 +1,7 @@
 import type { ReactNode, MouseEvent } from "react";
+import { motion } from "motion/react";
 import { SOFT_SHADOW } from "../../styles/theme";
+import { spring } from "../../styles/motion";
 
 type PillButtonProps = {
   variant?: "primary" | "secondary" | "danger";
@@ -28,7 +30,7 @@ export function PillButton({
   ariaCurrent,
 }: PillButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-1.5 rounded-full border text-[13px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center gap-1.5 rounded-full border text-[13px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
   const variants = {
     primary:
       "bg-blue-600 text-white border-blue-700/20 hover:bg-blue-700 px-4 py-2",
@@ -38,16 +40,19 @@ export function PillButton({
       "bg-rose-600 text-white border-rose-700/20 hover:bg-rose-700 px-4 py-2",
   } as const;
   return (
-    <button
+    <motion.button
       type={type}
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
       aria-current={ariaCurrent ? "page" : undefined}
+      whileHover={disabled ? undefined : { y: -1 }}
+      whileTap={disabled ? undefined : { scale: 0.97 }}
+      transition={spring.snap}
       className={`${base} ${variants[variant]} ${className}`}
       style={{ boxShadow: SOFT_SHADOW }}
     >
       {children}
-    </button>
+    </motion.button>
   );
 }

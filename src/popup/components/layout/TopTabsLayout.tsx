@@ -1,7 +1,9 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { AccountSwitcher } from "./AccountSwitcher";
 import { ChainSwitcher } from "./ChainSwitcher";
 import { SOFT_SHADOW, palette } from "../../styles/theme";
+import { fadeUp, spring, tween } from "../../styles/motion";
 
 type TabId = "wallet" | "activity" | "settings";
 
@@ -49,7 +51,7 @@ export function TopTabsLayout() {
         </div>
 
         <div
-          className="mt-3 p-1 rounded-full bg-white/70 backdrop-blur-xl border border-white/80 grid grid-cols-3 gap-1"
+          className="relative mt-3 p-1 rounded-full bg-white/70 backdrop-blur-xl border border-white/80 grid grid-cols-3 gap-1"
           style={{ boxShadow: SOFT_SHADOW }}
           role="tablist"
         >
@@ -62,13 +64,18 @@ export function TopTabsLayout() {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => navigate(t.path)}
-                className={`text-[12px] font-semibold py-1.5 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 ${
-                  isActive
-                    ? "bg-white text-zinc-900 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-800"
+                className={`relative text-[12px] font-semibold py-1.5 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 ${
+                  isActive ? "text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
                 }`}
               >
-                {t.label}
+                {isActive && (
+                  <motion.span
+                    layoutId="tab-indicator"
+                    className="absolute inset-0 rounded-full bg-white shadow-sm"
+                    transition={spring.soft}
+                  />
+                )}
+                <span className="relative">{t.label}</span>
               </button>
             );
           })}
@@ -76,7 +83,18 @@ export function TopTabsLayout() {
       </header>
 
       <main className="flex-1 min-h-0 flex flex-col px-4 pt-3 pb-4">
-        <Outlet />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeTab}
+            initial={fadeUp.initial}
+            animate={fadeUp.animate}
+            exit={{ opacity: 0, y: -4 }}
+            transition={tween.shortOut}
+            className="flex flex-col flex-1 min-h-0"
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   );
