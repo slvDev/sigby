@@ -4,9 +4,11 @@
  */
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { MessageType } from "../../../types/messages";
 import type { TokenBalance } from "../../../types/account";
 import { errorToString } from "../../../utils/rpcError";
+import { fade, scaleFade, spring, tween } from "../../styles/motion";
 
 interface AddTokenModalProps {
   /** Whether modal is open */
@@ -87,17 +89,25 @@ export function AddTokenModal({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={handleClose}
-    >
-      <div
-        className="bg-white rounded-2xl w-[350px] max-h-[80vh] overflow-hidden shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={fade.initial}
+          animate={fade.animate}
+          exit={fade.exit}
+          transition={tween.shortInQuiet}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={handleClose}
+        >
+          <motion.div
+            initial={scaleFade.initial}
+            animate={scaleFade.animate}
+            exit={scaleFade.exit}
+            transition={spring.soft}
+            className="bg-white rounded-2xl w-[350px] max-h-[80vh] overflow-hidden shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">Add Token</h2>
@@ -159,25 +169,38 @@ export function AddTokenModal({
           </div>
 
           {/* Error Message */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-              {error}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -4, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto", marginBottom: 16 }}
+                exit={{ opacity: 0, y: -4, height: 0, marginBottom: 0 }}
+                transition={tween.baseOut}
+                className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 overflow-hidden"
+              >
+                {error}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Actions */}
           <div className="flex gap-3">
-            <button
+            <motion.button
               type="button"
               onClick={handleClose}
               disabled={isLoading}
+              whileTap={isLoading ? undefined : { scale: 0.98 }}
+              transition={spring.snap}
               className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
             >
               Cancel
-            </button>
-            <button
+            </motion.button>
+            <motion.button
               type="submit"
               disabled={isLoading || !tokenAddress.trim()}
+              whileHover={isLoading ? undefined : { y: -1 }}
+              whileTap={isLoading ? undefined : { scale: 0.98 }}
+              transition={spring.snap}
               className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
@@ -206,10 +229,12 @@ export function AddTokenModal({
               ) : (
                 "Add Token"
               )}
-            </button>
+            </motion.button>
           </div>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { useWalletStore, syncStoreWithBackground } from "../../store";
 import { MessageType } from "../../../types/messages";
 import { AccountPill, Icon } from "../ui";
 import { SOFT_SHADOW } from "../../styles/theme";
+import { scaleFade, spring } from "../../styles/motion";
 
 /**
  * AccountSwitcher — AccountPill + popover listing all accounts. Tap an
@@ -70,12 +72,17 @@ export function AccountSwitcher() {
         onClick={() => setOpen((v) => !v)}
       />
 
-      {open && (
-        <div
-          className="absolute top-full left-0 mt-2 w-[240px] rounded-2xl bg-white/90 backdrop-blur-xl border border-white/80 overflow-hidden z-40"
-          style={{ boxShadow: SOFT_SHADOW }}
-          role="menu"
-        >
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={scaleFade.initial}
+            animate={scaleFade.animate}
+            exit={scaleFade.exit}
+            transition={spring.snap}
+            className="absolute top-full left-0 mt-2 w-[240px] rounded-2xl bg-white/90 backdrop-blur-xl border border-white/80 overflow-hidden z-40 origin-top-left"
+            style={{ boxShadow: SOFT_SHADOW }}
+            role="menu"
+          >
           <ul className="divide-y divide-zinc-200/60 max-h-[280px] overflow-y-auto">
             {accountOrder.map((addr) => {
               const acc = accounts[addr];
@@ -112,16 +119,17 @@ export function AccountSwitcher() {
               );
             })}
           </ul>
-          <button
-            type="button"
-            onClick={handleManage}
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-zinc-700 hover:bg-white focus:outline-none focus-visible:bg-white border-t border-zinc-200/60"
-          >
-            <Icon name="plus" className="w-3.5 h-3.5" />
-            Manage accounts
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={handleManage}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-zinc-700 hover:bg-white focus:outline-none focus-visible:bg-white border-t border-zinc-200/60 transition-colors"
+            >
+              <Icon name="plus" className="w-3.5 h-3.5" />
+              Manage accounts
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

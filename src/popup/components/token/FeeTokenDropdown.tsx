@@ -5,8 +5,10 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import type { FeeToken } from "../../../types/porto";
 import { TokenIcon } from "./TokenIcon";
+import { scaleFade, spring } from "../../styles/motion";
 
 interface FeeTokenDropdownProps {
   /** Available fee tokens from capabilities */
@@ -76,9 +78,11 @@ export function FeeTokenDropdown({
   return (
     <div className="relative" ref={dropdownRef}>
       <div className="text-xs font-medium text-gray-500 mb-1.5">Pay gas with</div>
-      <button
+      <motion.button
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
+        whileTap={disabled ? undefined : { scale: 0.99 }}
+        transition={spring.snap}
         className={`
           w-full flex items-center justify-between gap-2
           px-3 py-2.5
@@ -101,31 +105,39 @@ export function FeeTokenDropdown({
           <span>{selectedToken.symbol}</span>
         </div>
         {tokens.length > 1 && (
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform duration-150 ${isOpen ? "rotate-180" : ""}`}
+          <motion.svg
+            animate={{ rotate: isOpen ? 180 : 0 }}
+            transition={spring.snap}
+            className="w-4 h-4 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          </motion.svg>
         )}
-      </button>
+      </motion.button>
 
-      {isOpen && tokens.length > 1 && (
-        <div
-          className="
-            absolute top-full left-0 right-0 mt-1
-            bg-white
-            rounded-xl
-            shadow-lg shadow-black/10
-            border border-gray-100
-            overflow-hidden
-            z-50
-          "
-          role="listbox"
-          aria-label="Select fee token"
-        >
+      <AnimatePresence>
+        {isOpen && tokens.length > 1 && (
+          <motion.div
+            initial={scaleFade.initial}
+            animate={scaleFade.animate}
+            exit={scaleFade.exit}
+            transition={spring.snap}
+            className="
+              absolute top-full left-0 right-0 mt-1
+              bg-white
+              rounded-xl
+              shadow-lg shadow-black/10
+              border border-gray-100
+              overflow-hidden
+              z-50
+              origin-top
+            "
+            role="listbox"
+            aria-label="Select fee token"
+          >
           <div className="max-h-[200px] overflow-y-auto py-1">
             {tokens.map((token) => {
               const isSelected = selected === token.symbol;
@@ -158,8 +170,9 @@ export function FeeTokenDropdown({
               );
             })}
           </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

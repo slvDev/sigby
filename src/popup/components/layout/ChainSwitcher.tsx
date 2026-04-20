@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { useWalletStore, syncStoreWithBackground } from "../../store";
 import { MessageType } from "../../../types/messages";
 import {
@@ -8,6 +9,7 @@ import {
 } from "../../../utils/constants";
 import { ChainPill, Icon } from "../ui";
 import { SOFT_SHADOW } from "../../styles/theme";
+import { scaleFade, spring } from "../../styles/motion";
 
 /**
  * ChainSwitcher — ChainPill + popover listing supported chains. Honors
@@ -57,28 +59,34 @@ export function ChainSwitcher() {
     <div ref={rootRef} className="relative">
       <ChainPill chainName={chainName} onClick={() => setOpen((v) => !v)} />
 
-      {open && (
-        <div
-          className="absolute top-full right-0 mt-2 w-[220px] rounded-2xl bg-white/90 backdrop-blur-xl border border-white/80 overflow-hidden z-40"
-          style={{ boxShadow: SOFT_SHADOW }}
-          role="menu"
-        >
-          <ChainGroup
-            label="Mainnets"
-            chainIds={MAINNET_CHAIN_IDS}
-            activeChainId={chainId}
-            onSelect={handleSwitch}
-          />
-          {showTestnets && (
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={scaleFade.initial}
+            animate={scaleFade.animate}
+            exit={scaleFade.exit}
+            transition={spring.snap}
+            className="absolute top-full right-0 mt-2 w-[220px] rounded-2xl bg-white/90 backdrop-blur-xl border border-white/80 overflow-hidden z-40 origin-top-right"
+            style={{ boxShadow: SOFT_SHADOW }}
+            role="menu"
+          >
             <ChainGroup
-              label="Testnets"
-              chainIds={TESTNET_CHAIN_IDS}
+              label="Mainnets"
+              chainIds={MAINNET_CHAIN_IDS}
               activeChainId={chainId}
               onSelect={handleSwitch}
             />
-          )}
-        </div>
-      )}
+            {showTestnets && (
+              <ChainGroup
+                label="Testnets"
+                chainIds={TESTNET_CHAIN_IDS}
+                activeChainId={chainId}
+                onSelect={handleSwitch}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
