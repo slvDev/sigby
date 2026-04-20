@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { Icon } from "./Icon";
 import { StatusChip } from "./StatusChip";
 
@@ -63,7 +64,9 @@ export function ActivityRow({
           >
             {title}
           </span>
-          {status !== "confirmed" && <StatusChip status={status} />}
+          <AnimatePresence mode="popLayout" initial={false}>
+            {status !== "confirmed" && <StatusChip key={status} status={status} />}
+          </AnimatePresence>
         </div>
         {subtitle && !compact && (
           <div className="text-[11px] text-zinc-500 tabular-nums leading-tight mt-0.5 truncate">
