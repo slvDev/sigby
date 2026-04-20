@@ -695,21 +695,29 @@ export class DappManager {
     const all = (await this.storageManager.get(STORAGE_KEYS.PENDING_SIGNING_REQUESTS)) ?? {};
     const now = Date.now();
     const STALE_MS = this.signingRequestTimeout;
+    const SETTLED_GRACE_MS = 30_000;
     let touched = false;
     for (const [id, entry] of Object.entries(all)) {
-      if (entry.state !== "pending") continue;
-      if (now - entry.createdAt < STALE_MS) continue;
-      console.log("[DappManager] Sweeping orphan signing request:", id);
-      all[id] = {
-        ...entry,
-        state: "rejected",
-        error: {
-          code: RPC_ERROR_CODES.DISCONNECTED,
-          message: "Wallet background restarted; please retry.",
-        },
-        settledAt: now,
-      };
-      touched = true;
+      if (entry.state === "pending") {
+        if (now - entry.createdAt < STALE_MS) continue;
+        console.log("[DappManager] Sweeping orphan signing request:", id);
+        all[id] = {
+          ...entry,
+          state: "rejected",
+          error: {
+            code: RPC_ERROR_CODES.DISCONNECTED,
+            message: "Wallet background restarted; please retry.",
+          },
+          settledAt: now,
+        };
+        touched = true;
+      } else if (entry.settledAt && now - entry.settledAt >= SETTLED_GRACE_MS) {
+        // Backstop for the 30s setTimeout in settlePersistedSigningRequest —
+        // that timer dies if the SW idles out before firing, leaving terminal
+        // rows in storage indefinitely.
+        delete all[id];
+        touched = true;
+      }
     }
     if (touched) {
       await this.storageManager.set(STORAGE_KEYS.PENDING_SIGNING_REQUESTS, all);
