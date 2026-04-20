@@ -28,17 +28,71 @@
   --shadow-dropdown: 0 4px 20px rgba(0, 0, 0, 0.15);
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.1);
 
-  /* Toast animation */
-  --animate-slide-in-right: slide-in-right 0.3s ease-out;
+  /* Motion tokens — mirror of src/popup/styles/motion.ts. Popup tier
+   * is one step shorter than the general web scale (research §12.1). */
+  --ease-out-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out-swift: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in-quiet: cubic-bezier(0.4, 0, 1, 1);
+
+  --duration-micro: 100ms;
+  --duration-short: 150ms;
+  --duration-base: 200ms;
+  --duration-medium: 250ms;
+  --duration-long: 350ms;
+  --duration-ceremony: 500ms;
+
+  /* Cold-start root fade — runs on first paint via @starting-style so
+   * it appears before React hydrates. */
+  --animate-root-in: root-in 180ms var(--ease-out-standard);
+
+  /* Skeleton shimmer — linear, single direction, calm. */
+  --animate-sheen: sheen 1.4s linear infinite;
+
+  /* Sonner-style entrance for toasts. Bottom-right origin. */
+  --animate-toast-in: toast-in 220ms var(--ease-out-strong);
 }
 
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
+@keyframes root-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes sheen {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate3d(12px, 4px, 0) scale(0.98); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* Cold-start entrance: runs during initial paint, before React has
+ * mounted. @starting-style is Baseline 2024; supported everywhere
+ * Berth targets. */
+@starting-style {
+  body { opacity: 0; transform: translateY(2px); }
+}
+body {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--duration-base) var(--ease-out-standard),
+    transform var(--duration-base) var(--ease-out-standard);
+}
+
+/* Honour user's reduced-motion preference. Substitutes, never disables:
+ * opacity transitions remain so state changes still read, but translate
+ * / scale animations collapse. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
   }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  @keyframes sheen { from { transform: none; } to { transform: none; } }
+  @keyframes root-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes toast-in { from { opacity: 0; } to { opacity: 1; } }
 }

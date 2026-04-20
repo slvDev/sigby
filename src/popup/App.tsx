@@ -5,11 +5,13 @@
 
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { MotionConfig } from "motion/react";
 import { useWalletStore, syncStoreWithBackground } from "./store";
 import { popupPortoService } from "./portoService";
 import { ToastProvider } from "./components/common";
 import { useTransactionWatcher } from "./hooks";
 import { FONT_STACK } from "./styles/theme";
+import { tween } from "./styles/motion";
 
 /**
  * LegacyParamHandler
@@ -121,17 +123,19 @@ export function App() {
   }
 
   return (
-    <ToastProvider>
-      <TransactionWatcher />
-      <div
-        className="w-[400px] min-h-[600px] flex flex-col text-zinc-900"
-        style={{ fontFamily: FONT_STACK }}
-      >
-        <LegacyParamHandler />
-        <AuthGuard>
-          <Outlet />
-        </AuthGuard>
-      </div>
-    </ToastProvider>
+    <MotionConfig reducedMotion="user" transition={tween.baseOut}>
+      <ToastProvider>
+        <TransactionWatcher />
+        <div
+          className="w-[400px] min-h-[600px] flex flex-col text-zinc-900"
+          style={{ fontFamily: FONT_STACK }}
+        >
+          <LegacyParamHandler />
+          <AuthGuard>
+            <Outlet />
+          </AuthGuard>
+        </div>
+      </ToastProvider>
+    </MotionConfig>
   );
 }
