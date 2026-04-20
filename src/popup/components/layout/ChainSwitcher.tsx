@@ -16,7 +16,7 @@ import { scaleFade, spring } from "../../styles/motion";
  * the `showTestnets` setting to hide/show the testnet group.
  */
 export function ChainSwitcher() {
-  const { chainId, showTestnets } = useWalletStore();
+  const { chainId, showTestnets, markChainCommitted } = useWalletStore();
 
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -47,6 +47,10 @@ export function ChainSwitcher() {
         payload: { chainId: nextChainId },
       });
       await syncStoreWithBackground();
+      // Signal the tide-shift beat exactly once per commit. HeroCard
+      // keys its pulse on this timestamp — not on chainId — so unrelated
+      // re-renders don't re-fire the animation.
+      markChainCommitted();
     } catch (err) {
       console.error("[ChainSwitcher] failed to switch:", err);
     }

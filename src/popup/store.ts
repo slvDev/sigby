@@ -60,6 +60,13 @@ interface WalletState {
 
   // Network state
   chainId: number;
+  /**
+   * Timestamp of the last confirmed chain commit. Fires once per
+   * successful `SWITCH_CHAIN` reply. Views key signature motion
+   * (HeroCard orb pulse) on this timestamp — not on `chainId` itself —
+   * so unrelated renders don't re-fire the beat.
+   */
+  chainCommittedAt: number | null;
 
   // Asset state (from wallet_getAssets)
   assets: PortoAsset[];
@@ -127,6 +134,8 @@ interface WalletState {
 
   // UI actions
   setChainId: (chainId: number) => void;
+  /** Mark a chain commit as confirmed — fires the tide-shift beat. */
+  markChainCommitted: () => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
   setAuthenticated: (isAuthenticated: boolean) => void;
@@ -151,6 +160,7 @@ const initialState = {
 
   // Network - selected chain for popup UI
   chainId: DEFAULT_CHAIN_ID,
+  chainCommittedAt: null as number | null,
 
   // Assets (from wallet_getAssets)
   assets: [] as PortoAsset[],
@@ -424,6 +434,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   // ==================== UI ACTIONS ====================
 
   setChainId: (chainId) => set({ chainId, assets: [], assetsLastFetched: null }),
+
+  markChainCommitted: () => set({ chainCommittedAt: Date.now() }),
 
   setLoading: (isLoading) => set({ isLoading }),
 
