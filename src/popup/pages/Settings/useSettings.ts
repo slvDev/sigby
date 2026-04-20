@@ -15,8 +15,6 @@ export function useSettings() {
     errorAt,
     showTestnets,
     setShowTestnets,
-    reduceMotion,
-    setReduceMotion,
   } = useWalletStore();
 
   const [walletName, setWalletName] = useState("");
@@ -140,8 +138,6 @@ export function useSettings() {
     showDeleteConfirm,
     showTestnets,
     setShowTestnets,
-    reduceMotion,
-    setReduceMotion,
     handleCreateAccount,
     handleConnectAccount,
     handleDeleteAccount,

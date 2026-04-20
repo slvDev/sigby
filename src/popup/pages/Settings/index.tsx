@@ -22,8 +22,6 @@ export function Settings() {
     showDeleteConfirm,
     showTestnets,
     setShowTestnets,
-    reduceMotion,
-    setReduceMotion,
     handleCreateAccount,
     handleConnectAccount,
     handleDeleteAccount,
@@ -223,25 +221,6 @@ export function Settings() {
                 type="checkbox"
                 checked={showTestnets}
                 onChange={(e) => setShowTestnets(e.target.checked)}
-                className="w-5 h-5 accent-blue-600"
-              />
-            </label>
-          </GlassCard>
-          <GlassCard className="px-4 py-3.5">
-            <label className="flex items-center justify-between gap-3 cursor-pointer">
-              <div>
-                <div className="text-[13px] font-semibold text-zinc-900">
-                  Reduce motion
-                </div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">
-                  Skip decorative animations. Address scrambles and balance
-                  ticker become instant; hover and press feedback stays.
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={reduceMotion}
-                onChange={(e) => setReduceMotion(e.target.checked)}
                 className="w-5 h-5 accent-blue-600"
               />
             </label>

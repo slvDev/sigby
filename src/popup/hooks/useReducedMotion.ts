@@ -1,19 +1,12 @@
-import { useWalletStore } from "../store";
-
 /**
- * In-app motion preference — NOT the OS `prefers-reduced-motion` flag.
+ * Motion preference — always full motion.
  *
- * Returns the user's Settings toggle. Defaults to `false` so a fresh
- * install opens lively; anyone who wants reduced motion flips it in
- * Settings. Research §15.8 calls this the "defensive layer": owning
- * the preference avoids Chromium's false-positive OS flag reports
- * (battery saver, post-update macOS defaults, Linux mis-reporting)
- * that would otherwise show users a static wallet on first run.
- *
- * The `<html data-reduce-motion="true">` attribute is mirrored once at
- * the App root (see App.tsx) so `tailwind.css` can key its reduced-
- * motion substitutions off the same source of truth.
+ * Kept as a hook (not inlined) so the primitives that branch on it
+ * (NumberScramble, HexScramble, InitialMorph, CelebrationGlow,
+ * HeroCard) keep their reduced-motion fallbacks as dead-but-ready
+ * code. If we ever need to re-introduce a preference (OS flag, user
+ * toggle, something else), we change this file only.
  */
 export function useReducedMotion(): boolean {
-  return useWalletStore((s) => s.reduceMotion);
+  return false;
 }

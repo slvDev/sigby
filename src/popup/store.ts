@@ -109,21 +109,6 @@ interface WalletState {
   errorAt: number | null;
   isAccountSwitcherOpen: boolean;
   showTestnets: boolean;
-  /**
-   * In-app motion preference. When `true`, scramble / hex-glitch /
-   * initial-morph primitives degrade to instant swaps and heavy
-   * transform animations substitute to opacity fades. We expose this
-   * in Settings and default to `false` so the wallet ships lively —
-   * anyone who wants less motion can opt in with one tap.
-   *
-   * We deliberately do NOT read from `prefers-reduced-motion` on
-   * first launch: Chromium in extension context has false positives
-   * (macOS Reduce Motion on after updates, battery saver, Linux
-   * mis-reporting), and a wallet that opens static on install reads
-   * as broken. Users still have OS-level accessibility options for
-   * reducing other browser motion.
-   */
-  reduceMotion: boolean;
 
   // Connection state
   isAuthenticated: boolean;
@@ -191,7 +176,6 @@ interface WalletState {
   setAuthenticated: (isAuthenticated: boolean) => void;
   setAccountSwitcherOpen: (isOpen: boolean) => void;
   setShowTestnets: (show: boolean) => void;
-  setReduceMotion: (reduce: boolean) => void;
 
   // Utility actions
   reset: () => void;
@@ -244,7 +228,6 @@ const initialState = {
   errorAt: null as number | null,
   isAccountSwitcherOpen: false,
   showTestnets: true, // Visible by default per user preference
-  reduceMotion: false, // Full motion by default; opt-in to reduce via Settings.
 
   // Connection
   isAuthenticated: false,
@@ -514,8 +497,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   setAccountSwitcherOpen: (isAccountSwitcherOpen) => set({ isAccountSwitcherOpen }),
 
   setShowTestnets: (showTestnets) => set({ showTestnets }),
-
-  setReduceMotion: (reduceMotion) => set({ reduceMotion }),
 
   // ==================== UTILITY ACTIONS ====================
 
