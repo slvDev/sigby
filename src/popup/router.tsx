@@ -13,6 +13,7 @@
  *       /receive
  *       /send-token/:address
  *       /token/:address
+ *       /tx/:bundleId
  *       /permissions
  *     — approval pages (standalone popup windows)
  *       /connect, /transaction, /sign, /grant-permissions
@@ -29,6 +30,7 @@ import { Receive } from "./pages/Receive";
 import { Settings } from "./pages/Settings";
 import { History } from "./pages/History";
 import { TokenDetail } from "./pages/TokenDetail";
+import { TransactionDetail } from "./pages/TransactionDetail";
 import { Permissions } from "./pages/Permissions";
 
 import { ConnectionApproval } from "./pages/approval/ConnectionApproval";
@@ -55,6 +57,7 @@ export const router = createHashRouter([
       { path: "receive", element: <Receive /> },
       { path: "token/:address", element: <TokenDetail /> },
       { path: "send-token/:address", element: <SendToken /> },
+      { path: "tx/:bundleId", element: <TransactionDetail /> },
       { path: "permissions", element: <Permissions /> },
       // Approval routes — standalone popup windows
       { path: "connect", element: <ConnectionApproval /> },

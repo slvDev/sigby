@@ -541,6 +541,52 @@ class PopupPortoService {
   }
 
   /**
+   * Compose the full detail for a single bundle: history entry (with
+   * capabilities + asset diffs + fee totals + key hash) and status
+   * (with receipts + event logs). Each half is best-effort — a miss on
+   * one does not fail the other, which matters while the relay is
+   * backfilling a pending bundle.
+   */
+  async getTransaction(
+    bundleId: string,
+    address: string,
+  ): Promise<{
+    entry: PortoHistoryEntry | null;
+    status: PortoCallsStatus | null;
+  }> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+
+    let entry: PortoHistoryEntry | null = null;
+    let status: PortoCallsStatus | null = null;
+
+    try {
+      const history = await this.getCallsHistory(address);
+      entry =
+        history.find(
+          (e) => (e.id || '').toLowerCase() === bundleId.toLowerCase(),
+        ) || null;
+    } catch (error) {
+      console.error(
+        '[Berth:Popup] Failed to load history for transaction detail:',
+        error,
+      );
+    }
+
+    try {
+      status = await this.getCallsStatus(bundleId);
+    } catch (error) {
+      console.error(
+        '[Berth:Popup] Failed to load status for transaction detail:',
+        error,
+      );
+    }
+
+    return { entry, status };
+  }
+
+  /**
    * Get all assets (native + ERC-20 tokens) via Porto SDK (wallet_getAssets)
    * @param address Account address
    * @param chainIds Optional array of chain IDs to filter (decimal numbers)
