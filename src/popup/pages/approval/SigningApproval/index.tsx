@@ -3,6 +3,7 @@ import { OriginSecurityBanner } from "../../../components/approvals/OriginSecuri
 import { GlassCard, PillButton, Icon, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
 import { fadeUp, stagger, tween } from "../../../styles/motion";
+import { docking } from "../../../styles/signatureMotion";
 import { useSigningApproval } from "./useSigningApproval";
 
 export function SigningApproval() {
@@ -60,8 +61,16 @@ export function SigningApproval() {
       initial="hidden"
       animate="show"
       variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: stagger.base } },
+        hidden: docking.initial,
+        show: {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          transition: {
+            ...docking.transition,
+            staggerChildren: stagger.base,
+          },
+        },
       }}
     >
       <motion.div

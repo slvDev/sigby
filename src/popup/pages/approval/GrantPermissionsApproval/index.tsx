@@ -3,6 +3,7 @@ import { OriginSecurityBanner } from "../../../components/approvals/OriginSecuri
 import { GlassCard, PillButton, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
 import { fadeUp, stagger } from "../../../styles/motion";
+import { docking } from "../../../styles/signatureMotion";
 import {
   useGrantPermissionsApproval,
   formatAddress,
@@ -64,8 +65,16 @@ export function GrantPermissionsApproval() {
       initial="hidden"
       animate="show"
       variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: stagger.base } },
+        hidden: docking.initial,
+        show: {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          transition: {
+            ...docking.transition,
+            staggerChildren: stagger.base,
+          },
+        },
       }}
     >
       <motion.div
