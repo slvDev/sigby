@@ -1,7 +1,9 @@
+import { motion } from "motion/react";
 import { FeeTokenDropdown } from "../../../components/token/FeeTokenDropdown";
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
 import { GlassCard, PillButton, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
+import { fadeUp, stagger } from "../../../styles/motion";
 import { useTransactionApproval } from "./useTransactionApproval";
 
 export function TransactionApproval() {
@@ -58,11 +60,20 @@ export function TransactionApproval() {
   }
 
   return (
-    <div
+    <motion.div
       className="flex flex-col min-h-[600px] px-6 pt-6 pb-5 gap-4"
       style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: stagger.base } },
+      }}
     >
-      <div className="text-center pb-3 border-b border-zinc-200/60">
+      <motion.div
+        className="text-center pb-3 border-b border-zinc-200/60"
+        variants={fadeUp}
+      >
         <h2 className="text-[18px] font-semibold tracking-tight text-zinc-900">
           {isWalletSendCalls && calls.length > 1
             ? "Batch transaction"
@@ -73,73 +84,87 @@ export function TransactionApproval() {
             {calls.length} transactions
           </p>
         )}
-      </div>
+      </motion.div>
 
-      <GlassCard className="flex items-center gap-3 p-3">
-        {request.metadata?.favicon && (
-          <img
-            src={request.metadata.favicon}
-            alt=""
-            className="w-8 h-8 rounded-lg object-contain bg-white/90 p-0.5 shadow-sm"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        )}
-        <div className="text-[13px] font-medium text-zinc-700 truncate">
-          {displayOrigin}
-        </div>
-      </GlassCard>
+      <motion.div variants={fadeUp}>
+        <GlassCard className="flex items-center gap-3 p-3">
+          {request.metadata?.favicon && (
+            <img
+              src={request.metadata.favicon}
+              alt=""
+              className="w-8 h-8 rounded-lg object-contain bg-white/90 p-0.5 shadow-sm"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          )}
+          <div className="text-[13px] font-medium text-zinc-700 truncate">
+            {displayOrigin}
+          </div>
+        </GlassCard>
+      </motion.div>
 
-      <OriginSecurityBanner analysis={originAnalysis} />
+      <motion.div variants={fadeUp}>
+        <OriginSecurityBanner analysis={originAnalysis} />
+      </motion.div>
 
-      <div className="flex-1 overflow-auto space-y-2.5">
+      <motion.div
+        className="flex-1 overflow-auto space-y-2.5"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: stagger.tight } },
+        }}
+      >
         {calls.map((call: any, index: number) => {
           const { to, valueInEth, data } = formatCall(call);
           return (
-            <GlassCard key={index} className="p-3.5 space-y-2.5">
-              {calls.length > 1 && (
-                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-[0.1em]">
-                  Transaction {index + 1}
-                </div>
-              )}
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] text-zinc-500">To</span>
-                <span className="text-[12px] font-mono text-zinc-900 break-all">
-                  {to || "Contract creation"}
-                </span>
-              </div>
-              <div className="flex justify-between items-baseline gap-3">
-                <span className="text-[11px] text-zinc-500">Value</span>
-                <span className="text-[13px] font-semibold text-zinc-900 tabular-nums">
-                  {valueInEth} {nativeSymbol}
-                </span>
-              </div>
-              {data && data !== "0x" && (
-                <div className="flex justify-between items-baseline gap-3">
-                  <span className="text-[11px] text-zinc-500">Data</span>
-                  <span className="text-[11px] font-mono text-zinc-600 text-right max-w-[200px] truncate">
-                    {data.length > 20 ? `${data.slice(0, 20)}…` : data}
+            <motion.div key={index} variants={fadeUp}>
+              <GlassCard className="p-3.5 space-y-2.5">
+                {calls.length > 1 && (
+                  <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-[0.1em]">
+                    Transaction {index + 1}
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] text-zinc-500">To</span>
+                  <span className="text-[12px] font-mono text-zinc-900 break-all">
+                    {to || "Contract creation"}
                   </span>
                 </div>
-              )}
-            </GlassCard>
+                <div className="flex justify-between items-baseline gap-3">
+                  <span className="text-[11px] text-zinc-500">Value</span>
+                  <span className="text-[13px] font-semibold text-zinc-900 tabular-nums">
+                    {valueInEth} {nativeSymbol}
+                  </span>
+                </div>
+                {data && data !== "0x" && (
+                  <div className="flex justify-between items-baseline gap-3">
+                    <span className="text-[11px] text-zinc-500">Data</span>
+                    <span className="text-[11px] font-mono text-zinc-600 text-right max-w-[200px] truncate">
+                      {data.length > 20 ? `${data.slice(0, 20)}…` : data}
+                    </span>
+                  </div>
+                )}
+              </GlassCard>
+            </motion.div>
           );
         })}
         {!isWalletSendCalls && (
-          <GlassCard className="p-3.5">
-            <div className="flex justify-between items-baseline gap-3">
-              <span className="text-[11px] text-zinc-500">Est. gas</span>
-              <span className="text-[13px] font-semibold text-zinc-900 tabular-nums">
-                {gasDecimal}
-              </span>
-            </div>
-          </GlassCard>
+          <motion.div variants={fadeUp}>
+            <GlassCard className="p-3.5">
+              <div className="flex justify-between items-baseline gap-3">
+                <span className="text-[11px] text-zinc-500">Est. gas</span>
+                <span className="text-[13px] font-semibold text-zinc-900 tabular-nums">
+                  {gasDecimal}
+                </span>
+              </div>
+            </GlassCard>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
       {feeTokens.length > 0 && (
-        <div className="space-y-1">
+        <motion.div className="space-y-1" variants={fadeUp}>
           <FeeTokenDropdown
             tokens={feeTokens}
             selected={selectedFeeToken}
@@ -153,12 +178,12 @@ export function TransactionApproval() {
                 : `${dappRequiredFeeToken} is required by this dApp but isn't available on this chain.`}
             </p>
           )}
-        </div>
+        </motion.div>
       )}
 
       <DismissibleError message={error} onDismiss={dismissError} />
 
-      <div className="flex gap-2 mt-auto">
+      <motion.div className="flex gap-2 mt-auto" variants={fadeUp}>
         <PillButton
           variant="secondary"
           onClick={handleReject}
@@ -175,7 +200,7 @@ export function TransactionApproval() {
         >
           {isLoading ? "Signing…" : "Approve"}
         </PillButton>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

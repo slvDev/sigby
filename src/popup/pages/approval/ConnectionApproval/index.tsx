@@ -1,6 +1,8 @@
+import { motion } from "motion/react";
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
 import { GlassCard, PillButton, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
+import { fadeUp, stagger } from "../../../styles/motion";
 import { useConnectionApproval } from "./useConnectionApproval";
 
 export function ConnectionApproval() {
@@ -19,56 +21,74 @@ export function ConnectionApproval() {
   } = useConnectionApproval();
 
   return (
-    <div
+    <motion.div
       className="flex flex-col min-h-[600px] px-6 pt-6 pb-5 gap-5"
       style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: stagger.base } },
+      }}
     >
-      <div className="text-center pb-3 border-b border-zinc-200/60">
+      <motion.div
+        className="text-center pb-3 border-b border-zinc-200/60"
+        variants={fadeUp}
+      >
         <h2 className="text-[18px] font-semibold tracking-tight text-zinc-900">
           Connection request
         </h2>
-      </div>
+      </motion.div>
 
-      <GlassCard className="flex items-center gap-3.5 p-4">
-        {favicon && (
-          <img
-            src={favicon}
-            alt=""
-            className="w-12 h-12 rounded-xl object-contain bg-white/90 p-1 shadow-sm"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="text-[14px] font-semibold text-zinc-900 truncate">
-            {title}
+      <motion.div variants={fadeUp}>
+        <GlassCard className="flex items-center gap-3.5 p-4">
+          {favicon && (
+            <img
+              src={favicon}
+              alt=""
+              className="w-12 h-12 rounded-xl object-contain bg-white/90 p-1 shadow-sm"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-[14px] font-semibold text-zinc-900 truncate">
+              {title}
+            </div>
+            <div className="text-[12px] text-zinc-500 truncate">
+              {displayOrigin}
+            </div>
           </div>
-          <div className="text-[12px] text-zinc-500 truncate">
-            {displayOrigin}
-          </div>
-        </div>
-      </GlassCard>
+        </GlassCard>
+      </motion.div>
 
-      <OriginSecurityBanner
-        analysis={originAnalysis}
-        isKnownOrigin={isKnownOrigin}
-      />
+      <motion.div variants={fadeUp}>
+        <OriginSecurityBanner
+          analysis={originAnalysis}
+          isKnownOrigin={isKnownOrigin}
+        />
+      </motion.div>
 
-      <div className="text-center text-[14px] text-zinc-700">
+      <motion.div className="text-center text-[14px] text-zinc-700" variants={fadeUp}>
         This site wants to connect to your wallet
-      </div>
+      </motion.div>
 
-      <GlassCard className="p-4">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">
-          Account to connect
-        </div>
-        <div className="mt-1.5 text-[14px] font-mono font-semibold text-zinc-900">
-          {shortAddress}
-        </div>
-      </GlassCard>
+      <motion.div variants={fadeUp}>
+        <GlassCard className="p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">
+            Account to connect
+          </div>
+          <div className="mt-1.5 text-[14px] font-mono font-semibold text-zinc-900">
+            {shortAddress}
+          </div>
+        </GlassCard>
+      </motion.div>
 
-      <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+      <motion.div
+        className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl"
+        variants={fadeUp}
+      >
         <div className="text-[12px] font-semibold text-amber-900 mb-2">
           This site will be able to:
         </div>
@@ -82,11 +102,11 @@ export function ConnectionApproval() {
             Request transaction signatures
           </li>
         </ul>
-      </div>
+      </motion.div>
 
       <DismissibleError message={error} onDismiss={dismissError} />
 
-      <div className="flex gap-2 mt-auto">
+      <motion.div className="flex gap-2 mt-auto" variants={fadeUp}>
         <PillButton
           variant="secondary"
           onClick={handleReject}
@@ -103,7 +123,7 @@ export function ConnectionApproval() {
         >
           {isLoading ? "Connecting…" : "Connect"}
         </PillButton>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -1,6 +1,8 @@
+import { motion } from "motion/react";
 import { OriginSecurityBanner } from "../../../components/approvals/OriginSecurityBanner";
 import { GlassCard, PillButton, DismissibleError } from "../../../components/ui";
 import { palette, FONT_STACK } from "../../../styles/theme";
+import { fadeUp, stagger } from "../../../styles/motion";
 import {
   useGrantPermissionsApproval,
   formatAddress,
@@ -56,11 +58,20 @@ export function GrantPermissionsApproval() {
   const spendLimits = permissionRequest.permissions.spend ?? [];
 
   return (
-    <div
+    <motion.div
       className="flex flex-col min-h-[600px] px-6 pt-6 pb-5 gap-4"
       style={{ fontFamily: FONT_STACK, background: palette.backgroundGradient }}
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: stagger.base } },
+      }}
     >
-      <div className="text-center pb-3 border-b border-zinc-200/60">
+      <motion.div
+        className="text-center pb-3 border-b border-zinc-200/60"
+        variants={fadeUp}
+      >
         <h2 className="text-[18px] font-semibold tracking-tight text-zinc-900">
           Grant session key
         </h2>
@@ -68,101 +79,120 @@ export function GrantPermissionsApproval() {
           The dApp will sign within these limits without prompting you each
           time.
         </p>
-      </div>
+      </motion.div>
 
-      <GlassCard className="flex items-center gap-3 p-3">
-        {request.metadata?.favicon && (
-          <img
-            src={request.metadata.favicon}
-            alt=""
-            className="w-8 h-8 rounded-lg object-contain bg-white/90 p-0.5 shadow-sm"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        )}
-        <div className="text-[13px] font-medium text-zinc-700 truncate">
-          {displayOrigin}
-        </div>
-      </GlassCard>
-
-      <OriginSecurityBanner analysis={originAnalysis} />
-
-      <GlassCard className="p-3.5">
-        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
-          Expires
-        </div>
-        <div className="mt-1 text-[13px] text-zinc-900">
-          {formatExpiry(permissionRequest.expiry)}
-        </div>
-      </GlassCard>
-
-      <GlassCard className="p-3.5">
-        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em] mb-2">
-          Allowed calls ({calls.length})
-        </div>
-        <div className="space-y-1.5">
-          {calls.map((call, idx) => (
-            <div
-              key={idx}
-              className="px-3 py-2 bg-white/60 rounded-lg text-[11px] font-mono text-zinc-700 break-all"
-            >
-              {call.to && <div>to {formatAddress(call.to)}</div>}
-              {call.signature && (
-                <div className="text-zinc-500">{call.signature}</div>
-              )}
-              {call.selector && (
-                <div className="text-zinc-500">selector {call.selector}</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </GlassCard>
-
-      {spendLimits.length > 0 && (
-        <GlassCard className="p-3.5">
-          <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em] mb-2">
-            Spend limits
-          </div>
-          <div className="space-y-1.5">
-            {spendLimits.map((limit, idx) => (
-              <div
-                key={idx}
-                className="px-3 py-2 bg-white/60 rounded-lg text-[12px] text-zinc-700"
-              >
-                <span className="font-mono tabular-nums">{limit.limit}</span>{" "}
-                per {limit.period} on{" "}
-                <span className="font-mono">{formatAddress(limit.token)}</span>
-              </div>
-            ))}
+      <motion.div variants={fadeUp}>
+        <GlassCard className="flex items-center gap-3 p-3">
+          {request.metadata?.favicon && (
+            <img
+              src={request.metadata.favicon}
+              alt=""
+              className="w-8 h-8 rounded-lg object-contain bg-white/90 p-0.5 shadow-sm"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          )}
+          <div className="text-[13px] font-medium text-zinc-700 truncate">
+            {displayOrigin}
           </div>
         </GlassCard>
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <OriginSecurityBanner analysis={originAnalysis} />
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <GlassCard className="p-3.5">
+          <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+            Expires
+          </div>
+          <div className="mt-1 text-[13px] text-zinc-900">
+            {formatExpiry(permissionRequest.expiry)}
+          </div>
+        </GlassCard>
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <GlassCard className="p-3.5">
+          <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em] mb-2">
+            Allowed calls ({calls.length})
+          </div>
+          <motion.div
+            className="space-y-1.5"
+            variants={{
+              hidden: {},
+              show: { transition: { staggerChildren: stagger.tight } },
+            }}
+          >
+            {calls.map((call, idx) => (
+              <motion.div
+                key={idx}
+                variants={fadeUp}
+                className="px-3 py-2 bg-white/60 rounded-lg text-[11px] font-mono text-zinc-700 break-all"
+              >
+                {call.to && <div>to {formatAddress(call.to)}</div>}
+                {call.signature && (
+                  <div className="text-zinc-500">{call.signature}</div>
+                )}
+                {call.selector && (
+                  <div className="text-zinc-500">selector {call.selector}</div>
+                )}
+              </motion.div>
+            ))}
+          </motion.div>
+        </GlassCard>
+      </motion.div>
+
+      {spendLimits.length > 0 && (
+        <motion.div variants={fadeUp}>
+          <GlassCard className="p-3.5">
+            <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em] mb-2">
+              Spend limits
+            </div>
+            <div className="space-y-1.5">
+              {spendLimits.map((limit, idx) => (
+                <div
+                  key={idx}
+                  className="px-3 py-2 bg-white/60 rounded-lg text-[12px] text-zinc-700"
+                >
+                  <span className="font-mono tabular-nums">{limit.limit}</span>{" "}
+                  per {limit.period} on{" "}
+                  <span className="font-mono">{formatAddress(limit.token)}</span>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+        </motion.div>
       )}
 
-      <GlassCard className="p-3.5">
-        <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
-          Fee token
-        </div>
-        <div className="mt-1 text-[12px] text-zinc-700">
-          {permissionRequest.feeToken ? (
-            <>
-              Up to{" "}
-              <span className="font-mono tabular-nums">
-                {permissionRequest.feeToken.limit}
-              </span>{" "}
-              {permissionRequest.feeToken.symbol ?? "native"}
-            </>
-          ) : (
-            <span className="text-zinc-500">
-              No fee allowance — session key cannot pay gas.
-            </span>
-          )}
-        </div>
-      </GlassCard>
+      <motion.div variants={fadeUp}>
+        <GlassCard className="p-3.5">
+          <div className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+            Fee token
+          </div>
+          <div className="mt-1 text-[12px] text-zinc-700">
+            {permissionRequest.feeToken ? (
+              <>
+                Up to{" "}
+                <span className="font-mono tabular-nums">
+                  {permissionRequest.feeToken.limit}
+                </span>{" "}
+                {permissionRequest.feeToken.symbol ?? "native"}
+              </>
+            ) : (
+              <span className="text-zinc-500">
+                No fee allowance — session key cannot pay gas.
+              </span>
+            )}
+          </div>
+        </GlassCard>
+      </motion.div>
 
       <DismissibleError message={error} onDismiss={dismissError} />
 
-      <div className="flex gap-2 mt-auto">
+      <motion.div className="flex gap-2 mt-auto" variants={fadeUp}>
         <PillButton
           variant="secondary"
           onClick={handleReject}
@@ -179,7 +209,7 @@ export function GrantPermissionsApproval() {
         >
           {isLoading ? "Approving…" : "Approve"}
         </PillButton>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
