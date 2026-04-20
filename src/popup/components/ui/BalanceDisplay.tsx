@@ -1,4 +1,5 @@
 import { Icon } from "./Icon";
+import { NumberTicker } from "./NumberTicker";
 
 type BalanceDisplayProps = {
   balance: string;
@@ -7,6 +8,13 @@ type BalanceDisplayProps = {
   changePct?: string;
   /** Size variant for different contexts. */
   size?: "hero" | "jumbo" | "sm";
+  /**
+   * When true, renders `balance` as a spring-animated ticker (parses
+   * the string numerically, formats with the same digit count). When
+   * false (default), renders the string verbatim — useful for the
+   * loading ellipsis placeholder.
+   */
+  animateValue?: boolean;
 };
 
 /**
@@ -21,6 +29,7 @@ export function BalanceDisplay({
   fiat,
   changePct,
   size = "hero",
+  animateValue = false,
 }: BalanceDisplayProps) {
   const sizes = {
     hero: { num: "text-[38px]", sym: "text-[18px]" },
@@ -28,17 +37,36 @@ export function BalanceDisplay({
     sm: { num: "text-[28px]", sym: "text-[15px]" },
   } as const;
   const s = sizes[size];
+
+  const parsed = parseFloat(balance);
+  const canTick = animateValue && Number.isFinite(parsed);
+  const decimals = (() => {
+    const dot = balance.indexOf(".");
+    return dot >= 0 ? balance.length - dot - 1 : 0;
+  })();
+  const format = (v: number) =>
+    decimals > 0 ? v.toFixed(decimals) : Math.round(v).toString();
+
   return (
     <>
       <div className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
         Total balance
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span
-          className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900 tabular-nums`}
-        >
-          {balance}
-        </span>
+        {canTick ? (
+          <NumberTicker
+            value={parsed}
+            format={format}
+            className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
+            ariaLabel="Balance"
+          />
+        ) : (
+          <span
+            className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900 tabular-nums`}
+          >
+            {balance}
+          </span>
+        )}
         <span className={`${s.sym} font-medium text-zinc-500`}>{symbol}</span>
       </div>
       {(fiat || changePct) && (

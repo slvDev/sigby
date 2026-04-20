@@ -8,9 +8,11 @@
  */
 
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { MessageType, type PendingApprovalSummary } from "../../../types/messages";
 import { STORAGE_KEYS } from "../../../utils/constants";
 import { errorToString } from "../../../utils/rpcError";
+import { spring, stagger, tween } from "../../styles/motion";
 
 const METHOD_LABELS: Record<string, string> = {
   eth_sendTransaction: "Send transaction",
@@ -58,8 +60,6 @@ export function PendingApprovalsCard() {
   useEffect(() => {
     load();
 
-    // Refresh when the persisted queue changes (new request, approved,
-    // rejected, swept). No polling — event-driven via chrome.storage.
     const onChanged = (
       changes: Record<string, chrome.storage.StorageChange>,
       area: string
@@ -70,7 +70,6 @@ export function PendingApprovalsCard() {
     };
     chrome.storage.onChanged.addListener(onChanged);
 
-    // Gentle re-render so "Xs ago" labels tick while the popup is open.
     const interval = setInterval(() => setTick((n) => n + 1), 10_000);
 
     return () => {
@@ -101,50 +100,69 @@ export function PendingApprovalsCard() {
     }
   };
 
-  if (items.length === 0) return null;
-
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-col gap-2">
-      <div className="text-xs font-medium uppercase tracking-wider text-amber-800">
-        Pending approval{items.length === 1 ? "" : "s"}
-      </div>
-      {items.map((item) => (
-        <div
-          key={item.requestId}
-          className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-amber-100"
+    <AnimatePresence initial={false}>
+      {items.length > 0 && (
+        <motion.div
+          key="pending-approvals"
+          initial={{ opacity: 0, y: -6, scale: 0.99 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -4, scale: 0.99 }}
+          transition={tween.mediumOutStrong}
+          layout
+          className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-col gap-2 overflow-hidden"
         >
-          {item.metadata?.favicon ? (
-            <img
-              src={item.metadata.favicon}
-              alt=""
-              className="w-6 h-6 rounded object-contain bg-white"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
-            <div className="w-6 h-6 rounded bg-gray-200" />
-          )}
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">
-              {METHOD_LABELS[item.method] ?? item.method}
-            </div>
-            <div className="text-xs text-gray-500 truncate">
-              {formatOrigin(item.origin)} · {formatRelative(item.createdAt)}
-            </div>
+          <div className="text-xs font-medium uppercase tracking-wider text-amber-800">
+            Pending approval{items.length === 1 ? "" : "s"}
           </div>
-          <button
-            onClick={() => handleResume(item.requestId)}
-            disabled={resuming === item.requestId}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
-          >
-            {resuming === item.requestId ? "Opening..." : "Resume"}
-          </button>
-        </div>
-      ))}
-      {error && (
-        <div className="text-xs text-red-600">{error}</div>
+          <AnimatePresence initial={false}>
+            {items.map((item, index) => (
+              <motion.div
+                key={item.requestId}
+                layout
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                transition={{ ...tween.baseOut, delay: index * stagger.base }}
+                className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-amber-100"
+              >
+                {item.metadata?.favicon ? (
+                  <img
+                    src={item.metadata.favicon}
+                    alt=""
+                    className="w-6 h-6 rounded object-contain bg-white"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded bg-gray-200" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate">
+                    {METHOD_LABELS[item.method] ?? item.method}
+                  </div>
+                  <div className="text-xs text-gray-500 truncate">
+                    {formatOrigin(item.origin)} · {formatRelative(item.createdAt)}
+                  </div>
+                </div>
+                <motion.button
+                  onClick={() => handleResume(item.requestId)}
+                  disabled={resuming === item.requestId}
+                  whileTap={{ scale: 0.97 }}
+                  transition={spring.snap}
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+                >
+                  {resuming === item.requestId ? "Opening..." : "Resume"}
+                </motion.button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {error && (
+            <div className="text-xs text-red-600">{error}</div>
+          )}
+        </motion.div>
       )}
-    </div>
+    </AnimatePresence>
   );
 }

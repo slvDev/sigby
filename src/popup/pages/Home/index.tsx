@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import { PendingApprovalsCard } from "../../components/approvals/PendingApprovalsCard";
 import { AddTokenModal } from "../../components/token";
 import {
@@ -10,6 +11,7 @@ import {
   PillButton,
   Icon,
 } from "../../components/ui";
+import { fadeUp, stagger, tween } from "../../styles/motion";
 import { useHome } from "./useHome";
 import { useTokens } from "../Tokens/useTokens";
 
@@ -84,21 +86,25 @@ export function Home() {
           </div>
 
           <div className="space-y-2 pt-2">
-            <button
+            <motion.button
               onClick={handleCreateAccount}
               disabled={isLoading}
+              whileHover={isLoading ? undefined : { y: -1 }}
+              whileTap={isLoading ? undefined : { scale: 0.98 }}
               className="w-full py-3 text-[14px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Creating…" : "Create new wallet"}
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
               onClick={handleConnectAccount}
               disabled={isLoading}
+              whileHover={isLoading ? undefined : { y: -1 }}
+              whileTap={isLoading ? undefined : { scale: 0.98 }}
               className="w-full py-3 text-[14px] font-semibold bg-white/80 backdrop-blur border border-white/80 text-zinc-800 rounded-xl hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Connecting…" : "I have a wallet"}
-            </button>
+            </motion.button>
           </div>
         </div>
 
@@ -119,21 +125,38 @@ export function Home() {
     );
   }
 
+  const rowDelay = (i: number) => i * stagger.base;
+
   return (
-    <div className="flex flex-col gap-4 pb-2">
+    <motion.div
+      className="flex flex-col gap-4 pb-2"
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: stagger.base } },
+      }}
+    >
       <PendingApprovalsCard />
 
-      <HeroCard className="p-5">
-        <BalanceDisplay
-          balance={assetsLoading ? "…" : balance}
-          symbol={nativeSymbol}
-        />
-        <div className="mt-3">
-          <AddressText address={activeAccount.address} />
-        </div>
-      </HeroCard>
+      <motion.div variants={fadeUp} transition={tween.mediumOutStrong}>
+        <HeroCard className="p-5">
+          <BalanceDisplay
+            balance={assetsLoading ? "…" : balance}
+            symbol={nativeSymbol}
+            animateValue={!assetsLoading}
+          />
+          <div className="mt-3">
+            <AddressText address={activeAccount.address} />
+          </div>
+        </HeroCard>
+      </motion.div>
 
-      <div className="grid grid-cols-3 gap-2.5">
+      <motion.div
+        className="grid grid-cols-3 gap-2.5"
+        variants={fadeUp}
+        transition={tween.mediumOutStrong}
+      >
         <QuickActionButton label="Send" icon="send" onClick={handleGoSend} />
         <QuickActionButton
           label="Receive"
@@ -141,12 +164,16 @@ export function Home() {
           onClick={handleGoReceive}
         />
         <QuickActionButton label="Swap" icon="swap" disabled />
-      </div>
+      </motion.div>
 
       <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
 
       {/* Tokens section — merged into Wallet tab. */}
-      <div className="flex flex-col">
+      <motion.div
+        className="flex flex-col"
+        variants={fadeUp}
+        transition={tween.mediumOutStrong}
+      >
         <div className="flex items-center justify-between px-1 mb-2">
           <h2 className="text-[13px] font-semibold text-zinc-900 tracking-tight">
             Tokens
@@ -165,12 +192,21 @@ export function Home() {
         ) : (
           <GlassCard className="overflow-hidden">
             <ul className="divide-y divide-zinc-200/60">
-              {tokens.map((token) => (
-                <li key={token.address}>
-                  <button
+              {tokens.map((token, i) => (
+                <motion.li
+                  key={token.address}
+                  layout
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ ...tween.baseOut, delay: rowDelay(i) }}
+                >
+                  <motion.button
                     type="button"
                     onClick={() => handleTokenClick(token)}
-                    className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5 hover:bg-white/70 focus:outline-none focus-visible:bg-white/70 text-left"
+                    whileHover={{ backgroundColor: "rgba(255,255,255,0.7)" }}
+                    whileTap={{ scale: 0.995 }}
+                    className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5 focus:outline-none focus-visible:bg-white/70 text-left"
                   >
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-[10px] font-semibold">
                       {token.symbol.slice(0, 2).toUpperCase()}
@@ -207,13 +243,13 @@ export function Home() {
                         </button>
                       )}
                     </div>
-                  </button>
-                </li>
+                  </motion.button>
+                </motion.li>
               ))}
             </ul>
           </GlassCard>
         )}
-      </div>
+      </motion.div>
 
       {tokensAccount && (
         <AddTokenModal
@@ -225,6 +261,6 @@ export function Home() {
           chainName={chainName}
         />
       )}
-    </div>
+    </motion.div>
   );
 }
