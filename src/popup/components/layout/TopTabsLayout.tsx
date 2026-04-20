@@ -86,8 +86,8 @@ export function TopTabsLayout() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab}
-            initial={fadeUp.initial}
-            animate={fadeUp.animate}
+            initial={fadeUp.hidden}
+            animate={fadeUp.show}
             exit={{ opacity: 0, y: -4 }}
             transition={tween.shortOut}
             className="flex flex-col flex-1 min-h-0"

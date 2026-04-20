@@ -56,8 +56,8 @@ export function Alert({
   return (
     <motion.div
       layout
-      initial={fadeUp.initial}
-      animate={fadeUp.animate}
+      initial={fadeUp.hidden}
+      animate={fadeUp.show}
       exit={fadeUp.exit}
       transition={tween.baseOut}
       className={`

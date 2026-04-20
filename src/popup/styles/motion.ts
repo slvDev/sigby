@@ -97,12 +97,18 @@ export const stagger = {
 
 /**
  * Canonical entrance for cards / rows. Translate 6 px + fade, short
- * easing. Reduced-motion path drops the translate; callers that need
- * that variant should read `useReducedMotion()` and substitute.
+ * easing. Reduced-motion path drops the translate; callers that read
+ * `useReducedMotion()` substitute manually.
+ *
+ * Keys are `hidden` / `show` / `exit` (not `initial` / `animate` /
+ * `exit`) so the variant names match the parent directive
+ * `initial="hidden" animate="show"` used for staggered pages. Without
+ * matching names variant propagation silently fails — children render
+ * static.
  */
 export const fadeUp = {
-  initial: { opacity: 0, y: 6 },
-  animate: { opacity: 1, y: 0 },
+  hidden: { opacity: 0, y: 6 },
+  show: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -4 },
 } as const;
 

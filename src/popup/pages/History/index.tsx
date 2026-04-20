@@ -50,8 +50,8 @@ export function History() {
       ) : transactions.length === 0 ? (
         <motion.div
           className="flex-1 flex flex-col items-center justify-center text-center px-6"
-          initial={fadeUp.initial}
-          animate={fadeUp.animate}
+          initial={fadeUp.hidden}
+          animate={fadeUp.show}
           transition={tween.baseOut}
         >
           <div className="text-[14px] font-semibold text-zinc-800">
