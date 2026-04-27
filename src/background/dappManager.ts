@@ -10,6 +10,50 @@ import { CHAIN_CONFIGS, DEFAULT_CHAIN_ID, STORAGE_KEYS } from "../utils/constant
 import { RPC_ERROR_CODES } from "../utils/rpcError";
 import { eventBroadcaster } from "./eventBroadcaster";
 
+/** Approval popup dimensions — kept in one place so position math stays consistent. */
+const POPUP_WIDTH = 400;
+const POPUP_HEIGHT = 600;
+/** Inset from the right/top edge of the browser window so the popup
+ * doesn't sit flush against the title bar / window chrome. */
+const POPUP_EDGE_INSET = 10;
+
+/**
+ * Compute top-right popup placement relative to the user's currently
+ * focused browser window. The toolbar icon sits at the top-right, so
+ * anchoring the approval popup there matches user gaze (Fitts'-law:
+ * popup appears near the click that summoned it).
+ *
+ * Falls back to `{ left: 0, top: 0 }` (top-left, Chrome's default
+ * behaviour without `left`/`top`) if `getLastFocused` fails — opening
+ * the popup somewhere is better than throwing.
+ */
+async function getApprovalPopupPosition(): Promise<{ left: number; top: number }> {
+  try {
+    const win = await chrome.windows.getLastFocused();
+    const browserLeft = win.left ?? 0;
+    const browserTop = win.top ?? 0;
+    const browserWidth = win.width ?? 1024;
+    return {
+      left: Math.max(0, Math.round(browserLeft + browserWidth - POPUP_WIDTH - POPUP_EDGE_INSET)),
+      top: Math.max(0, Math.round(browserTop + POPUP_EDGE_INSET)),
+    };
+  } catch (err) {
+    console.warn("[DappManager] getLastFocused failed; opening popup at default position:", err);
+    return { left: 0, top: 0 };
+  }
+}
+
+/**
+ * Approval-queue entry. Typed so `drainApprovalQueue` can check
+ * whether the underlying pending request still exists before opening
+ * a popup for it — without that check, a queued opener can outlive
+ * its request's timeout and spawn a stale popup that resolves to
+ * nothing.
+ */
+type QueuedApproval =
+  | { type: "connection"; requestKey: string; open: () => Promise<void> }
+  | { type: "signing"; requestId: string; open: () => Promise<void> };
+
 /**
  * Pending connection request
  */
@@ -53,6 +97,140 @@ export class DappManager {
 
   // Window lifecycle tracking
   private windowToRequest: Map<number, WindowRequestInfo> = new Map();
+
+  /**
+   * Approval queue — FIFO serialization for concurrent approval requests.
+   *
+   * Without this, two dApps triggering approvals in quick succession
+   * would each call `chrome.windows.create`, spawning two competing
+   * approval popups that fight for focus.
+   *
+   * Two correctness properties this implementation has to satisfy
+   * that are easy to get wrong:
+   *
+   * 1. **Synchronous slot reservation.** `windowToRequest` is only
+   *    populated inside the `chrome.windows.create` callback, which
+   *    fires asynchronously. If admission only checks
+   *    `windowToRequest.size`, two requests arriving in the same tick
+   *    both see "no approval open" and both spawn windows. The
+   *    `approvalReserved` flag is set synchronously before any await
+   *    so the second arrival sees the slot taken.
+   *
+   * 2. **Stale-entry skipping.** A queued entry can outlive its
+   *    pending request: the per-request timeout (2 min connection,
+   *    5 min signing) deletes from `pendingRequests` /
+   *    `pendingSigningRequests` but doesn't reach into the queue.
+   *    `drainApprovalQueue` checks the pending map by id BEFORE
+   *    opening, skipping orphaned entries lazily. We could remove
+   *    eagerly on timeout/reject, but lazy skip is simpler and
+   *    correct.
+   */
+  private approvalQueue: QueuedApproval[] = [];
+
+  /**
+   * Set synchronously by `runOrQueueApproval` BEFORE any await; cleared
+   * by the `chrome.windows.create` callback (success or failure) or by
+   * the catch arm in `runOrQueueApproval` if the opener throws before
+   * reaching `chrome.windows.create`. Combined with `windowToRequest`
+   * for the full "is an approval slot active" predicate.
+   */
+  private approvalReserved: boolean = false;
+
+  /** True if a slot is reserved or an approval window is open. */
+  private isApprovalActive(): boolean {
+    return this.approvalReserved || this.windowToRequest.size > 0;
+  }
+
+  private isQueueEntryStillPending(entry: QueuedApproval): boolean {
+    if (entry.type === "connection") {
+      return this.pendingRequests.has(entry.requestKey);
+    }
+    return this.pendingSigningRequests.has(entry.requestId);
+  }
+
+  private entryId(entry: QueuedApproval): string {
+    return entry.type === "connection" ? entry.requestKey : entry.requestId;
+  }
+
+  /**
+   * Reserve the slot synchronously and run the opener now if free,
+   * otherwise queue. Always resolves immediately — the actual window
+   * open and the user's decision happen async through the pending-
+   * request Promise the caller already set up.
+   *
+   * Reservation lifecycle:
+   *   - SET here, synchronously, before `await entry.open()`.
+   *   - CLEARED in the `chrome.windows.create` callback (whether the
+   *     window opened or failed to open). On open success, the
+   *     callback also sets `windowToRequest`, so the slot transitions
+   *     from "reserved" to "tracked" without ever appearing free.
+   *   - CLEARED here in the catch if `entry.open()` throws BEFORE
+   *     reaching `chrome.windows.create` (e.g. `getApprovalPopupPosition`
+   *     fails).
+   */
+  private async runOrQueueApproval(entry: QueuedApproval): Promise<void> {
+    if (this.isApprovalActive()) {
+      this.approvalQueue.push(entry);
+      console.log(
+        "[DappManager] Approval queued:",
+        entry.type,
+        this.entryId(entry),
+        "depth=",
+        this.approvalQueue.length
+      );
+      return;
+    }
+    this.approvalReserved = true;
+    try {
+      await entry.open();
+    } catch (err) {
+      console.warn(
+        "[DappManager] Approval opener threw before reaching window creation:",
+        err
+      );
+      this.approvalReserved = false;
+      this.drainApprovalQueue();
+    }
+  }
+
+  /**
+   * Process the queue: pop entries one at a time, skipping any whose
+   * underlying pending request has timed out or been resolved
+   * elsewhere, until we find one still pending or the queue empties.
+   * Slot is reserved synchronously before invoking the opener so a
+   * concurrent admission can't double-open.
+   */
+  private drainApprovalQueue(): void {
+    while (this.approvalQueue.length > 0) {
+      if (this.isApprovalActive()) return;
+      const entry = this.approvalQueue.shift()!;
+      if (!this.isQueueEntryStillPending(entry)) {
+        console.log(
+          "[DappManager] Skipping stale queued approval:",
+          entry.type,
+          this.entryId(entry)
+        );
+        continue;
+      }
+      console.log(
+        "[DappManager] Draining queued approval:",
+        entry.type,
+        this.entryId(entry),
+        "remaining=",
+        this.approvalQueue.length
+      );
+      this.approvalReserved = true;
+      entry.open().catch((err) => {
+        console.warn(
+          "[DappManager] Queued opener threw before reaching window creation:",
+          err
+        );
+        this.approvalReserved = false;
+        this.drainApprovalQueue();
+      });
+      return;
+    }
+  }
 
   // Signing request deduplication
   // Key: `${method}:${origin}:${paramsHash}`, Value: requestId
@@ -138,8 +316,10 @@ export class DappManager {
 
       this.connectionTimeouts.set(requestKey, timeout);
 
-      // Open popup with connection request
-      this.openConnectionPopup(origin, accountAddress, metadata);
+      // Open popup with connection request — fire-and-forget the
+      // async call; failures inside open the callback that calls
+      // rejectConnection() and the surrounding Promise resolves.
+      void this.openConnectionPopup(origin, accountAddress, metadata);
     });
   }
 
@@ -353,49 +533,86 @@ export class DappManager {
    * @param accountAddress - Account address
    * @param metadata - Optional metadata
    */
-  private openConnectionPopup(
+  private async openConnectionPopup(
     origin: string,
     accountAddress: string,
     metadata?: { favicon?: string; title?: string }
-  ): void {
-    try {
-      // Build popup URL with query parameters
-      const params = new URLSearchParams({
-        view: "connect",
-        origin: origin,
-        account: accountAddress,
-      });
+  ): Promise<void> {
+    // Build popup URL with query parameters
+    const params = new URLSearchParams({
+      view: "connect",
+      origin: origin,
+      account: accountAddress,
+    });
 
-      if (metadata?.favicon) {
-        params.set("favicon", metadata.favicon);
-      }
-      if (metadata?.title) {
-        params.set("title", metadata.title);
-      }
+    if (metadata?.favicon) {
+      params.set("favicon", metadata.favicon);
+    }
+    if (metadata?.title) {
+      params.set("title", metadata.title);
+    }
 
-      const requestKey = `${origin}:${accountAddress}`;
+    const requestKey = `${origin}:${accountAddress}`;
 
-      // Open popup and capture window ID
-      chrome.windows.create({
-        url: `src/popup/popup.html?${params.toString()}`,
-        type: "popup",
-        width: 400,
-        height: 600,
-        focused: true,
-      }, (window) => {
-        if (window?.id) {
+    // chrome.windows.create uses the callback API and does NOT throw
+    // on failure — popup blocker, extension-context invalidation, and
+    // quota errors surface as `chrome.runtime.lastError` inside the
+    // callback, with `window` undefined. A try/catch would be dead
+    // code; check the callback instead and reject the pending request
+    // so the dApp promise doesn't hang until the connection timeout.
+    //
+    // Wrapped in `runOrQueueApproval` so a second approval request
+    // arriving while another is open queues instead of spawning a
+    // competing window. The pending-request Promise is owned by the
+    // caller and continues to time out independently — queued requests
+    // that never reach the front of the queue self-reject via timeout.
+    // Stale queue entries (request timed out before opener ran) are
+    // skipped lazily by `drainApprovalQueue`'s `isQueueEntryStillPending`
+    // check.
+    //
+    // Reservation handoff: `approvalReserved` is set synchronously by
+    // `runOrQueueApproval` before invoking this opener, and cleared
+    // here in the chrome.windows.create callback — either freeing the
+    // slot for the next queue entry (failure) or transitioning the
+    // slot to `windowToRequest` ownership (success).
+    const open = async (): Promise<void> => {
+      const { left, top } = await getApprovalPopupPosition();
+      chrome.windows.create(
+        {
+          url: `src/popup/popup.html?${params.toString()}`,
+          type: "popup",
+          width: POPUP_WIDTH,
+          height: POPUP_HEIGHT,
+          focused: true,
+          left,
+          top,
+        },
+        (window) => {
+          this.approvalReserved = false;
+          const err = chrome.runtime.lastError;
+          if (err || !window?.id) {
+            console.error(
+              "[DappManager] Failed to open connection popup:",
+              err?.message ?? "unknown failure"
+            );
+            this.rejectConnection(origin, accountAddress);
+            this.drainApprovalQueue();
+            return;
+          }
           this.windowToRequest.set(window.id, {
             type: "connection",
             id: requestKey,
           });
-          console.log("[DappManager] Opened connection popup for:", origin, "windowId:", window.id);
-        } else {
-          console.log("[DappManager] Opened connection popup for:", origin);
+          console.log(
+            "[DappManager] Opened connection popup for:",
+            origin,
+            "windowId:",
+            window.id
+          );
         }
-      });
-    } catch (error) {
-      console.error("[DappManager] Failed to open popup:", error);
-    }
+      );
+    };
+    return this.runOrQueueApproval({ type: "connection", requestKey, open });
   }
 
   // ==================== SIGNING REQUEST MANAGEMENT ====================
@@ -459,11 +676,39 @@ export class DappManager {
       };
 
       // Set timeout
+      //
+      // Three things need to happen on timeout, not one:
+      //   1. Remove the in-memory pending entry (the queue's
+      //      `isQueueEntryStillPending` check uses this map to skip
+      //      stale openers).
+      //   2. Reject the dApp's waiting promise.
+      //   3. Settle the PERSISTED row to `rejected` so:
+      //      a) the toolbar's pending-approvals UI doesn't keep
+      //         advertising a dead request, and
+      //      b) `resumePendingApproval` can't reopen a popup for a
+      //         request whose dApp promise is already gone (the
+      //         resume path reads the persisted store).
+      //
+      // Without step 3, the in-memory cleanup is correct but the
+      // dApp-facing surface (toolbar list + resume action) keeps
+      // pointing at a corpse.
       const timeout = setTimeout(() => {
         if (this.pendingSigningRequests.has(requestId)) {
           this.pendingSigningRequests.delete(requestId);
           this.signingDedupeKeys.delete(dedupeKey);
           reject(new Error("Signing request timed out"));
+          this.settlePersistedSigningRequest(requestId, {
+            state: "rejected",
+            error: {
+              code: RPC_ERROR_CODES.DISCONNECTED,
+              message: "Signing request timed out",
+            },
+          }).catch((err) => {
+            console.warn(
+              "[DappManager] Failed to settle persisted timeout:",
+              err
+            );
+          });
         }
       }, this.signingRequestTimeout);
 
@@ -487,8 +732,10 @@ export class DappManager {
         console.error("[DappManager] Failed to persist signing request:", err);
       });
 
-      // Open popup with signing request
-      this.openSigningPopup(request);
+      // Open popup with signing request — fire-and-forget; failures
+      // surface inside the create-window callback which calls
+      // rejectSigning(), resolving the surrounding Promise.
+      void this.openSigningPopup(request);
     });
   }
 
@@ -566,7 +813,7 @@ export class DappManager {
 
     const request = await this.getPendingSigningRequest(requestId);
     if (!request) return false;
-    this.openSigningPopup(request);
+    void this.openSigningPopup(request);
     return true;
   }
 
@@ -728,48 +975,81 @@ export class DappManager {
    * Open popup with signing approval UI
    * @param request - Signing request
    */
-  private openSigningPopup(request: SigningRequest): void {
-    try {
-      // Route to the right approval view by method:
-      //   eth_sendTransaction / wallet_sendCalls  -> transaction preview
-      //   wallet_grantPermissions                  -> session-key grant
-      //   personal_sign / eth_signTypedData_*      -> plain signing
-      const view =
-        request.method === "eth_sendTransaction" || request.method === "wallet_sendCalls"
-          ? "transaction"
-          : request.method === "wallet_grantPermissions"
-            ? "grant-permissions"
-            : "sign";
+  private async openSigningPopup(request: SigningRequest): Promise<void> {
+    // Route to the right approval view by method:
+    //   eth_sendTransaction / wallet_sendCalls  -> transaction preview
+    //   wallet_grantPermissions                  -> session-key grant
+    //   personal_sign / eth_signTypedData_*      -> plain signing
+    const view =
+      request.method === "eth_sendTransaction" || request.method === "wallet_sendCalls"
+        ? "transaction"
+        : request.method === "wallet_grantPermissions"
+          ? "grant-permissions"
+          : "sign";
 
-      // Build popup URL with query parameters
-      const params = new URLSearchParams({
-        view,
-        requestId: request.requestId,
-      });
+    // Build popup URL with query parameters
+    const params = new URLSearchParams({
+      view,
+      requestId: request.requestId,
+    });
 
-      // Open popup and capture window ID
-      chrome.windows.create({
-        url: `src/popup/popup.html?${params.toString()}`,
-        type: "popup",
-        width: 400,
-        height: 600,
-        focused: true,
-      }, (window) => {
-        if (window?.id) {
+    // chrome.windows.create's failure surface is the callback
+    // (`chrome.runtime.lastError`, undefined window) — not a thrown
+    // exception. Without checking lastError, a popup-blocker /
+    // context-invalidation failure leaves the dApp's signing promise
+    // hanging until the 5-minute timeout. Reject explicitly instead.
+    //
+    // Wrapped in `runOrQueueApproval` so signing requests serialize
+    // FIFO with any in-flight connection or signing approval. The
+    // 5-minute timeout still ticks while queued — a request that
+    // waits too long times out cleanly, and stale queue entries are
+    // skipped on drain via `isQueueEntryStillPending`.
+    //
+    // Reservation handoff (see `runOrQueueApproval` jsdoc): callback
+    // clears `approvalReserved` and either drains the next queue
+    // entry (failure path) or hands off to `windowToRequest` (success).
+    const open = async (): Promise<void> => {
+      const { left, top } = await getApprovalPopupPosition();
+      chrome.windows.create(
+        {
+          url: `src/popup/popup.html?${params.toString()}`,
+          type: "popup",
+          width: POPUP_WIDTH,
+          height: POPUP_HEIGHT,
+          focused: true,
+          left,
+          top,
+        },
+        (window) => {
+          this.approvalReserved = false;
+          const err = chrome.runtime.lastError;
+          if (err || !window?.id) {
+            console.error(
+              "[DappManager] Failed to open signing popup:",
+              err?.message ?? "unknown failure"
+            );
+            void this.rejectSigning(request.requestId);
+            this.drainApprovalQueue();
+            return;
+          }
           this.windowToRequest.set(window.id, {
             type: "signing",
             id: request.requestId,
           });
-          console.log("[DappManager] Opened signing popup for:", request.method, "windowId:", window.id);
-        } else {
-          console.log("[DappManager] Opened signing popup for:", request.method);
+          console.log(
+            "[DappManager] Opened signing popup for:",
+            request.method,
+            "windowId:",
+            window.id
+          );
         }
-      });
-    } catch (error) {
-      console.error("[DappManager] Failed to open signing popup:", error);
-      // Reject the request if popup fails to open
-      void this.rejectSigning(request.requestId);
-    }
+      );
+    };
+    return this.runOrQueueApproval({
+      type: "signing",
+      requestId: request.requestId,
+      open,
+    });
   }
 
   /**
@@ -798,6 +1078,11 @@ export class DappManager {
         this.rejectConnection(origin, accountAddress);
       }
     }
+
+    // Approval slot is now free — open the next queued approval if
+    // any. Drain runs after the window deletion above so isApprovalOpen
+    // returns false and the next opener actually runs.
+    this.drainApprovalQueue();
   }
 
   /**
