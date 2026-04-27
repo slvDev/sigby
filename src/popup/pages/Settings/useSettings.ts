@@ -15,6 +15,9 @@ export function useSettings() {
     errorAt,
     showTestnets,
     setShowTestnets,
+    unlock,
+    autoLockMinutes,
+    setAutoLockMinutes,
   } = useWalletStore();
 
   const [walletName, setWalletName] = useState("");
@@ -59,6 +62,7 @@ export function useSettings() {
         setWalletName("");
         setShowAddAccount(false);
         setAccountCount((c) => c + 1);
+        unlock();
       } else {
         setError(errorToString(response.error) || "Failed to save account");
       }
@@ -82,6 +86,7 @@ export function useSettings() {
       if (response.success) {
         await syncStoreWithBackground();
         setShowAddAccount(false);
+        unlock();
       } else {
         setError(errorToString(response.error) || "Failed to save account");
       }
@@ -138,6 +143,8 @@ export function useSettings() {
     showDeleteConfirm,
     showTestnets,
     setShowTestnets,
+    autoLockMinutes,
+    setAutoLockMinutes,
     handleCreateAccount,
     handleConnectAccount,
     handleDeleteAccount,

@@ -35,11 +35,17 @@ import { AccountManager } from "./accountManager";
 import { StorageManager } from "../utils/storage";
 import { RpcHandler } from "./rpcHandler";
 import { DappManager } from "./dappManager";
+import { LockStatus } from "./lockStatus";
 import { eventBroadcaster } from "./eventBroadcaster";
 import { tokenService } from "./tokenService";
 // portfolioService removed - using Porto's wallet_getAssets instead
 // TransactionMonitor removed - using Porto's wallet_getCallsStatus instead
-import { ERROR_MESSAGES, CHAIN_CONFIGS, PORTO_CONFIG } from "../utils/constants";
+import {
+  ERROR_MESSAGES,
+  CHAIN_CONFIGS,
+  PORTO_CONFIG,
+  SESSION_STORAGE_KEYS,
+} from "../utils/constants";
 import { MessageType as MT } from "../types/messages";
 import {
   validateTransactionParams,
@@ -48,6 +54,23 @@ import {
   extractValidOrigin,
 } from "../utils/validators";
 import { RPC_ERROR_CODES, type SerializedRpcError } from "../utils/rpcError";
+
+/**
+ * Coerce an arbitrary payload value into a safe display name.
+ * Returns `undefined` when the input is present but invalid (caller
+ * decides whether that's fatal); returns `undefined` when absent
+ * too, which lets callers fall back to default account naming.
+ * Returns a trimmed ≤64-char string otherwise. Guards against
+ * numbers / null-prototype objects being persisted and later
+ * crashing React render paths that assume a string.
+ */
+function sanitizeDisplayName(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 64);
+}
 
 /**
  * Map Porto SDK errors to user-friendly messages
@@ -132,10 +155,64 @@ export class MessageHandler {
   constructor(
     private accountManager: AccountManager,
     private storageManager: StorageManager,
-    private dappManager: DappManager
+    private dappManager: DappManager,
+    private lockStatus: LockStatus
   ) {
     this.rpcHandler = new RpcHandler();
   }
+
+  /**
+   * Popup-originated DAPP_REQUESTs tag themselves with this origin so
+   * internal calls (balance fetch, chain read) bypass the lock gate —
+   * the popup already enforces the lock at the AuthGuard layer and
+   * does its own biometric for signing via the Porto SDK.
+   */
+  private readonly POPUP_ORIGIN = "popup://porto-wallet";
+
+  /**
+   * Methods that return user-scoped derived state and must be
+   * short-circuited when the wallet is locked. Each entry maps the
+   * method name to the "empty" shape that handler would return for
+   * an unconnected origin — using the same shape on lock means a
+   * locked-but-previously-connected origin is indistinguishable
+   * from an origin that was never connected, so neither leaks "this
+   * user has a wallet" nor "this user previously connected here."
+   *
+   * **Invariant — only gate methods that have a real handler.** A
+   * method with no handler returns "unsupported method" when
+   * unlocked but would return success+empty when locked, giving a
+   * dApp a probe to detect lock state by calling something it
+   * shouldn't otherwise care about. New entries here must be
+   * accompanied by a handler in the switch below.
+   *
+   * Methods NOT in this map flow through to their handlers normally:
+   *   - `eth_accounts` / `eth_coinbase`: return the cached address
+   *     regardless of lock state so dApps with cached connector
+   *     state can reconnect without ending up in a half-initialised
+   *     "connected but no account" state on page reload.
+   *   - `eth_requestAccounts` / signing / `wallet_sendCalls`: open
+   *     their own approval popup with biometric.
+   *   - chain reads: not user-scoped.
+   *   - `_berth_isLocked`: dedicated bypass for honest
+   *     `_metamask.isUnlocked()` answers (the namespace name is the
+   *     dApp-facing API contract; the implementation is ours).
+   */
+  private static readonly LOCK_GATED_METHODS: Readonly<Record<string, unknown>> = Object.freeze({
+    // wallet_getCapabilities: real handler at `handleWalletGetCapabilities`,
+    //   returns full Porto-shape capabilities for connected origins.
+    //   Mask to {} on lock to match unconnected-origin behaviour.
+    wallet_getCapabilities: {},
+    // wallet_getPermissions: handler returns [] always (we don't yet
+    //   serve Porto-shape session permissions from the background).
+    //   Gate is redundant today but keeps the shape stable when we
+    //   wire a real handler.
+    wallet_getPermissions: [],
+    // Intentionally omitted: wallet_getKeys, wallet_getAssets,
+    //   wallet_getCallsHistory — no background handler exists for
+    //   these. Gating them would create a probe oracle (locked =
+    //   {}, unlocked = "unsupported method"). Add them ONLY when a
+    //   real handler ships, alongside an empty-shape default.
+  });
 
   /**
    * Handle incoming message and route to appropriate handler
@@ -281,6 +358,19 @@ export class MessageHandler {
           response = await this.handleSwitchChain(message.payload as ChainSwitchPayload);
           break;
 
+        // Settings
+        case MT.GET_SETTINGS:
+          response = await this.handleGetSettings();
+          break;
+
+        case MT.UPDATE_SETTINGS:
+          response = await this.handleUpdateSettings(message.payload);
+          break;
+
+        case MT.IS_WALLET_LOCKED:
+          response = { success: true, data: { locked: this.lockStatus.isLocked() } };
+          break;
+
         default:
           console.warn("[MessageHandler] Unknown message type:", message.type);
           response = {
@@ -309,10 +399,15 @@ export class MessageHandler {
       if (!payload?.address) {
         throw new Error('Account address is required');
       }
+      // displayName is optional, but if present must be a sane string.
+      // Non-string (number, object, null-prototype) flows straight into
+      // React render paths via the accounts store and throws; clamp
+      // length to stop pathological storage bloat too.
+      const displayName = sanitizeDisplayName(payload?.displayName);
 
       const account = await this.accountManager.createAccount(
         payload.address,
-        payload?.displayName
+        displayName
       );
 
       return {
@@ -335,10 +430,11 @@ export class MessageHandler {
       if (!payload?.address) {
         throw new Error('Account address is required');
       }
+      const displayName = sanitizeDisplayName(payload?.displayName);
 
       const account = await this.accountManager.connectExistingAccount(
         payload.address,
-        payload?.displayName
+        displayName
       );
 
       return {
@@ -399,6 +495,50 @@ export class MessageHandler {
           ? await this.dappManager.getChainIdForOrigin(origin, accountAddress)
           : (await this.storageManager.getSettings()).defaultChain);
 
+      // Lock gate — dApp-observable lock surface.
+      //
+      // Account-discovery methods (`eth_accounts`, `eth_coinbase`,
+      // `eth_requestAccounts`) are INTENTIONALLY NOT gated.
+      // Connected origins continue to see their cached address
+      // regardless of lock state. Lock is a UI curtain on the
+      // popup, not a dApp-observable disconnect.
+      //
+      // Rationale: dApp connector libraries (wagmi etc.) commonly
+      // call `eth_accounts` on page load to restore connection
+      // state from local cache. If we return `[]` while locked, the
+      // connector ends up half-initialised — chainId populated,
+      // account undefined — and component renders that assume
+      // `account.address` exists crash. Returning the cached
+      // address keeps the connector's internal state consistent;
+      // signing still requires a separate biometric at the approval
+      // popup, so no privileged action leaks.
+      //
+      // The wallet_get* methods below DO stay gated because:
+      // - They're not on the connector reconnect critical path.
+      // - They leak more derived state (capabilities / session keys
+      //   / balances / history) — privacy boundary worth keeping.
+      // - Connected dApps that need them on reload retry once the
+      //   user unlocks (transition broadcast triggers refresh).
+      //
+      // Signing / approval methods bypass entirely (they open their
+      // own approval popups with biometric).
+      //
+      // `_berth_isLocked` bypasses (dedicated switch case) so
+      // `_metamask.isUnlocked()` — the legacy dApp-facing API
+      // namespace — can return an honest answer.
+      //
+      // isLocked() runs unconditionally so transition side-effects
+      // fire on every dApp RPC.
+      const isPopupOrigin = origin === this.POPUP_ORIGIN;
+      const hasAccount = accountAddress !== "";
+      const locked = this.lockStatus.isLocked();
+      if (!isPopupOrigin && hasAccount && locked) {
+        const gatedShape = MessageHandler.LOCK_GATED_METHODS[method];
+        if (gatedShape !== undefined) {
+          return { success: true, data: gatedShape };
+        }
+      }
+
       // Route based on method
       switch (method) {
         // Account methods
@@ -409,7 +549,7 @@ export class MessageHandler {
           return await this.handleGetAccounts(origin);
 
         case "eth_coinbase":
-          return await this.handleEthCoinbase();
+          return await this.handleEthCoinbase(origin);
 
         // Chain/Network methods
         case "eth_chainId":
@@ -508,6 +648,24 @@ export class MessageHandler {
         case "wallet_getCallsStatus":
           return await this.handleWalletGetCallsStatus(params || [], origin);
 
+        // Berth-specific: lock-state probe for _metamask.isUnlocked.
+        // Restricted to popup origin + origins connected to the active
+        // account. Random dApps get `true` (default-locked) so they
+        // can't poll this to fingerprint user idle/active patterns.
+        // `_metamask.isUnlocked()` callers that matter are already
+        // connected — they see the real state; everyone else sees
+        // safe-default `true`. Reuses the `locked` value captured at
+        // the gate so `computeLocked()` doesn't run twice per request.
+        case "_berth_isLocked": {
+          if (isPopupOrigin) return { success: true, data: locked };
+          const active = await this.accountManager.getAccount();
+          const allowed =
+            !!active &&
+            !!origin &&
+            (await this.dappManager.isConnected(origin, active.address));
+          return { success: true, data: allowed ? locked : true };
+        }
+
         default:
           console.warn("[MessageHandler] Unsupported method:", method);
           return {
@@ -560,7 +718,12 @@ export class MessageHandler {
         };
       }
 
-      // Check if dApp is already connected to this account
+      // Check if dApp is already connected to this account.
+      // Already-connected origins short-circuit regardless of lock
+      // state: a dApp the user previously approved doesn't need to
+      // re-prove attention on reload just because the popup auto-
+      // locked. Signing still requires biometric at the approval-
+      // popup layer, so no privileged action leaks through.
       const isConnected = await this.dappManager.isConnected(dappOrigin, account.address);
 
       if (isConnected) {
@@ -616,11 +779,14 @@ export class MessageHandler {
         };
       }
 
-      // If origin is provided, check if dApp is connected
-      if (origin) {
-        const isConnected = await this.dappManager.isConnected(origin, account.address);
+      // Only popup-origin skips the connection check. Missing/empty
+      // origin is treated as unconnected — sandboxed iframes with
+      // opaque origins and malformed provider calls don't get to
+      // sidestep the privacy check.
+      if (origin !== this.POPUP_ORIGIN) {
+        const isConnected =
+          !!origin && (await this.dappManager.isConnected(origin, account.address));
         if (!isConnected) {
-          // Return empty array for unconnected dApps (privacy)
           return {
             success: true,
             data: [],
@@ -897,6 +1063,18 @@ export class MessageHandler {
     payload: ChainSwitchPayload
   ): Promise<MessageResponse> {
     try {
+      // Validate before write — a non-integer / negative chainId
+      // wedges `handleGetChainId` into returning "0xNaN" to dApps.
+      // Same class as handleUpdateSettings; internal-only today but
+      // every caller gets defense-in-depth for free.
+      if (
+        !payload ||
+        typeof payload.chainId !== "number" ||
+        !Number.isInteger(payload.chainId) ||
+        payload.chainId <= 0
+      ) {
+        return { success: false, error: "Invalid chainId" };
+      }
       const settings = await this.storageManager.getSettings();
       settings.defaultChain = payload.chainId;
       await this.storageManager.setSettings(settings);
@@ -913,6 +1091,61 @@ export class MessageHandler {
         success: true,
         data: { chainId: payload.chainId },
       };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  // ==================== SETTINGS HANDLERS ====================
+
+  private async handleGetSettings(): Promise<MessageResponse> {
+    try {
+      const settings = await this.storageManager.getSettings();
+      return { success: true, data: settings };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : ERROR_MESSAGES.UNKNOWN_ERROR,
+      };
+    }
+  }
+
+  private async handleUpdateSettings(payload: unknown): Promise<MessageResponse> {
+    try {
+      if (!payload || typeof payload !== "object") {
+        return { success: false, error: "Invalid settings payload" };
+      }
+      const raw = payload as Record<string, unknown>;
+
+      // Per-field validation — any extension context can send this,
+      // including popup devtools. A non-finite / negative / string
+      // `autoLockTimeout` would make `LockStatus.computeLocked()`
+      // return NaN-based values that never exceed the idle threshold,
+      // wedging the wallet into a permanently-unlocked state that
+      // survives SW restarts via storage. Reject before write.
+      if ("autoLockTimeout" in raw) {
+        const v = raw.autoLockTimeout;
+        if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+          return { success: false, error: "Invalid autoLockTimeout" };
+        }
+      }
+      if ("defaultChain" in raw) {
+        const v = raw.defaultChain;
+        if (typeof v !== "number" || !Number.isInteger(v) || v <= 0) {
+          return { success: false, error: "Invalid defaultChain" };
+        }
+      }
+      if ("showTestNetworks" in raw && typeof raw.showTestNetworks !== "boolean") {
+        return { success: false, error: "Invalid showTestNetworks" };
+      }
+
+      const current = await this.storageManager.getSettings();
+      const merged = { ...current, ...raw };
+      await this.storageManager.setSettings(merged as typeof current);
+      return { success: true, data: merged };
     } catch (error) {
       return {
         success: false,
@@ -984,9 +1217,18 @@ export class MessageHandler {
         throw new Error("Account address is required");
       }
 
-      await this.accountManager.updateAccount(payload.address, {
-        displayName: payload.displayName,
-      });
+      // Only validate displayName if the caller is trying to set it.
+      // Absent key = no-op for that field.
+      const updates: Partial<{ displayName: string }> = {};
+      if ("displayName" in payload) {
+        const displayName = sanitizeDisplayName(payload.displayName);
+        if (displayName === undefined) {
+          return { success: false, error: "Invalid displayName" };
+        }
+        updates.displayName = displayName;
+      }
+
+      await this.accountManager.updateAccount(payload.address, updates);
 
       return {
         success: true,
@@ -1012,6 +1254,22 @@ export class MessageHandler {
       }
 
       await this.accountManager.deleteAccount(payload.address);
+
+      // If this was the last account, clear the session unlock stamp.
+      // A ghost stamp would make the onboarding flow for a new account
+      // land in "already unlocked" state — harmless today (beginUnlock
+      // overwrites it anyway) but confusing in any future code that
+      // reads the stamp during a zero-account window.
+      const remaining = await this.accountManager.getAllAccounts();
+      if (remaining.length === 0) {
+        try {
+          await chrome.storage.session.remove(
+            SESSION_STORAGE_KEYS.LAST_UNLOCKED_AT
+          );
+        } catch (err) {
+          console.warn("[MessageHandler] Failed to clear session stamp on delete:", err);
+        }
+      }
 
       return {
         success: true,
@@ -1119,15 +1377,27 @@ export class MessageHandler {
   // ==================== RPC METHOD HANDLERS ====================
 
   /**
-   * Handle eth_coinbase - returns primary account
+   * Handle eth_coinbase — returns the active account iff the origin
+   * has been granted access. Mirrors `handleGetAccounts` visibility:
+   * unconnected origins get `null`, same way they get `[]` from
+   * `eth_accounts`. Without this check `eth_coinbase` was a second
+   * path to leak the active address around lock + origin scoping.
+   *
+   * Only the exact `POPUP_ORIGIN` constant bypasses the connection
+   * check — a missing/empty origin is treated as unconnected so that
+   * sandboxed iframes with opaque origins or malformed provider
+   * calls can't slip past it.
    */
-  private async handleEthCoinbase(): Promise<MessageResponse> {
+  private async handleEthCoinbase(origin?: string): Promise<MessageResponse> {
     try {
       const account = await this.accountManager.getAccount();
-      return {
-        success: true,
-        data: account?.address || null,
-      };
+      if (!account) return { success: true, data: null };
+      if (origin !== this.POPUP_ORIGIN) {
+        const connected =
+          !!origin && (await this.dappManager.isConnected(origin, account.address));
+        if (!connected) return { success: true, data: null };
+      }
+      return { success: true, data: account.address };
     } catch (error) {
       return {
         success: false,
@@ -1491,7 +1761,29 @@ export class MessageHandler {
         throw new Error("Origin and account address are required");
       }
 
-      await this.dappManager.approveConnection(payload.origin, payload.accountAddress);
+      // beginUnlock flips the in-memory cache synchronously BEFORE
+      // approveConnection resolves the dApp's waiting promise. Any
+      // follow-up dApp RPC (even one that races into a concurrent
+      // message dispatch) reads the already-unlocked cache. The
+      // durable session-storage write runs after success below.
+      // ConnectionApproval biometric-gates via signCanary on the
+      // popup side, so this unlock reflects real attention proof.
+      //
+      // If approveConnection throws, roll back the cache so the
+      // background doesn't answer as unlocked without a
+      // corresponding stamp in storage — otherwise we'd drift
+      // (cache=unlocked, storage=locked, main popup=locked) for
+      // the rest of the SW session. The token carries both the
+      // prior snapshot and the value we wrote, so concurrent
+      // approvals don't clobber each other's state on revert.
+      const unlockToken = this.lockStatus.beginUnlock();
+      try {
+        await this.dappManager.approveConnection(payload.origin, payload.accountAddress);
+      } catch (err) {
+        this.lockStatus.revertUnlock(unlockToken);
+        throw err;
+      }
+      await this.lockStatus.persistUnlock();
 
       return {
         success: true,
@@ -2152,8 +2444,21 @@ export class MessageHandler {
       // Get the request before approving (it will be deleted)
       const request = await this.dappManager.getPendingSigningRequest(payload.requestId);
 
-      // Resolve the pending promise
-      await this.dappManager.approveSigning(payload.requestId, payload.result);
+      // Flip the cache BEFORE approveSigning resolves the dApp's
+      // waiting promise. approveSigning calls pending.resolve(result)
+      // inside its body (dappManager.ts:638) — without a synchronous
+      // pre-flip the dApp's follow-up eth_accounts could race in and
+      // observe the stale locked gate. Durable persist runs after,
+      // with token-keyed revert on failure so a concurrent unlock
+      // (parallel approval popup) can't be clobbered on rollback.
+      const unlockToken = this.lockStatus.beginUnlock();
+      try {
+        await this.dappManager.approveSigning(payload.requestId, payload.result);
+      } catch (err) {
+        this.lockStatus.revertUnlock(unlockToken);
+        throw err;
+      }
+      await this.lockStatus.persistUnlock();
 
       // Save transaction to history if this was a transaction (not just a message signature)
       if (request && request.method === "eth_sendTransaction") {

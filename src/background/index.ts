@@ -7,6 +7,7 @@
 import { AccountManager } from "./accountManager";
 import { MessageHandler } from "./messageHandler";
 import { DappManager } from "./dappManager";
+import { LockStatus } from "./lockStatus";
 import { StorageManager } from "../utils/storage";
 import type { Message, MessageResponse } from "../types/messages";
 
@@ -18,6 +19,7 @@ class BackgroundService {
   private storageManager: StorageManager;
   private accountManager: AccountManager;
   private dappManager: DappManager;
+  private lockStatus: LockStatus;
   private messageHandler: MessageHandler;
   private isInitialized: boolean = false;
 
@@ -30,10 +32,12 @@ class BackgroundService {
     this.storageManager = new StorageManager();
     this.accountManager = new AccountManager(this.storageManager);
     this.dappManager = new DappManager(this.storageManager);
+    this.lockStatus = new LockStatus(this.storageManager);
     this.messageHandler = new MessageHandler(
       this.accountManager,
       this.storageManager,
-      this.dappManager
+      this.dappManager,
+      this.lockStatus
     );
   }
 
@@ -46,6 +50,20 @@ class BackgroundService {
 
       // Set up extension lifecycle listeners
       this.setupLifecycleListeners();
+
+      // Hydrate the lock-status cache BEFORE installing the message
+      // listener so the first dApp request can't land during the
+      // fail-closed `!hydrated` window and get a spurious locked=[].
+      // Transition handler is registered BEFORE `listen()` starts the
+      // storage observer so the first cross-context lock edge after
+      // SW wake isn't dropped on the floor.
+      await this.lockStatus.hydrate();
+      this.lockStatus.onTransition((state) => {
+        this.broadcastLockTransition(state).catch((err) => {
+          console.error("[Background] Lock transition broadcast failed:", err);
+        });
+      });
+      this.lockStatus.listen();
 
       // Set up message listeners
       this.setupMessageListeners();
@@ -204,7 +222,7 @@ class BackgroundService {
       // Initialize default settings
       const defaultSettings = {
         defaultChain: 8453, // Base
-        autoLockTimeout: 0,
+        autoLockTimeout: 15, // Minutes. 0 means "never" on the popup side.
         showTestNetworks: false,
         currency: "USD",
         language: "en",
@@ -219,6 +237,41 @@ class BackgroundService {
     } catch (error) {
       console.error("[Background] First install setup failed:", error);
     }
+  }
+
+  /**
+   * Lock/unlock fan-out — INTENTIONALLY a no-op.
+   *
+   * `eth_accounts` returns the cached address regardless of lock
+   * state (see `messageHandler.ts` lock-gate comment for why).
+   * Broadcasting `accountsChanged([])` on lock would contradict the
+   * read path: the event would tell connected dApps "you're
+   * disconnected" while the next `eth_accounts` query returns
+   * `[activeAddress]`. dApp connector state machines don't handle
+   * that inconsistency well — they end up in a half-initialised
+   * state and component renders that assume `account.address` exists
+   * crash.
+   *
+   * Two consistent models are possible:
+   *   (a) RPC returns cached address + no event on lock (this
+   *       implementation). dApps treat the wallet as still connected;
+   *       lock is purely UI on the popup side.
+   *   (b) RPC returns `[]` + event broadcasts `[]` on lock + a
+   *       recovery path (auto-opening unlock UI on user-initiated
+   *       methods). dApps observe a disconnect and recover when the
+   *       user next interacts.
+   *
+   * We picked (a). Mixing the two — broadcasting `[]` while reads
+   * still returned the address — is what produced the
+   * connector-half-state crashes during development.
+   *
+   * The popup's own lock state still updates via the session-storage
+   * onChanged listener; this method only governs DAPP-FACING events.
+   */
+  private async broadcastLockTransition(
+    _state: "locked" | "unlocked"
+  ): Promise<void> {
+    // Deliberately empty. See jsdoc above.
   }
 
   /**

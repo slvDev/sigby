@@ -37,9 +37,13 @@ interface EthereumProvider {
   isBerth: boolean;
   isMetaMask: boolean;
   request(args: { method: string; params?: any[] }): Promise<any>;
-  on(event: string, handler: (...args: any[]) => void): void;
-  removeListener(event: string, handler: (...args: any[]) => void): void;
+  on(event: string, handler: (...args: any[]) => void): unknown;
+  removeListener(event: string, handler: (...args: any[]) => void): unknown;
+  addListener(event: string, handler: (...args: any[]) => void): unknown;
+  off(event: string, handler: (...args: any[]) => void): unknown;
+  once(event: string, handler: (...args: any[]) => void): unknown;
   emit(event: string, ...args: any[]): void;
+  isConnected(): boolean;
 }
 
 interface Window {
@@ -53,14 +57,40 @@ interface Window {
 class BerthProvider implements EthereumProvider {
   // Provider identification
   readonly isBerth = true;
-  readonly isMetaMask = true; // Compatibility flag for dApps that check for MetaMask
+  // Do NOT advertise the legacy `isMetaMask: true` compatibility flag.
+  // Some dApps still branch on it into provider-specific code paths
+  // that assume implementation details we don't share — e.g. assuming
+  // certain event ordering on reconnect, or that account-discovery
+  // RPCs return cached state in specific shapes. Taking that branch
+  // with our slightly-different behaviour produces half-initialised
+  // connector state on the dApp side. EIP-6963 is the correct
+  // discovery mechanism; dApps still gating on this flag are legacy.
+  readonly isMetaMask = false;
 
-  // State properties (MetaMask compatibility)
-  // These are updated via events from the extension
+  // State properties — synced from RPC responses + provider events
+  // for sync legacy access patterns (`provider.chainId`,
+  // `provider.selectedAddress`).
   public chainId: string | null = null;
   public selectedAddress: string | null = null;
   public networkVersion: string | null = null;
-  public isConnected: boolean = true;
+
+  // EIP-1193 specifies `isConnected()` as a METHOD returning boolean,
+  // not a property. wagmi-based connectors call `provider.isConnected()`
+  // — a boolean property would throw "isConnected is not a function".
+  // Back the method with a private flag updated by `connect` /
+  // `disconnect` events.
+  private _connected: boolean = true;
+  public isConnected(): boolean {
+    return this._connected;
+  }
+
+  /**
+   * Tracks whether we've already emitted the EIP-1193 `connect` event
+   * for this page lifetime. Subsequent chain transitions use
+   * `chainChanged`, not `connect` — the spec requires `connect` fire
+   * only when the provider transitions from disconnected to connected.
+   */
+  private hasEmittedConnect: boolean = false;
 
   // Event listeners storage
   private eventListeners = new Map<string, Set<Function>>();
@@ -89,7 +119,11 @@ class BerthProvider implements EthereumProvider {
       "request",
       "on",
       "removeListener",
+      "addListener",
+      "off",
+      "once",
       "emit",
+      "isConnected",
       "enable",
       "send",
       "sendAsync",
@@ -154,23 +188,54 @@ class BerthProvider implements EthereumProvider {
   }
 
   /**
-   * Add event listener (EIP-1193)
+   * Add event listener (EIP-1193). Returns `this` so callers can
+   * chain `provider.on('connect', a).on('disconnect', b)` — some
+   * wallet connectors rely on that idiom.
    */
-  on(event: string, handler: (...args: any[]) => void): void {
+  on(event: string, handler: (...args: any[]) => void): this {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, new Set());
     }
     this.eventListeners.get(event)!.add(handler);
+    return this;
   }
 
   /**
-   * Remove event listener (EIP-1193)
+   * Remove event listener (EIP-1193). Chainable.
    */
-  removeListener(event: string, handler: (...args: any[]) => void): void {
+  removeListener(event: string, handler: (...args: any[]) => void): this {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
       listeners.delete(handler);
     }
+    return this;
+  }
+
+  /**
+   * EventEmitter aliases. web3.js v1 and several older wallet
+   * connectors reach for these names instead of `on` /
+   * `removeListener` — calling them on a provider that doesn't
+   * expose them throws `… is not a function` at connect time.
+   * Same failure class as the `isConnected` property-vs-method bug.
+   */
+  addListener(event: string, handler: (...args: any[]) => void): this {
+    return this.on(event, handler);
+  }
+
+  off(event: string, handler: (...args: any[]) => void): this {
+    return this.removeListener(event, handler);
+  }
+
+  once(event: string, handler: (...args: any[]) => void): this {
+    const wrapper = (...args: any[]) => {
+      this.removeListener(event, wrapper);
+      try {
+        handler(...args);
+      } catch (err) {
+        console.error("[Berth] once() handler error:", err);
+      }
+    };
+    return this.on(event, wrapper);
   }
 
   /**
@@ -238,7 +303,9 @@ class BerthProvider implements EthereumProvider {
       console.log("[Berth] Found pending request, resolving:", requestId);
       clearTimeout(pending.timeout);
 
-      // Update state properties based on method (MetaMask compatibility)
+      // Update locally-cached state for sync legacy accessors
+      // (`provider.chainId`, `provider.selectedAddress`) based on the
+      // RPC response we just got back.
       if (!error && result !== undefined) {
         this.updateStateFromResponse(pending.method, result);
       }
@@ -258,25 +325,55 @@ class BerthProvider implements EthereumProvider {
   }
 
   /**
-   * Update state properties from RPC responses (MetaMask compatibility)
+   * Update locally-cached state properties from RPC responses so that
+   * sync legacy accessors (`provider.chainId`, `provider.selectedAddress`,
+   * `provider.networkVersion`) reflect the latest known values without
+   * requiring a roundtrip on every read.
    */
   private updateStateFromResponse(method: string | undefined, result: any): void {
     switch (method) {
       case "eth_chainId":
-        this.chainId = result;
-        // networkVersion is decimal string of chainId
-        this.networkVersion = result ? String(parseInt(result, 16)) : null;
-        console.log("[Berth] Updated chainId:", this.chainId, "networkVersion:", this.networkVersion);
+        // Defensive shape-check: background always sends a 0x-hex
+        // string, but a misconfigured future codepath could deliver
+        // something else and poison cached chainId / networkVersion.
+        if (typeof result === "string" && /^0x[0-9a-fA-F]+$/.test(result)) {
+          this.chainId = result;
+          this.networkVersion = String(parseInt(result, 16));
+          console.log("[Berth] Updated chainId:", this.chainId, "networkVersion:", this.networkVersion);
+
+          // EIP-1193: emit `connect` with `{ chainId }` the first time
+          // the provider is able to submit RPC requests to a chain.
+          // Wagmi's connector state machine listens for this event to
+          // transition into the `connected` state — without it, dApp
+          // hooks (Uniswap's especially) stay in a half-initialized
+          // state where derived selectors read undefined account fields
+          // and crash. Fire once per page lifetime; subsequent chain
+          // changes go through `chainChanged`, not `connect`.
+          if (!this.hasEmittedConnect) {
+            this.hasEmittedConnect = true;
+            this._connected = true;
+            this.emit("connect", { chainId: result });
+          }
+        }
         break;
       case "eth_accounts":
       case "eth_requestAccounts":
-        if (Array.isArray(result) && result.length > 0) {
-          this.selectedAddress = result[0];
+        // Mirror the event-handler path (case "accountsChanged") — an
+        // empty result means "no account exposed" (typical when the
+        // wallet locks), and selectedAddress must clear to match.
+        // The previous `length > 0` guard left a stale address behind
+        // when the RPC said locked but the accountsChanged event was
+        // delayed or lost, leaking through `window.ethereum.selectedAddress`.
+        if (Array.isArray(result)) {
+          const first = result[0];
+          this.selectedAddress = typeof first === "string" ? first : null;
           console.log("[Berth] Updated selectedAddress:", this.selectedAddress);
         }
         break;
       case "net_version":
-        this.networkVersion = result;
+        if (typeof result === "string") {
+          this.networkVersion = result;
+        }
         break;
     }
   }
@@ -289,7 +386,9 @@ class BerthProvider implements EthereumProvider {
 
     console.log("[Berth] Emitting event:", event, eventData);
 
-    // Update state properties from events (MetaMask compatibility)
+    // Mirror EIP-1193 event payloads into the locally-cached state
+    // properties so legacy sync accessors stay in sync without a
+    // request roundtrip.
     switch (event) {
       case "chainChanged":
         this.chainId = eventData;
@@ -303,14 +402,20 @@ class BerthProvider implements EthereumProvider {
         }
         break;
       case "connect":
-        this.isConnected = true;
+        this._connected = true;
         if (eventData?.chainId) {
           this.chainId = eventData.chainId;
           this.networkVersion = String(parseInt(eventData.chainId, 16));
         }
         break;
       case "disconnect":
-        this.isConnected = false;
+        // Clear account-scoped state so a stale selectedAddress
+        // doesn't survive a disconnect (e.g. account removal or
+        // origin revocation). Chain-scoped fields stay set — the
+        // chain itself is public; a reconnect on the same origin
+        // doesn't re-announce chainChanged.
+        this._connected = false;
+        this.selectedAddress = null;
         break;
     }
 
@@ -344,18 +449,17 @@ class BerthProvider implements EthereumProvider {
       return;
     }
 
-    // Handle sync style for specific methods
+    // Handle sync style for specific methods. eth_accounts /
+    // eth_coinbase are deliberately NOT returned from the cached
+    // selectedAddress: the dApp-observable lock surface can flip
+    // between reads, and the legacy sync path bypassed it entirely
+    // (stale unlocked address survived lock expiry). Route them
+    // through request() so the lock gate runs.
     if (typeof methodOrPayload === "string") {
       const method = methodOrPayload;
       const params = paramsOrCallback || [];
 
-      // Some methods can return sync (though deprecated)
-      if (method === "eth_accounts") {
-        return { result: this.selectedAddress ? [this.selectedAddress] : [] };
-      }
-      if (method === "eth_coinbase") {
-        return { result: this.selectedAddress };
-      }
+      // Chain/network info is lock-independent and cached locally.
       if (method === "net_version") {
         return { result: this.networkVersion };
       }
@@ -363,7 +467,11 @@ class BerthProvider implements EthereumProvider {
         return { result: this.chainId };
       }
 
-      // For async methods, return promise
+      // Everything else — including eth_accounts / eth_coinbase —
+      // returns a Promise. The sync return form of `send()` was
+      // deprecated by EIP-1193's predecessor and is no longer
+      // supported by current-generation wallet providers; legacy
+      // dApps that relied on it broke industry-wide years ago.
       return this.request({ method, params });
     }
 
@@ -382,14 +490,24 @@ class BerthProvider implements EthereumProvider {
   }
 
   /**
-   * MetaMask-specific API (some dApps gate UI behind it).
-   * We mirror "has an account been unlocked / selected", since Berth has no
-   * lock concept of its own — passkeys live in the OS keychain. Returning
-   * true unconditionally (as we used to) broke dApps that show a "Connect"
-   * CTA when this is false.
+   * Legacy `_metamask` namespace — the API name is fixed by widely-
+   * deployed dApp code that gates UI on `provider._metamask.isUnlocked()`.
+   * The implementation is ours: queries the background's cached lock
+   * state via a Berth-private RPC method so the answer reflects the
+   * popup's actual lock state, not just whether a `selectedAddress`
+   * happens to be cached locally. Falls back to the address-present
+   * heuristic on any RPC error so flaky background comms don't strand
+   * dApps.
    */
   _metamask = {
-    isUnlocked: async (): Promise<boolean> => this.selectedAddress !== null,
+    isUnlocked: async (): Promise<boolean> => {
+      try {
+        const locked = await this.request({ method: "_berth_isLocked" });
+        return !locked;
+      } catch {
+        return this.selectedAddress !== null;
+      }
+    },
   };
 
   /**

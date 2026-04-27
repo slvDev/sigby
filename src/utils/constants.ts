@@ -211,6 +211,16 @@ export const STORAGE_KEYS = {
 } as const;
 
 /**
+ * Keys under `chrome.storage.session` — cleared on browser restart.
+ * Kept separate from STORAGE_KEYS so readers don't accidentally reach
+ * for local-storage keys in the session namespace.
+ */
+export const SESSION_STORAGE_KEYS = {
+  /** Timestamp (ms) of the last successful popup unlock. */
+  LAST_UNLOCKED_AT: "lastUnlockedAt",
+} as const;
+
+/**
  * Message passing configuration
  */
 export const MESSAGE_CONFIG = {

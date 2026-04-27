@@ -86,6 +86,8 @@ export function useGrantPermissionsApproval() {
         type: MessageType.APPROVE_SIGNING,
         payload: { requestId, result: JSON.stringify(granted) },
       });
+      // Background's handleApproveSigning writes the unlock-session
+      // stamp atomically before resolving the dApp promise.
       // Order: isTrusted → grant → approve message → celebrate+settle → close.
       await awaitCelebration("passkey-success");
       window.close();

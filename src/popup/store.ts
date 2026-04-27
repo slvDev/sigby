@@ -4,7 +4,7 @@
  */
 
 import { create } from "zustand";
-import { DEFAULT_CHAIN_ID } from "../utils/constants";
+import { DEFAULT_CHAIN_ID, SESSION_STORAGE_KEYS } from "../utils/constants";
 import { popupPortoService } from "./portoService";
 import { passkeyBeat } from "./styles/signatureMotion";
 import type { PortoAsset, Permission, AccountKey, RelayHealth } from "../types/porto";
@@ -16,6 +16,14 @@ import type { PortoAsset, Permission, AccountKey, RelayHealth } from "../types/p
  * (create/connect account, sign message, approve transaction) resolves.
  */
 export type CelebrationKind = "passkey-success";
+
+/**
+ * Auto-lock timeout options. Numbers are minutes; `"never"` disables
+ * the idle timer (manual lock + browser-restart lock still apply).
+ */
+export type AutoLockMinutes = number | "never";
+
+const SESSION_UNLOCK_KEY = SESSION_STORAGE_KEYS.LAST_UNLOCKED_AT;
 
 /**
  * Account state (simplified for UI)
@@ -114,6 +122,23 @@ interface WalletState {
   isAuthenticated: boolean;
 
   /**
+   * Lock state — UX curtain, not a cryptographic boundary. When `false`
+   * the popup renders a LockScreen instead of the normal routes; store
+   * contents are still in memory, we just don't render pages that show
+   * them. Toggling this flag is the ONLY thing the lock does — signing
+   * still requires a fresh biometric via Porto regardless.
+   */
+  isUnlocked: boolean;
+  /** Timestamp of last successful unlock, or null. */
+  unlockedAt: number | null;
+  /**
+   * Idle timeout before auto-lock, in minutes. `"never"` means no idle
+   * auto-lock (manual lock + browser-restart lock still apply). Cached
+   * from background `settings.autoLockTimeout` on popup init.
+   */
+  autoLockMinutes: AutoLockMinutes;
+
+  /**
    * Per-kind timestamp of the latest celebration event (e.g. passkey
    * success beat). Views compare the last-seen timestamp to advance
    * their one-beat animations — never on value equality, always on
@@ -177,6 +202,29 @@ interface WalletState {
   setAccountSwitcherOpen: (isOpen: boolean) => void;
   setShowTestnets: (show: boolean) => void;
 
+  // Lock actions
+  /** Mark the wallet as unlocked and persist the timestamp to session storage. */
+  unlock: () => void;
+  /** Lock the wallet and clear the session timestamp. */
+  lock: () => void;
+  /**
+   * Resolve lock state on popup open. Does a GET_SETTINGS roundtrip
+   * to pick up the persisted `autoLockTimeout`, then reads the session
+   * timestamp to decide unlocked state. Call once on boot after
+   * `syncStoreWithBackground`.
+   */
+  hydrateLockFromSession: () => Promise<void>;
+  /**
+   * Session-only refresh: re-reads `lastUnlockedAt` and re-derives
+   * the lock state using the `autoLockMinutes` already in the store.
+   * Skips GET_SETTINGS — so it can't race an in-flight
+   * `setAutoLockMinutes` write. Use this from listeners on
+   * `chrome.storage.session` changes.
+   */
+  refreshLockFromSession: () => Promise<void>;
+  /** Update the idle timeout setting. Persists via background. */
+  setAutoLockMinutes: (value: AutoLockMinutes) => Promise<void>;
+
   // Utility actions
   reset: () => void;
 
@@ -231,6 +279,13 @@ const initialState = {
 
   // Connection
   isAuthenticated: false,
+
+  // Lock — start locked. `hydrateLockFromSession` unlocks if the
+  // session timestamp is fresh. Onboarding path has zero accounts so
+  // the gate doesn't render anyway.
+  isUnlocked: false,
+  unlockedAt: null as number | null,
+  autoLockMinutes: 15 as AutoLockMinutes,
 
   // Celebration timestamps
   celebrations: {} as Partial<Record<CelebrationKind, number>>,
@@ -445,7 +500,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
 
   connectActiveAccount: async () => {
-    const { activeAddress, fetchPermissions, fetchKeys } = get();
+    const { activeAddress, fetchPermissions, fetchKeys, unlock } = get();
     if (!activeAddress) return false;
 
     try {
@@ -453,10 +508,24 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         await popupPortoService.initialize();
       }
 
-      // This triggers WebAuthn to connect the account
+      // Detect warm path: `ensureAccountAuthorized` short-circuits when
+      // the account is already in Porto's IDB-persisted authorized
+      // list — no biometric fires. Only the cold path (account not
+      // yet authorized → wallet_connect → Touch ID) counts as
+      // attention proof for extending the unlock session.
+      const authorizedBefore = await popupPortoService.getAuthorizedAccounts();
+      const wasAlreadyAuthorized = authorizedBefore.some(
+        (a) => a.toLowerCase() === activeAddress.toLowerCase()
+      );
+
       const isConnected = await popupPortoService.ensureAccountAuthorized(activeAddress);
 
       if (isConnected) {
+        if (!wasAlreadyAuthorized) {
+          // Cold path — biometric fired. Refresh the unlock session
+          // so they don't get re-prompted on the next lock screen.
+          unlock();
+        }
         // Refetch permissions and keys now that we're connected
         await fetchPermissions();
         await fetchKeys();
@@ -497,6 +566,121 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   setAccountSwitcherOpen: (isAccountSwitcherOpen) => set({ isAccountSwitcherOpen }),
 
   setShowTestnets: (showTestnets) => set({ showTestnets }),
+
+  // ==================== LOCK ACTIONS ====================
+
+  unlock: () => {
+    const now = Date.now();
+    set({ isUnlocked: true, unlockedAt: now });
+    // sync try/catch doesn't see async rejections from chrome.storage
+    // — attach .catch() so a rejected write actually surfaces in logs
+    // instead of a silent UnhandledPromiseRejection.
+    void chrome.storage.session
+      .set({ [SESSION_UNLOCK_KEY]: now })
+      .catch((err) => {
+        console.warn("[Store] Failed to write unlock timestamp:", err);
+      });
+  },
+
+  lock: () => {
+    set({ isUnlocked: false, unlockedAt: null });
+    void chrome.storage.session.remove(SESSION_UNLOCK_KEY).catch((err) => {
+      console.warn("[Store] Failed to clear unlock timestamp:", err);
+    });
+  },
+
+  hydrateLockFromSession: async () => {
+    try {
+      // Pull the persisted timeout first so the freshness check uses
+      // the user's chosen window, not the initial-state default.
+      try {
+        const settingsRes = await chrome.runtime.sendMessage({
+          type: "GET_SETTINGS",
+        });
+        if (settingsRes?.success && settingsRes.data) {
+          const raw = settingsRes.data.autoLockTimeout;
+          // Storage schema stores 0 to mean "never" (see setAutoLockMinutes).
+          if (typeof raw === "number") {
+            set({ autoLockMinutes: raw === 0 ? "never" : raw });
+          }
+        }
+      } catch (settingsErr) {
+        console.warn("[Store] Settings fetch failed; using default:", settingsErr);
+      }
+      await get().refreshLockFromSession();
+    } catch (err) {
+      console.warn("[Store] Failed to hydrate lock state:", err);
+      set({ isUnlocked: false, unlockedAt: null });
+    }
+  },
+
+  refreshLockFromSession: async () => {
+    try {
+      const autoLockMinutes = get().autoLockMinutes;
+      const result = await chrome.storage.session.get(SESSION_UNLOCK_KEY);
+      const lastUnlockedAt = result[SESSION_UNLOCK_KEY] as number | undefined;
+      if (typeof lastUnlockedAt !== "number") {
+        set({ isUnlocked: false, unlockedAt: null });
+        return;
+      }
+      if (autoLockMinutes === "never") {
+        set({ isUnlocked: true, unlockedAt: lastUnlockedAt });
+        return;
+      }
+      const idleMs = Date.now() - lastUnlockedAt;
+      const timeoutMs = autoLockMinutes * 60_000;
+      if (idleMs < timeoutMs) {
+        set({ isUnlocked: true, unlockedAt: lastUnlockedAt });
+      } else {
+        set({ isUnlocked: false, unlockedAt: null });
+        chrome.storage.session.remove(SESSION_UNLOCK_KEY).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("[Store] Failed to refresh lock state:", err);
+    }
+  },
+
+  setAutoLockMinutes: async (value) => {
+    // Optimistic set so the timer effect re-runs immediately; revert
+    // on persistence failure so the popup doesn't lie about what's
+    // saved (reopen would snap the value back silently otherwise).
+    const prev = get().autoLockMinutes;
+    set({ autoLockMinutes: value });
+
+    // Changing the preset IS user activity. Refresh the session stamp
+    // before the settings write so the background's `isLocked()` compute
+    // under the new (possibly tighter) timeout doesn't retroactively
+    // judge prior idle time as "expired" and fire a spurious lock
+    // transition that disconnects dApps.
+    if (get().isUnlocked) {
+      try {
+        const now = Date.now();
+        set({ unlockedAt: now });
+        await chrome.storage.session.set({ [SESSION_UNLOCK_KEY]: now });
+      } catch (err) {
+        console.warn("[Store] Failed to refresh session stamp:", err);
+      }
+    }
+
+    try {
+      // Persist via background so the value survives popup close.
+      // `autoLockTimeout` is the canonical field name in Settings; we
+      // round-trip `"never"` as 0 and treat 0 from storage as "never" on
+      // the popup side — keeps the storage schema stable.
+      const stored = value === "never" ? 0 : value;
+      const res = await chrome.runtime.sendMessage({
+        type: "UPDATE_SETTINGS",
+        payload: { autoLockTimeout: stored },
+      });
+      if (!res?.success) {
+        set({ autoLockMinutes: prev });
+        console.warn("[Store] UPDATE_SETTINGS rejected:", res?.error);
+      }
+    } catch (err) {
+      set({ autoLockMinutes: prev });
+      console.warn("[Store] Failed to persist autoLockMinutes:", err);
+    }
+  },
 
   // ==================== UTILITY ACTIONS ====================
 

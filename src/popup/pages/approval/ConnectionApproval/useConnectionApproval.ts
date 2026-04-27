@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { MessageType } from "../../../../types/messages";
 import { errorToString } from "../../../../utils/rpcError";
 import { analyzeOrigin } from "../../../utils/originCheck";
+import { popupPortoService } from "../../../portoService";
 
 export function useConnectionApproval() {
   const [searchParams] = useSearchParams();
@@ -46,6 +47,16 @@ export function useConnectionApproval() {
     setIsLoading(true);
     setError(null);
     try {
+      // Connection approvals biometric-gate to match every other
+      // approval path (signing/tx/grant-permissions). Without this,
+      // the approval flow would be a passkey-less way to extend the
+      // lock session — bypass the main popup's AuthGuard by clicking
+      // a button in a dApp's connect flow.
+      if (!popupPortoService.isReady()) {
+        await popupPortoService.initialize();
+      }
+      await popupPortoService.signCanary(accountAddress);
+
       const response = await chrome.runtime.sendMessage({
         type: MessageType.APPROVE_CONNECTION,
         payload: { origin, accountAddress },

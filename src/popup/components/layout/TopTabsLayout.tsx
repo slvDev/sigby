@@ -2,6 +2,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import { AccountSwitcher } from "./AccountSwitcher";
 import { ChainSwitcher } from "./ChainSwitcher";
+import { LockButton } from "./LockButton";
 import { SOFT_SHADOW, palette } from "../../styles/theme";
 import { spring } from "../../styles/motion";
 
@@ -47,7 +48,10 @@ export function TopTabsLayout() {
       >
         <div className="flex items-center justify-between gap-2">
           <AccountSwitcher />
-          <ChainSwitcher />
+          <div className="flex items-center gap-1.5">
+            <ChainSwitcher />
+            <LockButton />
+          </div>
         </div>
 
         <div

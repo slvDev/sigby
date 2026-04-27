@@ -4,7 +4,17 @@ import { GlassCard, PillButton, Icon, DismissibleError } from "../../components/
 import { RelayStatusCard } from "../../components/relay";
 import { AccountKeysCard } from "../../components/keys";
 import { fadeUp, spring, stagger, tween } from "../../styles/motion";
+import type { AutoLockMinutes } from "../../store";
 import { useSettings } from "./useSettings";
+
+const AUTO_LOCK_PRESETS: Array<{ label: string; value: AutoLockMinutes }> = [
+  { label: "1m", value: 1 },
+  { label: "5m", value: 5 },
+  { label: "15m", value: 15 },
+  { label: "1h", value: 60 },
+  { label: "4h", value: 240 },
+  { label: "Never", value: "never" },
+];
 
 export function Settings() {
   const {
@@ -22,6 +32,8 @@ export function Settings() {
     showDeleteConfirm,
     showTestnets,
     setShowTestnets,
+    autoLockMinutes,
+    setAutoLockMinutes,
     handleCreateAccount,
     handleConnectAccount,
     handleDeleteAccount,
@@ -201,6 +213,40 @@ export function Settings() {
       </motion.div>
 
       <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
+
+      <motion.section variants={fadeUp}>
+        <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
+          Security
+        </h3>
+        <GlassCard className="p-4">
+          <div className="text-[13px] font-semibold text-zinc-900">
+            Auto-lock after
+          </div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">
+            Locks the popup after idle. Touch ID required to unlock.
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {AUTO_LOCK_PRESETS.map((p) => {
+              const isActive = autoLockMinutes === p.value;
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setAutoLockMinutes(p.value)}
+                  aria-pressed={isActive}
+                  className={`px-3 py-1.5 text-[12px] font-semibold rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 ${
+                    isActive
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white/80 text-zinc-700 border-white/80 hover:bg-white"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </GlassCard>
+      </motion.section>
 
       <motion.section variants={fadeUp}>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">

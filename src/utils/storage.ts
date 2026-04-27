@@ -538,7 +538,7 @@ export class StorageManager {
     return (
       settings || {
         defaultChain: DEFAULT_CHAIN_ID, // Base
-        autoLockTimeout: 0, // Disabled
+        autoLockTimeout: 15, // Minutes. 0 means "never" on the popup side.
         showTestNetworks: false, // Hide testnets by default
         currency: "USD",
         language: "en",

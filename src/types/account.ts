@@ -53,7 +53,13 @@ export interface ConnectedDapp {
 export interface Settings {
   /** Default chain ID */
   defaultChain: number;
-  /** Auto-lock timeout in minutes (0 = disabled) */
+  /**
+   * Auto-lock idle timeout in minutes.
+   * - Positive numbers: idle-lock after N minutes.
+   * - `0`: popup-side "never" (no idle auto-lock). The popup's
+   *   `AutoLockMinutes` union stores this as the string `"never"`;
+   *   `0` is just the wire/storage form.
+   */
   autoLockTimeout: number;
   /** Show test networks */
   showTestNetworks?: boolean;

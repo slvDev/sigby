@@ -158,6 +158,8 @@ export function useTransactionApproval() {
       // Order: isTrusted → sign → approve message → celebrate+settle → close.
       // The settle gives the CTA's CelebrationGlow frames to play before
       // `chrome.windows.create` tears the window down.
+      // Background's handleApproveSigning writes the unlock-session
+      // stamp atomically before resolving the dApp promise.
       await awaitCelebration("passkey-success");
       window.close();
     } catch (err) {

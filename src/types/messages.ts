@@ -52,6 +52,13 @@ export enum MessageType {
   ADD_CUSTOM_TOKEN = "ADD_CUSTOM_TOKEN",
   REMOVE_CUSTOM_TOKEN = "REMOVE_CUSTOM_TOKEN",
   GET_CUSTOM_TOKENS = "GET_CUSTOM_TOKENS",
+
+  // Settings
+  GET_SETTINGS = "GET_SETTINGS",
+  UPDATE_SETTINGS = "UPDATE_SETTINGS",
+
+  // Lock status (dApp-observable via _metamask.isUnlocked shim)
+  IS_WALLET_LOCKED = "IS_WALLET_LOCKED",
 }
 
 /**

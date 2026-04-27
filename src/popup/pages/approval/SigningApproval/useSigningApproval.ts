@@ -118,6 +118,9 @@ export function useSigningApproval() {
         type: MessageType.APPROVE_SIGNING,
         payload: { requestId, result },
       });
+      // Background's handleApproveSigning writes the unlock-session
+      // stamp before resolving the dApp promise — no popup-side write
+      // needed here.
       // Order: isTrusted → sign → approve message → celebrate+settle → close.
       await awaitCelebration("passkey-success");
       window.close();

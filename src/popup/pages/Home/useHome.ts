@@ -21,6 +21,7 @@ export function useHome() {
     setLoading,
     setError,
     celebrate,
+    unlock,
   } = useWalletStore();
 
   const [walletName, setWalletName] = useState("");
@@ -71,6 +72,8 @@ export function useHome() {
         await syncStoreWithBackground();
         setWalletName("");
         setAccountCount((c) => c + 1);
+        // Passkey just touched — no need to re-prompt on the lock gate.
+        unlock();
         // Biometric gate cleared — fire the beat. HeroCard orbs pulse.
         celebrate("passkey-success");
       } else {
@@ -96,6 +99,7 @@ export function useHome() {
 
       if (response.success) {
         await syncStoreWithBackground();
+        unlock();
         celebrate("passkey-success");
       } else {
         setError(errorToString(response.error) || "Failed to save account");

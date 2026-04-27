@@ -4,6 +4,7 @@
  */
 
 import * as Porto from "porto";
+import { toHex } from "viem";
 import {
   mainnet,
   base,
@@ -448,6 +449,54 @@ class PopupPortoService {
       console.error('[Berth:Popup] Message signing failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Force a fresh biometric prompt by either reconnecting (cold start)
+   * or signing a canary message (warm start). Used as the unlock gate.
+   * The resulting signature — if any — is discarded; we only care that
+   * the user successfully touched the passkey.
+   *
+   * Cold start (Porto's in-memory auth empty — e.g. after extension
+   * reload or IDB clear): `ensureAccountAuthorized` calls
+   * `wallet_connect` which itself fires a biometric. We return after
+   * that — no need for a second prompt.
+   *
+   * Warm start (account already in `eth_accounts`): `personal_sign`
+   * forces the biometric.
+   *
+   * Throws if the user cancels or a different account is selected.
+   */
+  async signCanary(address: string): Promise<void> {
+    if (!this.provider) {
+      throw new Error('Porto provider not initialized');
+    }
+    console.log('[Berth:Popup] Canary unlock for:', address);
+
+    const authorizedAccounts = await this.getAuthorizedAccounts();
+    const isAuthorized = authorizedAccounts.some(
+      (acc) => acc.toLowerCase() === address.toLowerCase()
+    );
+    if (!isAuthorized) {
+      // Cold-start path — wallet_connect prompts biometric itself.
+      // After success, the account is authorized and the unlock gate
+      // is cleared. No canary sign needed.
+      const authorized = await this.ensureAccountAuthorized(address);
+      if (!authorized) {
+        throw new Error('Account not authorized. Please reconnect the account.');
+      }
+      console.log('[Berth:Popup] Canary unlock via wallet_connect');
+      return;
+    }
+
+    // Warm-start path — Porto's schema requires params[0] as hex.
+    const message = `Unlock Berth — ${new Date().toISOString()}`;
+    const hex = toHex(message);
+    await this.provider.request({
+      method: 'personal_sign',
+      params: [hex, address],
+    });
+    console.log('[Berth:Popup] Canary unlock via personal_sign');
   }
 
   /**
