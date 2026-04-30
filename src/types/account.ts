@@ -67,6 +67,18 @@ export interface Settings {
   currency?: string;
   /** Language preference */
   language?: string;
+  /**
+   * Persisted "user has seen the welcome flow" marker. The popup
+   * derives an in-memory `isOnboardingActive` flag on hydrate from this
+   * value plus `accountOrder.length`; the welcome flow renders while
+   * that in-memory flag is true. Once persisted as `true` here, future
+   * popup boots never re-arm the in-memory flag, so a wipe-and-recreate
+   * does NOT replay onboarding.
+   *
+   * Backfilled to `true` for users who already had accounts when this
+   * field was introduced.
+   */
+  hasCompletedOnboarding?: boolean;
 }
 
 /**

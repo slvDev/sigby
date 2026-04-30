@@ -89,6 +89,14 @@ interface WalletState {
   assets: PortoAsset[];
   assetsLoading: boolean;
   assetsLastFetched: number | null;
+  /**
+   * Timestamp of the most recent `refreshAssets` *completion*, set on
+   * both success AND failure. `assetsLastFetched` only advances on
+   * success and is also used for cache-freshness gating, so a failed
+   * first fetch leaves it null forever — UX gates that need "have we
+   * tried yet?" should read this instead.
+   */
+  assetsLastAttemptedAt: number | null;
 
   // Pending transactions being watched
   pendingTransactions: PendingTransaction[];
@@ -137,6 +145,23 @@ interface WalletState {
    * from background `settings.autoLockTimeout` on popup init.
    */
   autoLockMinutes: AutoLockMinutes;
+
+  /**
+   * Persisted welcome-flow completion flag. Mirrors
+   * `settings.hasCompletedOnboarding`. Used to decide whether to start
+   * the welcome flow on popup boot — once true, no future boot turns
+   * `isOnboardingActive` back on.
+   */
+  hasCompletedOnboarding: boolean;
+  /**
+   * In-memory gate for the 4-screen welcome flow. Set true on popup
+   * boot when `!hasCompletedOnboarding && accountOrder.length === 0`.
+   * Cleared when the user dismisses Step 4. Decoupled from
+   * `hasCompletedOnboarding` and `accountOrder` so the success
+   * transition (account just created) doesn't tear down the flow
+   * before "You're set" can render.
+   */
+  isOnboardingActive: boolean;
 
   /**
    * Per-kind timestamp of the latest celebration event (e.g. passkey
@@ -224,6 +249,20 @@ interface WalletState {
   refreshLockFromSession: () => Promise<void>;
   /** Update the idle timeout setting. Persists via background. */
   setAutoLockMinutes: (value: AutoLockMinutes) => Promise<void>;
+  /**
+   * Persist welcome-flow completion. Sets the cached flag and writes
+   * `settings.hasCompletedOnboarding=true` via background. Idempotent.
+   * Does NOT clear `isOnboardingActive` — Step 4 fires this on the
+   * `passkey-success` celebrate beat (i.e. as soon as create/restore
+   * succeeds), before the user sees the Done screen.
+   */
+  completeOnboarding: () => Promise<void>;
+  /**
+   * Clear the in-memory onboarding gate. Called when the user dismisses
+   * Step 4 ("Open wallet" / Receive / Settings) so AuthGuard switches
+   * to the normal layout. Persistence is handled separately.
+   */
+  dismissOnboarding: () => void;
 
   // Utility actions
   reset: () => void;
@@ -249,6 +288,7 @@ const initialState = {
   assets: [] as PortoAsset[],
   assetsLoading: false,
   assetsLastFetched: null as number | null,
+  assetsLastAttemptedAt: null as number | null,
 
   // Pending transactions
   pendingTransactions: [] as PendingTransaction[],
@@ -286,6 +326,8 @@ const initialState = {
   isUnlocked: false,
   unlockedAt: null as number | null,
   autoLockMinutes: 15 as AutoLockMinutes,
+  hasCompletedOnboarding: false,
+  isOnboardingActive: false,
 
   // Celebration timestamps
   celebrations: {} as Partial<Record<CelebrationKind, number>>,
@@ -316,6 +358,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       // Reset caches when switching accounts
       assets: [],
       assetsLastFetched: null,
+      assetsLastAttemptedAt: null,
       // Clear permissions and keys - they're per-account
       permissions: [],
       accountKeys: [],
@@ -399,14 +442,18 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         get().updateAccount(activeAddress, { balance: balanceEth });
       }
 
+      const now = Date.now();
       set({
         assets,
-        assetsLastFetched: Date.now(),
+        assetsLastFetched: now,
+        assetsLastAttemptedAt: now,
         assetsLoading: false,
       });
     } catch (error) {
       console.error('[Store] Failed to refresh assets:', error);
-      set({ assetsLoading: false });
+      // Mark the attempt as completed even on failure so UX gates
+      // ("have we tried yet?") don't hang on the loading state.
+      set({ assetsLoading: false, assetsLastAttemptedAt: Date.now() });
     }
   },
 
@@ -540,7 +587,13 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
   // ==================== UI ACTIONS ====================
 
-  setChainId: (chainId) => set({ chainId, assets: [], assetsLastFetched: null }),
+  setChainId: (chainId) =>
+    set({
+      chainId,
+      assets: [],
+      assetsLastFetched: null,
+      assetsLastAttemptedAt: null,
+    }),
 
   markChainCommitted: () => set({ chainCommittedAt: Date.now() }),
 
@@ -602,6 +655,28 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           // Storage schema stores 0 to mean "never" (see setAutoLockMinutes).
           if (typeof raw === "number") {
             set({ autoLockMinutes: raw === 0 ? "never" : raw });
+          }
+          const storedCompleted = settingsRes.data.hasCompletedOnboarding;
+          const completed = storedCompleted === true;
+          if (typeof storedCompleted === "boolean") {
+            set({ hasCompletedOnboarding: storedCompleted });
+          }
+
+          // Decide whether the welcome flow should run on this boot.
+          // - First-run (no accounts, never completed) → run it.
+          // - Existing user (accounts already exist, flag missing
+          //   because they predate this feature) → backfill the flag
+          //   so a future wipe-and-recreate doesn't replay onboarding.
+          // - Mid-flow refresh (popup re-opened before user dismissed
+          //   Step 4) → don't auto-restart from Step 1; user can keep
+          //   using the wallet.
+          const accountCount = get().accountOrder.length;
+          if (!completed) {
+            if (accountCount === 0) {
+              set({ isOnboardingActive: true });
+            } else if (storedCompleted !== true) {
+              void get().completeOnboarding();
+            }
           }
         }
       } catch (settingsErr) {
@@ -680,6 +755,27 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       set({ autoLockMinutes: prev });
       console.warn("[Store] Failed to persist autoLockMinutes:", err);
     }
+  },
+
+  completeOnboarding: async () => {
+    if (get().hasCompletedOnboarding) return;
+    set({ hasCompletedOnboarding: true });
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: "UPDATE_SETTINGS",
+        payload: { hasCompletedOnboarding: true },
+      });
+      if (!res?.success) {
+        console.warn("[Store] UPDATE_SETTINGS rejected:", res?.error);
+      }
+    } catch (err) {
+      console.warn("[Store] Failed to persist hasCompletedOnboarding:", err);
+    }
+  },
+
+  dismissOnboarding: () => {
+    if (!get().isOnboardingActive) return;
+    set({ isOnboardingActive: false });
   },
 
   // ==================== UTILITY ACTIONS ====================
@@ -762,7 +858,9 @@ export async function syncStoreWithBackground(): Promise<void> {
         error: null,
 
         // Reset assets cache if address or chain changed
-        ...(addressChanged || chainChanged ? { assets: [], assetsLastFetched: null } : {}),
+        ...(addressChanged || chainChanged
+          ? { assets: [], assetsLastFetched: null, assetsLastAttemptedAt: null }
+          : {}),
       });
     }
   } catch (error) {

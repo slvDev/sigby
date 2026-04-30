@@ -1141,6 +1141,12 @@ export class MessageHandler {
       if ("showTestNetworks" in raw && typeof raw.showTestNetworks !== "boolean") {
         return { success: false, error: "Invalid showTestNetworks" };
       }
+      if (
+        "hasCompletedOnboarding" in raw &&
+        typeof raw.hasCompletedOnboarding !== "boolean"
+      ) {
+        return { success: false, error: "Invalid hasCompletedOnboarding" };
+      }
 
       const current = await this.storageManager.getSettings();
       const merged = { ...current, ...raw };

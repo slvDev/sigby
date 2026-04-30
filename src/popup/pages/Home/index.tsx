@@ -49,69 +49,72 @@ export function Home() {
     closeAddModal,
   } = useTokens();
 
+  // First-run users never reach this branch — `AuthGuard` renders
+  // `<Onboarding />` instead. This is the wipe-and-recreate fallback
+  // for users who completed onboarding once and then deleted every
+  // account; copy + visual language mirrors Onboarding Step 3.
   if (!hasAccounts) {
+    const keychainLabel = `Berth ${accountCount + 1}`;
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8 text-center">
-        <h1 className="text-[28px] font-semibold tracking-tight text-zinc-900 mb-2">
-          Berth
-        </h1>
-        <p className="text-[13px] text-zinc-500 mb-8">
-          Sign with a passkey. Same account on every chain.
-        </p>
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col">
+          <h1 className="text-[22px] font-semibold tracking-tight text-zinc-900">
+            Create passkey account
+          </h1>
+          <p className="text-[13px] text-zinc-500 leading-relaxed mt-1.5">
+            Wallet name is local and editable. The browser passkey label is
+            permanent (
+            <span className="font-mono text-zinc-700">{keychainLabel}</span>).
+          </p>
 
-        <div className="w-full max-w-xs mb-4">
-          <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
-        </div>
+          <div className="mt-5">
+            <GlassCard className="px-3.5 py-3.5">
+              <label
+                htmlFor="wallet-name"
+                className="block text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500 mb-2"
+              >
+                Wallet name
+              </label>
+              <input
+                id="wallet-name"
+                type="text"
+                value={walletName}
+                onChange={(e) => setWalletName(e.target.value)}
+                placeholder="Main, Trading, Hot…"
+                disabled={isLoading}
+                maxLength={32}
+                className="w-full px-3.5 py-2.5 text-[14px] bg-white/80 backdrop-blur border border-white/80 rounded-lg placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50"
+              />
+            </GlassCard>
+          </div>
 
-        <div className="w-full max-w-xs space-y-4">
-          <div className="space-y-2 text-left">
-            <label
-              htmlFor="wallet-name"
-              className="block text-[13px] font-medium text-zinc-700"
-            >
-              Name your wallet
-            </label>
-            <input
-              id="wallet-name"
-              type="text"
-              value={walletName}
-              onChange={(e) => setWalletName(e.target.value)}
-              placeholder="e.g. Main, Trading, Savings"
-              disabled={isLoading}
-              className="w-full px-4 py-3 text-[14px] bg-white/80 backdrop-blur border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 disabled:opacity-50"
+          <div className="mt-3">
+            <DismissibleError
+              message={error}
+              onDismiss={dismissError}
+              since={errorAt}
             />
-            <p className="text-[11px] text-zinc-400">
-              Touch ID prompt will show "Berth {accountCount + 1}"
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-2">
-            <motion.button
-              onClick={handleCreateAccount}
-              disabled={isLoading}
-              whileHover={isLoading ? undefined : { y: -1 }}
-              whileTap={isLoading ? undefined : { scale: 0.98 }}
-              className="w-full py-3 text-[14px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "Creating…" : "Create new wallet"}
-            </motion.button>
-
-            <motion.button
-              onClick={handleConnectAccount}
-              disabled={isLoading}
-              whileHover={isLoading ? undefined : { y: -1 }}
-              whileTap={isLoading ? undefined : { scale: 0.98 }}
-              className="w-full py-3 text-[14px] font-semibold bg-white/80 backdrop-blur border border-white/80 text-zinc-800 rounded-xl hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "Connecting…" : "I have a wallet"}
-            </motion.button>
           </div>
         </div>
 
-        <div className="mt-10 space-y-1 text-[12px] text-zinc-400">
-          <div>No passwords or seed phrases</div>
-          <div>Sign in with Face ID / Touch ID</div>
-          <div>Multi-chain support</div>
+        <div className="flex flex-col gap-2.5 pt-5">
+          <motion.button
+            onClick={handleCreateAccount}
+            disabled={isLoading}
+            whileHover={isLoading ? undefined : { y: -1 }}
+            whileTap={isLoading ? undefined : { scale: 0.98 }}
+            className="w-full py-3.5 text-[14px] font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isLoading ? "Waiting for passkey…" : "Create with passkey"}
+          </motion.button>
+
+          <motion.button
+            onClick={handleConnectAccount}
+            disabled={isLoading}
+            className="w-full text-center text-[12px] text-zinc-500 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed underline-offset-2 hover:underline focus:outline-none focus-visible:underline py-1"
+          >
+            {isLoading ? "Connecting…" : "Restore existing passkey account"}
+          </motion.button>
         </div>
       </div>
     );

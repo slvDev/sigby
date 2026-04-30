@@ -227,6 +227,7 @@ class BackgroundService {
         showTestNetworks: false,
         currency: "USD",
         language: "en",
+        hasCompletedOnboarding: false,
       };
 
       await this.storageManager.setSettings(defaultSettings);

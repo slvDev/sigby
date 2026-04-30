@@ -13,6 +13,7 @@ import { useTransactionWatcher, useAutoLockTimer } from "./hooks";
 import { FONT_STACK } from "./styles/theme";
 import { tween } from "./styles/motion";
 import { Lock } from "./pages/Lock";
+import { Onboarding } from "./pages/Onboarding";
 import { SESSION_STORAGE_KEYS } from "../utils/constants";
 
 /**
@@ -65,16 +66,18 @@ function AutoLockTimer() {
 
 /**
  * AuthGuard
- * Gates rendering on lock state. Approval routes bypass entirely —
- * they run their own biometric on approve. Onboarding (no accounts)
- * renders through to Home which shows the create/connect form. The
- * lock gate only fires when we have accounts AND the session is
- * stale/unset.
+ * Gates rendering on lock + onboarding state. Approval routes bypass
+ * entirely — they run their own biometric on approve. The onboarding
+ * gate fires on first install (no accounts AND welcome flow not yet
+ * dismissed) and replaces the normal layout chrome so users can't
+ * jump into Settings/Activity tabs and skip the explainer. The lock
+ * gate fires once accounts exist AND the session is stale/unset.
  */
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const isLoading = useWalletStore((s) => s.isLoading);
   const isUnlocked = useWalletStore((s) => s.isUnlocked);
   const hasAccounts = useWalletStore((s) => s.accountOrder.length > 0);
+  const isOnboardingActive = useWalletStore((s) => s.isOnboardingActive);
   const location = useLocation();
 
   // Skip guard for approval routes
@@ -85,6 +88,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     location.pathname.startsWith("/grant-permissions")
   ) {
     return <>{children}</>;
+  }
+
+  // Onboarding gate — full-screen welcome flow on first install.
+  //
+  // Reads from `isOnboardingActive` (in-memory, set on hydrate) rather
+  // than `!hasAccounts && !hasCompletedOnboarding` so the success
+  // transition doesn't unmount the flow before "You're set" can render:
+  // the moment account creation lands, `accountOrder.length` flips to
+  // 1 and `hasCompletedOnboarding` may be persisted, but the active
+  // gate stays open until the user dismisses Step 4.
+  //
+  // Sits above the loading gate too: `isLoading` toggles during
+  // create/restore inside `useHome.handleCreateAccount`, and Onboarding
+  // owns its own per-button loading via `useHome.isLoading`.
+  if (isOnboardingActive) {
+    return <Onboarding />;
   }
 
   // Show loading while checking

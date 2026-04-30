@@ -44,6 +44,10 @@ export function Settings() {
     dismissError,
   } = useSettings();
 
+  // Same shape as Onboarding/Home so the immutable browser passkey
+  // label always reads "Berth N" with mono styling, not raw text.
+  const keychainLabel = `Berth ${accountCount + 1}`;
+
   return (
     <motion.div
       className="flex flex-col flex-1 min-h-0 gap-4 overflow-y-auto pb-2"
@@ -161,7 +165,10 @@ export function Settings() {
                     className="w-full px-3 py-2.5 text-[13px] bg-white/80 border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 transition-colors disabled:opacity-50"
                   />
                   <p className="text-[11px] text-zinc-400">
-                    Touch ID: "Berth {accountCount + 1}"
+                    Passkey label:{" "}
+                    <span className="font-mono text-zinc-600">
+                      {keychainLabel}
+                    </span>
                   </p>
                 </div>
                 <div className="flex flex-col gap-2">
@@ -223,7 +230,7 @@ export function Settings() {
             Auto-lock after
           </div>
           <div className="text-[11px] text-zinc-500 mt-0.5">
-            Locks the popup after idle. Touch ID required to unlock.
+            Locks the popup after idle. Passkey required to unlock.
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {AUTO_LOCK_PRESETS.map((p) => {
