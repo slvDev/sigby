@@ -16,7 +16,8 @@ export function Send() {
     setAmount,
     isLoading,
     error,
-    userBalance,
+    userBalanceFormatted,
+    isLoadingBalance,
     handleSend,
     handleBack,
     dismissError,
@@ -38,7 +39,8 @@ export function Send() {
     );
   }
 
-  const canSubmit = !isLoading && !!recipient && !!amount;
+  const canSubmit =
+    !isLoading && !isLoadingBalance && !!recipient && !!amount;
 
   return (
     <div
@@ -89,7 +91,9 @@ export function Send() {
                   Amount
                 </label>
                 <span className="text-[11px] text-zinc-500 tabular-nums">
-                  Available: {userBalance.toFixed(7)} {currencySymbol}
+                  {isLoadingBalance
+                    ? "Loading balance…"
+                    : `Available: ${userBalanceFormatted} ${currencySymbol}`}
                 </span>
               </div>
               <div className="relative">
