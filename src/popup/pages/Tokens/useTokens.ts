@@ -1,37 +1,59 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatUnits } from "viem";
 import { useWalletStore } from "../../store";
 import { CHAIN_CONFIGS } from "../../../utils/constants";
 import { MessageType } from "../../../types/messages";
 import type { TokenBalance } from "../../../types/account";
 import type { PortoAsset } from "../../../types/porto";
 
-function formatBalance(balance: string, decimals: number): string {
+// Wrap viem.formatUnits so a malformed `balance` (non-BigInt-parseable)
+// degrades to "0" instead of throwing through the render path.
+export function formatBalance(balance: string, decimals: number): string {
   try {
-    const raw = BigInt(balance);
-    const divisor = BigInt(10 ** decimals);
-    const intPart = raw / divisor;
-    const fracPart = raw % divisor;
-    const fracStr = fracPart.toString().padStart(decimals, "0");
-    const trimmedFrac = fracStr.slice(0, 6).replace(/0+$/, "");
-    return trimmedFrac.length === 0
-      ? intPart.toString()
-      : `${intPart}.${trimmedFrac}`;
+    return formatUnits(BigInt(balance), decimals);
   } catch {
     return "0";
   }
 }
 
+// Porto's `metadata.fiat.value` is the per-unit price, not the
+// holding value. Multiply or you get "1 USDC + 1 USDT + ETH price"
+// in the total.
+export function computeHoldingUsdNumber(asset: PortoAsset): number | undefined {
+  const price = parseFloat(asset.metadata.fiat?.value ?? "");
+  if (!Number.isFinite(price)) return undefined;
+  try {
+    const amount = parseFloat(
+      formatUnits(BigInt(asset.balance), asset.metadata.decimals)
+    );
+    if (!Number.isFinite(amount)) return undefined;
+    const value = amount * price;
+    return Number.isFinite(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Display-only formatter — sums must come from `computeHoldingUsdNumber`,
+// not from rounded strings.
+export function formatHoldingUsd(value: number): string {
+  return value.toFixed(2);
+}
+
 function portoAssetToTokenBalance(asset: PortoAsset): TokenBalance {
   const { metadata } = asset;
+  const isNative = asset.type === "native";
+  const usd = computeHoldingUsdNumber(asset);
   return {
-    address: asset.address,
+    address: isNative ? "native" : asset.address,
     symbol: metadata.symbol,
     name: metadata.name || metadata.symbol,
     decimals: metadata.decimals,
     balance: asset.balance,
     formatted: formatBalance(asset.balance, metadata.decimals),
-    usdValue: metadata.fiat?.value,
+    usdValue: usd === undefined ? undefined : formatHoldingUsd(usd),
+    isNative,
     isCustom: false,
   };
 }
@@ -47,11 +69,23 @@ export function useTokens() {
   const chainConfig = CHAIN_CONFIGS[chainId];
   const chainName = chainConfig?.name || "Unknown Network";
 
+  // Native first (ETH/MATIC/etc.), then ERC-20s. Folding native into
+  // the same list so the hero can be just the total — having the
+  // native amount as a stray secondary line read like "this is your
+  // ETH balance" instead of a total.
   const portoTokens = useMemo(
     () =>
       assets
-        .filter((asset: PortoAsset) => asset.type === "erc20")
-        .map((asset: PortoAsset) => portoAssetToTokenBalance(asset)),
+        .filter(
+          (asset: PortoAsset) =>
+            asset.type === "erc20" || asset.type === "native"
+        )
+        .map((asset: PortoAsset) => portoAssetToTokenBalance(asset))
+        .sort((a, b) => {
+          const aNative = a.address === "native" ? 0 : 1;
+          const bNative = b.address === "native" ? 0 : 1;
+          return aNative - bNative;
+        }),
     [assets]
   );
 

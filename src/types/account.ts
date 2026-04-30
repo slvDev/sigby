@@ -143,10 +143,12 @@ export interface TokenBalance {
   balance: string;
   /** Formatted balance (human readable) */
   formatted: string;
-  /** USD value as string from Porto (e.g., "1.00") */
+  /** USD holding value as a decimal string */
   usdValue?: string;
   /** Token logo URL */
   logoUrl?: string;
+  /** Whether this row represents the chain's native asset */
+  isNative?: boolean;
   /** Whether this is a user-added custom token (not from Porto) */
   isCustom?: boolean;
 }

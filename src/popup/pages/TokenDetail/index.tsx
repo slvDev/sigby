@@ -1,14 +1,26 @@
+import { useState } from "react";
 import { motion } from "motion/react";
 import { FlowHeader } from "../../components/layout/FlowHeader";
 import { TokenIcon } from "../../components/token";
-import { GlassCard, HeroCard, BalanceDisplay } from "../../components/ui";
+import { GlassCard, HeroCard, Icon } from "../../components/ui";
 import { palette, FONT_STACK } from "../../styles/theme";
 import { fadeUp, spring, stagger } from "../../styles/motion";
 import { useTokenDetail } from "./useTokenDetail";
 
+// Headline keeps at most 6 fractional digits; full precision lives in
+// the mono row below.
+function shortBalance(formatted: string): string {
+  const dot = formatted.indexOf(".");
+  if (dot < 0) return formatted;
+  const intPart = formatted.slice(0, dot);
+  const frac = formatted.slice(dot + 1, dot + 1 + 6).replace(/0+$/, "");
+  return frac ? `${intPart}.${frac}` : intPart;
+}
+
 export function TokenDetail() {
   const { token, address, handleBack, handleGoToTokens, handleSend } =
     useTokenDetail();
+  const [copiedExact, setCopiedExact] = useState(false);
 
   if (!token || !address) {
     return (
@@ -62,33 +74,71 @@ export function TokenDetail() {
         }}
       >
         <motion.div variants={fadeUp}>
-          <HeroCard className="p-5 flex flex-col items-center text-center">
-            <TokenIcon
-              symbol={token.symbol}
-              address={token.address}
-              logoUrl={token.logoUrl}
-              size="lg"
-              className="w-14 h-14 text-2xl mb-3"
-            />
-            <BalanceDisplay
-              balance={token.formatted}
-              symbol={token.symbol}
-              fiat={fiat}
-              animateValue
-            />
+          <HeroCard className="p-5">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="text-[32px] leading-none font-semibold tracking-tight text-zinc-900 tabular-nums">
+                {shortBalance(token.formatted)}
+              </span>
+              <span className="text-[16px] font-medium text-zinc-500">
+                {token.symbol}
+              </span>
+            </div>
+            {fiat && (
+              <div className="mt-2 text-[14px] text-zinc-500 tabular-nums">
+                {fiat}
+              </div>
+            )}
+            {shortBalance(token.formatted) !== token.formatted && (
+              <button
+                type="button"
+                onClick={async () => {
+                  // writeText rejects asynchronously on permission /
+                  // availability failures, so a sync try/catch can't
+                  // see those — and flipping `copiedExact` before the
+                  // promise resolves would lie about a failed copy.
+                  try {
+                    await navigator.clipboard.writeText(
+                      `${token.formatted} ${token.symbol}`
+                    );
+                    setCopiedExact(true);
+                    window.setTimeout(() => setCopiedExact(false), 1200);
+                  } catch {
+                    // Clipboard unavailable — leave the affordance idle.
+                  }
+                }}
+                aria-label={
+                  copiedExact
+                    ? "Full balance copied"
+                    : "Copy full-precision balance"
+                }
+                className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-mono text-zinc-500 hover:text-zinc-800 tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 rounded px-1 -mx-1 break-all text-left"
+              >
+                <span>
+                  {token.formatted} {token.symbol}
+                </span>
+                <Icon
+                  name={copiedExact ? "check" : "copy"}
+                  className={`w-3 h-3 flex-shrink-0 ${
+                    copiedExact ? "text-emerald-600" : ""
+                  }`}
+                />
+              </button>
+            )}
           </HeroCard>
         </motion.div>
 
-        <motion.div variants={fadeUp}>
-          <GlassCard className="p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">
-              Contract address
-            </div>
-            <div className="mt-2 text-[11px] font-mono text-zinc-700 break-all">
-              {token.address}
-            </div>
-          </GlassCard>
-        </motion.div>
+        {!token.isNative && (
+          <motion.div variants={fadeUp}>
+            <GlassCard className="p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">
+                Contract address
+              </div>
+              <div className="mt-2 text-[11px] font-mono text-zinc-700 break-all">
+                {token.address}
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
 
         <div className="flex-1" />
 

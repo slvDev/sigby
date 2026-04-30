@@ -12,6 +12,10 @@ export function useTokenDetail() {
   const handleGoToTokens = () => navigate("/");
   const handleSend = () => {
     if (!token) return;
+    if (token.isNative) {
+      navigate("/send");
+      return;
+    }
     navigate(`/send-token/${token.address}`, { state: { token } });
   };
 

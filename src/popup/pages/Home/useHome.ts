@@ -4,6 +4,7 @@ import { useWalletStore, syncStoreWithBackground } from "../../store";
 import { popupPortoService } from "../../portoService";
 import { errorToString } from "../../../utils/rpcError";
 import { CHAIN_CONFIGS } from "../../../utils/constants";
+import { computeHoldingUsdNumber, formatBalance } from "../Tokens/useTokens";
 
 export function useHome() {
   const navigate = useNavigate();
@@ -28,10 +29,24 @@ export function useHome() {
   const [accountCount, setAccountCount] = useState(0);
 
   const nativeAsset = assets.find((a) => a.type === "native");
+  // Use the same wei→decimal helper the asset list uses. The previous
+  // `(Number(...) / 1e18).toFixed(7)` ignored `metadata.decimals` and
+  // displayed dust as "0.0000000" — exactly the case this fallback
+  // covers (testnets / unpriced chains).
   const balance = nativeAsset
-    ? (Number(BigInt(nativeAsset.balance)) / 1e18).toFixed(7)
+    ? formatBalance(nativeAsset.balance, nativeAsset.metadata.decimals)
     : "0";
   const nativeSymbol = CHAIN_CONFIGS[chainId]?.nativeCurrency.symbol || "ETH";
+
+  // Total = sum of (balance × price) across native + every priced
+  // ERC-20. Sum the unrounded numeric values, then format once at the
+  // display boundary — summing the per-row $X.XX strings would
+  // accumulate cents-rounding error and could drop sub-cent holdings.
+  const holdingUsdNumbers = assets
+    .map((a) => computeHoldingUsdNumber(a))
+    .filter((v): v is number => v !== undefined);
+  const totalUsd = holdingUsdNumbers.reduce((sum, v) => sum + v, 0);
+  const hasFiat = holdingUsdNumbers.length > 0;
 
   useEffect(() => {
     async function getAccountCount() {
@@ -135,6 +150,8 @@ export function useHome() {
     hasAccounts,
     balance,
     nativeSymbol,
+    totalUsd,
+    hasFiat,
     assetsLoading,
     isLoading,
     error,

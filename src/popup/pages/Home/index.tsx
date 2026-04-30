@@ -24,6 +24,8 @@ export function Home() {
     hasAccounts,
     balance,
     nativeSymbol,
+    totalUsd,
+    hasFiat,
     assetsLoading,
     isLoading,
     error,
@@ -150,12 +152,25 @@ export function Home() {
 
       <motion.div variants={fadeUp} transition={tween.mediumOutStrong}>
         <HeroCard className="p-5">
-          <BalanceDisplay
-            balance={assetsLoading ? "…" : balance}
-            symbol={nativeSymbol}
-            animateValue={!assetsLoading}
-            scrambleKey={activeAccount.address}
-          />
+          {hasFiat ? (
+            <BalanceDisplay
+              balance={assetsLoading ? "…" : totalUsd.toFixed(2)}
+              symbol=""
+              prefix="$"
+              animateValue={!assetsLoading}
+              scrambleKey={activeAccount.address}
+            />
+          ) : (
+            // No price data available — fall back to native amount as
+            // the headline so the hero never shows just "$0.00" on
+            // chains/tokens Porto doesn't price.
+            <BalanceDisplay
+              balance={assetsLoading ? "…" : balance}
+              symbol={nativeSymbol}
+              animateValue={!assetsLoading}
+              scrambleKey={activeAccount.address}
+            />
+          )}
           <div className="mt-3">
             <AddressText
               address={activeAccount.address}
@@ -181,7 +196,7 @@ export function Home() {
 
       <DismissibleError message={error} onDismiss={dismissError} since={errorAt} />
 
-      {/* Tokens section — merged into Wallet tab. */}
+      {/* Assets section — native asset plus ERC-20s. */}
       <motion.div
         className="flex flex-col"
         variants={fadeUp}
@@ -189,7 +204,7 @@ export function Home() {
       >
         <div className="flex items-center justify-between px-1 mb-2">
           <h2 className="text-[13px] font-semibold text-zinc-900 tracking-tight">
-            Tokens
+            Assets
           </h2>
           <PillButton variant="secondary" onClick={openAddModal}>
             <Icon name="plus" className="w-3 h-3" />
@@ -199,7 +214,7 @@ export function Home() {
         {tokens.length === 0 ? (
           <div className="text-center px-6 py-4">
             <p className="text-[12px] text-zinc-500">
-              {assetsLoading ? "Loading tokens…" : "No tokens on this network."}
+              {assetsLoading ? "Loading assets…" : "No assets on this network."}
             </p>
           </div>
         ) : (
@@ -217,9 +232,13 @@ export function Home() {
                   <motion.button
                     type="button"
                     onClick={() => handleTokenClick(token)}
-                    whileHover={{ backgroundColor: "rgba(255,255,255,0.7)" }}
                     whileTap={{ scale: 0.995 }}
-                    className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5 focus:outline-none focus-visible:bg-white/70 text-left"
+                    // Hover via plain CSS, NOT whileHover. The parent
+                    // motion.li shares `transition` with this button so
+                    // a motion-driven hover would animate in only after
+                    // the per-row stagger delay (rowDelay(i)) — visible
+                    // as a flicker on rows further down the list.
+                    className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5 text-left hover:bg-white/70 focus:outline-none focus-visible:bg-white/70 transition-colors"
                   >
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-[10px] font-semibold">
                       {token.symbol.slice(0, 2).toUpperCase()}

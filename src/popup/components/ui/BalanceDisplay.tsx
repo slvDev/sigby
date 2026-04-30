@@ -5,6 +5,11 @@ import { NumberScramble } from "./NumberScramble";
 type BalanceDisplayProps = {
   balance: string;
   symbol: string;
+  /**
+   * Optional prefix rendered immediately before the number — e.g. "$"
+   * for fiat totals. Sized like `symbol` so the visual weight matches.
+   */
+  prefix?: string;
   fiat?: string;
   changePct?: string;
   /** Size variant for different contexts. */
@@ -37,6 +42,7 @@ type BalanceDisplayProps = {
 export function BalanceDisplay({
   balance,
   symbol,
+  prefix,
   fiat,
   changePct,
   size = "hero",
@@ -66,31 +72,38 @@ export function BalanceDisplay({
         {label}
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        {canTick ? (
-          scrambleKey !== undefined ? (
-            <NumberScramble
-              value={parsed}
-              format={format}
-              scrambleKey={scrambleKey}
-              className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
-              ariaLabel="Balance"
-            />
+        <span className="inline-flex items-baseline gap-0.5">
+          {prefix && (
+            <span className={`${s.sym} font-medium text-zinc-500`}>{prefix}</span>
+          )}
+          {canTick ? (
+            scrambleKey !== undefined ? (
+              <NumberScramble
+                value={parsed}
+                format={format}
+                scrambleKey={scrambleKey}
+                className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
+                ariaLabel="Balance"
+              />
+            ) : (
+              <NumberTicker
+                value={parsed}
+                format={format}
+                className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
+                ariaLabel="Balance"
+              />
+            )
           ) : (
-            <NumberTicker
-              value={parsed}
-              format={format}
-              className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900`}
-              ariaLabel="Balance"
-            />
-          )
-        ) : (
-          <span
-            className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900 tabular-nums`}
-          >
-            {balance}
-          </span>
+            <span
+              className={`${s.num} leading-none font-semibold tracking-tight text-zinc-900 tabular-nums`}
+            >
+              {balance}
+            </span>
+          )}
+        </span>
+        {symbol && (
+          <span className={`${s.sym} font-medium text-zinc-500`}>{symbol}</span>
         )}
-        <span className={`${s.sym} font-medium text-zinc-500`}>{symbol}</span>
       </div>
       {(fiat || changePct) && (
         <div className="mt-1.5 flex items-center gap-2 text-[13px] text-zinc-500 tabular-nums">
