@@ -225,7 +225,7 @@ interface WalletState {
   setError: (error: string | null) => void;
   setAuthenticated: (isAuthenticated: boolean) => void;
   setAccountSwitcherOpen: (isOpen: boolean) => void;
-  setShowTestnets: (show: boolean) => void;
+  setShowTestnets: (show: boolean) => Promise<void>;
 
   // Lock actions
   /** Mark the wallet as unlocked and persist the timestamp to session storage. */
@@ -315,7 +315,11 @@ const initialState = {
   error: null as string | null,
   errorAt: null as number | null,
   isAccountSwitcherOpen: false,
-  showTestnets: true, // Visible by default per user preference
+  // Default mirrors the persisted `showTestNetworks` storage default
+  // (false). The real value is hydrated from GET_SETTINGS on popup
+  // boot; starting `true` would briefly flash testnets in
+  // ChainSwitcher before hydration lands.
+  showTestnets: false,
 
   // Connection
   isAuthenticated: false,
@@ -618,7 +622,26 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
   setAccountSwitcherOpen: (isAccountSwitcherOpen) => set({ isAccountSwitcherOpen }),
 
-  setShowTestnets: (showTestnets) => set({ showTestnets }),
+  setShowTestnets: async (show) => {
+    // Optimistic + revert-on-failure, matching `setAutoLockMinutes`.
+    // Without persistence the toggle would silently snap back when the
+    // popup reopens and re-hydrates from storage.
+    const prev = get().showTestnets;
+    set({ showTestnets: show });
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: "UPDATE_SETTINGS",
+        payload: { showTestNetworks: show },
+      });
+      if (!res?.success) {
+        set({ showTestnets: prev });
+        console.warn("[Store] UPDATE_SETTINGS rejected:", res?.error);
+      }
+    } catch (err) {
+      set({ showTestnets: prev });
+      console.warn("[Store] Failed to persist showTestnets:", err);
+    }
+  },
 
   // ==================== LOCK ACTIONS ====================
 
@@ -660,6 +683,11 @@ export const useWalletStore = create<WalletState>((set, get) => ({
           const completed = storedCompleted === true;
           if (typeof storedCompleted === "boolean") {
             set({ hasCompletedOnboarding: storedCompleted });
+          }
+
+          const storedShowTestnets = settingsRes.data.showTestNetworks;
+          if (typeof storedShowTestnets === "boolean") {
+            set({ showTestnets: storedShowTestnets });
           }
 
           // Decide whether the welcome flow should run on this boot.
