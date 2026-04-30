@@ -362,22 +362,36 @@ export class AccountManager {
     try {
       console.log("[AccountManager] Deleting account:", address);
 
-      // Resolve the dApps this account was connected to BEFORE removing the
-      // record — storage scan is account-keyed and becomes empty once
-      // deleted. dApps connected to this account lose access; per EIP-1193
-      // §5.1 they get `accountsChanged([])` and a `disconnect` event.
+      // Snapshot per-account connections BEFORE mutation — storage is
+      // account-keyed and the deleted account's row vanishes after
+      // `removeAccountByAddress`. Without the pre-read we can't tell
+      // who was connected to the deleted account.
       const revokedOrigins = Object.keys(
         await this.storageManager.getAccountDapps(address)
       );
 
       await this.storageManager.removeAccountByAddress(address);
 
+      // Broadcast scoped to actual post-mutation visibility. A single
+      // origin can be connected to multiple accounts; if the (possibly
+      // promoted) active account is still connected to the origin, the
+      // dApp still has access — emit `[active]` rather than `[]` +
+      // `disconnect`, which would falsely tear down a live session.
+      const activeAddress = await this.storageManager.getActiveAccountAddress();
       for (const origin of revokedOrigins) {
-        await eventBroadcaster.accountsChangedForOrigin([], origin);
-        await eventBroadcaster.disconnectForOrigin(origin, {
-          code: 4900,
-          message: "Account removed from wallet",
-        });
+        const stillConnectedToActive = activeAddress
+          ? await this.storageManager.isAccountConnectedToDapp(activeAddress, origin)
+          : false;
+
+        if (stillConnectedToActive && activeAddress) {
+          await eventBroadcaster.accountsChangedForOrigin([activeAddress], origin);
+        } else {
+          await eventBroadcaster.accountsChangedForOrigin([], origin);
+          await eventBroadcaster.disconnectForOrigin(origin, {
+            code: 4900,
+            message: "Account removed from wallet",
+          });
+        }
       }
 
       console.log("[AccountManager] Account deleted:", address);

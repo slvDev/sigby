@@ -1353,7 +1353,12 @@ export class MessageHandler {
   }
 
   /**
-   * Handle disconnect account from dApp request
+   * Handle disconnect account from dApp request.
+   *
+   * Routes through `dappManager.disconnect` so the dApp receives the
+   * EIP-1193 `accountsChanged` / `disconnect` events — calling
+   * `storageManager.disconnectAccountFromDapp` directly mutates state
+   * silently and leaves the page provider stuck on a stale account list.
    */
   private async handleDisconnectAccountDapp(
     payload: DisconnectAccountDappPayload
@@ -1363,10 +1368,7 @@ export class MessageHandler {
         throw new Error("Account address and dApp origin are required");
       }
 
-      await this.storageManager.disconnectAccountFromDapp(
-        payload.address,
-        payload.origin
-      );
+      await this.dappManager.disconnect(payload.origin, payload.address);
 
       return {
         success: true,

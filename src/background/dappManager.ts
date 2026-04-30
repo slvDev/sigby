@@ -390,19 +390,34 @@ export class DappManager {
   }
 
   /**
-   * Disconnect a dApp from an account
-   * @param origin - dApp origin
-   * @param accountAddress - Account address
+   * Disconnect a dApp from an account.
+   *
+   * The broadcast is derived from post-mutation state, not from the
+   * disconnected pair: a single origin can be connected to multiple
+   * accounts, so disconnecting from one shouldn't pretend the dApp
+   * lost all access. If the origin is still connected to the active
+   * account after this mutation, emit `[activeAddress]` (idempotent
+   * when the dApp already has it). Otherwise emit `[]` plus the
+   * EIP-1193 §5.1 `disconnect` event so the dApp tears down its
+   * session.
    */
   async disconnect(origin: string, accountAddress: string): Promise<void> {
     await this.storageManager.disconnectAccountFromDapp(accountAddress, origin);
 
-    // Notify the dApp its access was revoked (EIP-1193 §5.1).
-    await eventBroadcaster.accountsChangedForOrigin([], origin);
-    await eventBroadcaster.disconnectForOrigin(origin, {
-      code: 4900,
-      message: "Wallet disconnected by user",
-    });
+    const activeAddress = await this.storageManager.getActiveAccountAddress();
+    const stillConnectedToActive = activeAddress
+      ? await this.storageManager.isAccountConnectedToDapp(activeAddress, origin)
+      : false;
+
+    if (stillConnectedToActive && activeAddress) {
+      await eventBroadcaster.accountsChangedForOrigin([activeAddress], origin);
+    } else {
+      await eventBroadcaster.accountsChangedForOrigin([], origin);
+      await eventBroadcaster.disconnectForOrigin(origin, {
+        code: 4900,
+        message: "Wallet disconnected by user",
+      });
+    }
 
     console.log("[DappManager] Disconnected:", origin, accountAddress);
   }
