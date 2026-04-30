@@ -128,22 +128,6 @@ export enum TransactionStatus {
 }
 
 /**
- * Wallet state (runtime state, not persisted)
- */
-export interface WalletState {
-  /** Current account (null if not authenticated) */
-  account: Account | null;
-  /** Current chain ID */
-  chainId: number;
-  /** Whether wallet is locked */
-  isLocked: boolean;
-  /** Whether wallet is initialized */
-  isInitialized: boolean;
-  /** Connected dApps map (origin -> ConnectedDapp) */
-  connectedDapps: Map<string, ConnectedDapp>;
-}
-
-/**
  * Balance information for a token
  */
 export interface TokenBalance {
