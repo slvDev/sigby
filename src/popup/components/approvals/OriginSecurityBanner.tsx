@@ -36,21 +36,21 @@ export function OriginSecurityBanner({ analysis, isKnownOrigin }: OriginSecurity
         <Banner
           tone="danger"
           title="Insecure connection"
-          body={`This site is served over ${scheme ?? "an unknown protocol"} — its traffic is not encrypted. Do not sign here unless you trust the network.`}
+          body={`This site is served over ${scheme ?? "an unknown protocol"}. Its traffic is not encrypted. Do not sign here unless you trust the network.`}
         />
       )}
       {isPunycode && (
         <Banner
           tone="warn"
           title="Internationalized domain"
-          body={`Hostname "${hostname}" is an IDN (contains an xn-- label). Confirm it matches the site you meant to visit — Punycode can disguise Unicode lookalikes.`}
+          body={`Hostname "${hostname}" is an IDN (contains an xn-- label). Confirm it matches the site you meant to visit. Punycode can disguise Unicode lookalikes.`}
         />
       )}
       {mixedScripts && (
         <Banner
           tone="warn"
           title="Mixed-script hostname"
-          body={`Hostname "${hostname}" mixes character sets — this is a common homograph trick used to impersonate legitimate sites.`}
+          body={`Hostname "${hostname}" mixes character sets. This is a common homograph trick used to impersonate legitimate sites.`}
         />
       )}
       {showNewOrigin && (

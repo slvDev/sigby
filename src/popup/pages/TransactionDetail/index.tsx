@@ -231,7 +231,7 @@ export function TransactionDetail() {
                   ? `${view.fee.amount} ${view.fee.currency || ""}`.trim()
                   : view.fee.sponsored
                     ? "Paid by sponsor"
-                    : "—"}
+                    : "-"}
               </span>
               {view.fee.usdValue && (
                 <span className="text-[11px] text-zinc-500 tabular-nums">

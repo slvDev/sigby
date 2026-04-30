@@ -192,7 +192,7 @@ export function GrantPermissionsApproval() {
               </>
             ) : (
               <span className="text-zinc-500">
-                No fee allowance — session key cannot pay gas.
+                No fee allowance. Session key cannot pay gas.
               </span>
             )}
           </div>

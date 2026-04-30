@@ -45,7 +45,7 @@ export function Permissions() {
             </span>
             <p className="leading-snug">
               Session keys let dApps sign transactions without biometric
-              confirmation each time — useful for gaming, trading, and
+              confirmation each time. Useful for gaming, trading, and
               high-frequency flows.
             </p>
           </GlassCard>
