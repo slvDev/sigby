@@ -5,7 +5,7 @@
  * doesn't blink out — compositor-only transitions.
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "./Button";
 import { fade, scaleFade, spring, tween } from "../../styles/motion";
@@ -15,7 +15,10 @@ export interface ConfirmModalProps {
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  message: string;
+  /** Plain string body. Use `messageNode` for richer content (bullets, bold). */
+  message?: string;
+  /** Rich body — overrides `message` when provided. */
+  messageNode?: ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: "danger" | "default";
@@ -28,6 +31,7 @@ export function ConfirmModal({
   onConfirm,
   title,
   message,
+  messageNode,
   confirmText = "Confirm",
   cancelText = "Cancel",
   variant = "default",
@@ -120,7 +124,13 @@ export function ConfirmModal({
 
             {/* Content */}
             <div className="px-5 pb-5">
-              <p className="text-sm text-gray-600 whitespace-pre-line">{message}</p>
+              {messageNode ? (
+                <div className="text-sm text-gray-600 leading-relaxed">
+                  {messageNode}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600 whitespace-pre-line">{message}</p>
+              )}
             </div>
 
             {/* Actions */}

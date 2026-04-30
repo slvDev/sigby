@@ -92,13 +92,20 @@ export function useHome() {
     try {
       const result = await popupPortoService.connectAccount();
 
+      // The wallet-name field is shared with the Create button; honor
+      // it on Connect too so a user who types "Trading" then taps
+      // "Restore existing passkey account" gets that name applied.
+      // Empty/whitespace falls through to the background's default naming.
+      const displayName = walletName.trim() || undefined;
+
       const response = await chrome.runtime.sendMessage({
         type: "CONNECT_ACCOUNT",
-        payload: { address: result.address },
+        payload: { address: result.address, displayName },
       });
 
       if (response.success) {
         await syncStoreWithBackground();
+        setWalletName("");
         unlock();
         celebrate("passkey-success");
       } else {

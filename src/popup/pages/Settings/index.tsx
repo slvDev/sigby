@@ -5,6 +5,8 @@ import { RelayStatusCard } from "../../components/relay";
 import { AccountKeysCard } from "../../components/keys";
 import { fadeUp, spring, stagger, tween } from "../../styles/motion";
 import type { AutoLockMinutes } from "../../store";
+import { AccountListItem } from "../../components/settings/AccountListItem";
+import { RenameAccountDialog } from "../../components/settings/RenameAccountDialog";
 import { useSettings } from "./useSettings";
 
 const AUTO_LOCK_PRESETS: Array<{ label: string; value: AutoLockMinutes }> = [
@@ -21,7 +23,6 @@ export function Settings() {
     accounts,
     accountOrder,
     activeAddress,
-    activeAccount,
     walletName,
     setWalletName,
     accountCount,
@@ -29,24 +30,43 @@ export function Settings() {
     error,
     errorAt,
     showAddAccount,
-    showDeleteConfirm,
     showTestnets,
     setShowTestnets,
     autoLockMinutes,
     setAutoLockMinutes,
+    dappsByAddress,
+    renameTarget,
+    setRenameTarget,
+    deleteTarget,
+    setDeleteTarget,
+    disconnectAllTarget,
+    setDisconnectAllTarget,
     handleCreateAccount,
     handleConnectAccount,
+    handleSwitchAccount,
+    handleRenameAccount,
+    handleDisconnectDapp,
+    handleDisconnectAllDapps,
     handleDeleteAccount,
     openAddAccount,
     closeAddAccount,
-    openDeleteConfirm,
-    closeDeleteConfirm,
     dismissError,
   } = useSettings();
 
   // Same shape as Onboarding/Home so the immutable browser passkey
   // label always reads "Berth N" with mono styling, not raw text.
   const keychainLabel = `Berth ${accountCount + 1}`;
+
+  const renameAccount = renameTarget ? accounts[renameTarget] : null;
+  const deleteAccount = deleteTarget ? accounts[deleteTarget] : null;
+  const deleteAccountDappCount =
+    deleteTarget ? (dappsByAddress[deleteTarget]?.length ?? 0) : 0;
+  const disconnectAllAccount = disconnectAllTarget
+    ? accounts[disconnectAllTarget]
+    : null;
+  const disconnectAllCount = disconnectAllTarget
+    ? (dappsByAddress[disconnectAllTarget]?.length ?? 0)
+    : 0;
 
   return (
     <motion.div
@@ -58,33 +78,72 @@ export function Settings() {
         show: { transition: { staggerChildren: stagger.base } },
       }}
     >
+      <RenameAccountDialog
+        isOpen={!!renameTarget}
+        initialName={renameAccount?.displayName || ""}
+        isLoading={isLoading}
+        onClose={() => setRenameTarget(null)}
+        onSave={(newName) => {
+          if (renameTarget) handleRenameAccount(renameTarget, newName);
+        }}
+      />
+
       <ConfirmModal
-        isOpen={showDeleteConfirm}
-        onClose={closeDeleteConfirm}
-        onConfirm={handleDeleteAccount}
-        title="Remove account"
-        message="Remove this account from the wallet?\n\nYour passkey will remain in your keychain and can be reconnected later."
+        isOpen={!!disconnectAllTarget}
+        onClose={() => setDisconnectAllTarget(null)}
+        onConfirm={() => {
+          if (disconnectAllTarget) handleDisconnectAllDapps(disconnectAllTarget);
+        }}
+        title="Disconnect dApps"
+        message={
+          disconnectAllCount > 0
+            ? `Disconnect ${disconnectAllCount} dApp${
+                disconnectAllCount === 1 ? "" : "s"
+              } from ${disconnectAllAccount?.displayName || "this account"}?\n\nThe selected account will be removed from those dApps. Sites connected to another active account may stay connected.`
+            : ""
+        }
+        confirmText="Disconnect"
+        variant="danger"
+        isLoading={isLoading}
+      />
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) handleDeleteAccount(deleteTarget);
+        }}
+        title={
+          deleteAccount
+            ? `Remove ${deleteAccount.displayName}?`
+            : "Remove account"
+        }
+        messageNode={
+          <ul className="space-y-2 list-disc list-outside pl-4">
+            <li>
+              Your passkey stays in iCloud Keychain, Google Password Manager,
+              1Password, or your security key. You can re-add this account by
+              tapping &ldquo;Restore existing passkey account.&rdquo;
+            </li>
+            {deleteAccountDappCount > 0 && (
+              <li>
+                <strong className="font-semibold text-zinc-900">
+                  {deleteAccountDappCount} dApp connection
+                  {deleteAccountDappCount === 1 ? "" : "s"} will be severed.
+                </strong>
+              </li>
+            )}
+            <li>
+              Transaction history for this account will be hidden from the
+              wallet UI.
+            </li>
+          </ul>
+        }
         confirmText="Remove"
         cancelText="Cancel"
         variant="danger"
         isLoading={isLoading}
       />
-
-      {activeAccount && (
-        <motion.section variants={fadeUp}>
-          <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
-            Active account
-          </h3>
-          <GlassCard className="p-4">
-            <div className="text-[14px] font-semibold text-zinc-900">
-              {activeAccount.displayName}
-            </div>
-            <div className="text-[12px] text-zinc-500 font-mono mt-1 break-all">
-              {activeAddress}
-            </div>
-          </GlassCard>
-        </motion.section>
-      )}
 
       <motion.section variants={fadeUp}>
         <h3 className="px-1 mb-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.1em]">
@@ -95,41 +154,27 @@ export function Settings() {
             {accountOrder.map((addr) => {
               const acc = accounts[addr];
               if (!acc) return null;
-              const isActive = addr === activeAddress;
               return (
-                <motion.li key={addr} layout transition={spring.soft}>
-                  <div
-                    className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-2.5`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="settings-active-row"
-                        className="absolute inset-0 bg-blue-50/60"
-                        transition={spring.soft}
-                      />
-                    )}
-                    <span className="relative inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white text-[12px] font-semibold">
-                      {acc.displayName?.charAt(0).toUpperCase() || "A"}
-                    </span>
-                    <div className="relative min-w-0">
-                      <div className="text-[13px] font-semibold text-zinc-900 truncate">
-                        {acc.displayName}
-                      </div>
-                      <div className="text-[11px] text-zinc-500 font-mono tabular-nums">
-                        {addr.slice(0, 6)}…{addr.slice(-4)}
-                      </div>
-                    </div>
-                    {isActive && (
-                      <span className="relative text-[11px] font-semibold text-blue-600">
-                        Active
-                      </span>
-                    )}
-                  </div>
-                </motion.li>
+                <AccountListItem
+                  key={addr}
+                  address={addr}
+                  displayName={acc.displayName || "Account"}
+                  isActive={addr === activeAddress}
+                  dapps={dappsByAddress[addr] || []}
+                  isBusy={isLoading}
+                  onSwitch={() => handleSwitchAccount(addr)}
+                  onRename={() => setRenameTarget(addr)}
+                  onDisconnectAllDapps={() => setDisconnectAllTarget(addr)}
+                  onDisconnectDapp={(origin) => handleDisconnectDapp(addr, origin)}
+                  onRemove={() => setDeleteTarget(addr)}
+                />
               );
             })}
           </ul>
         </GlassCard>
+        <p className="text-[11px] text-zinc-400 mt-2 px-1">
+          Tap a row to switch. Use the menu for rename, disconnect, or remove.
+        </p>
       </motion.section>
 
       <motion.div variants={fadeUp} layout>
@@ -162,6 +207,7 @@ export function Settings() {
                     onChange={(e) => setWalletName(e.target.value)}
                     placeholder="e.g. Trading, Savings"
                     disabled={isLoading}
+                    maxLength={32}
                     className="w-full px-3 py-2.5 text-[13px] bg-white/80 border border-white/80 rounded-xl placeholder:text-zinc-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 transition-colors disabled:opacity-50"
                   />
                   <p className="text-[11px] text-zinc-400">
@@ -287,23 +333,6 @@ export function Settings() {
           Account keys
         </h3>
         <AccountKeysCard />
-      </motion.section>
-
-      <motion.section className="pt-2 border-t border-zinc-200/60" variants={fadeUp}>
-        <h3 className="px-1 mb-2 text-[11px] font-semibold text-rose-600 uppercase tracking-[0.1em]">
-          Danger zone
-        </h3>
-        <PillButton
-          variant="danger"
-          onClick={openDeleteConfirm}
-          disabled={!activeAddress}
-          className="w-full"
-        >
-          Remove current account
-        </PillButton>
-        <p className="text-[11px] text-zinc-400 mt-2 px-1">
-          Your passkey will remain in your keychain and can be reconnected.
-        </p>
       </motion.section>
     </motion.div>
   );

@@ -95,6 +95,12 @@ export function Home() {
               since={errorAt}
             />
           </div>
+
+          <p className="mt-4 text-[11px] text-zinc-500 leading-relaxed px-1">
+            Lost accounts after a reinstall? Tap{" "}
+            <span className="text-zinc-700">Restore existing passkey account</span>{" "}
+            below to bring them back from your keychain.
+          </p>
         </div>
 
         <div className="flex flex-col gap-2.5 pt-5">
