@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { motion } from "motion/react";
 import { FlowHeader } from "../../components/layout/FlowHeader";
 import { TokenIcon } from "../../components/token";
@@ -7,20 +6,18 @@ import { palette, FONT_STACK } from "../../styles/theme";
 import { fadeUp, spring, stagger } from "../../styles/motion";
 import { useTokenDetail } from "./useTokenDetail";
 
-// Headline keeps at most 6 fractional digits; full precision lives in
-// the mono row below.
-function shortBalance(formatted: string): string {
-  const dot = formatted.indexOf(".");
-  if (dot < 0) return formatted;
-  const intPart = formatted.slice(0, dot);
-  const frac = formatted.slice(dot + 1, dot + 1 + 6).replace(/0+$/, "");
-  return frac ? `${intPart}.${frac}` : intPart;
-}
-
 export function TokenDetail() {
-  const { token, address, handleBack, handleGoToTokens, handleSend } =
-    useTokenDetail();
-  const [copiedExact, setCopiedExact] = useState(false);
+  const {
+    token,
+    address,
+    shortFormatted,
+    showExactBalance,
+    copiedExact,
+    handleBack,
+    handleGoToTokens,
+    handleSend,
+    handleCopyExact,
+  } = useTokenDetail();
 
   if (!token || !address) {
     return (
@@ -77,7 +74,7 @@ export function TokenDetail() {
           <HeroCard className="p-5">
             <div className="flex items-baseline gap-2 flex-wrap">
               <span className="text-[32px] leading-none font-semibold tracking-tight text-zinc-900 tabular-nums">
-                {shortBalance(token.formatted)}
+                {shortFormatted}
               </span>
               <span className="text-[16px] font-medium text-zinc-500">
                 {token.symbol}
@@ -88,24 +85,10 @@ export function TokenDetail() {
                 {fiat}
               </div>
             )}
-            {shortBalance(token.formatted) !== token.formatted && (
+            {showExactBalance && (
               <button
                 type="button"
-                onClick={async () => {
-                  // writeText rejects asynchronously on permission /
-                  // availability failures, so a sync try/catch can't
-                  // see those — and flipping `copiedExact` before the
-                  // promise resolves would lie about a failed copy.
-                  try {
-                    await navigator.clipboard.writeText(
-                      `${token.formatted} ${token.symbol}`
-                    );
-                    setCopiedExact(true);
-                    window.setTimeout(() => setCopiedExact(false), 1200);
-                  } catch {
-                    // Clipboard unavailable — leave the affordance idle.
-                  }
-                }}
+                onClick={handleCopyExact}
                 aria-label={
                   copiedExact
                     ? "Full balance copied"
