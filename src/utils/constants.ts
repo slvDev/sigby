@@ -177,9 +177,12 @@ export const TESTNET_CHAIN_IDS = [
 ] as const;
 
 /**
- * Default chain ID on first install
+ * Default chain ID on first install. Ethereum mainnet — same account
+ * works across every supported EVM chain (Porto/EIP-7702), so picking
+ * Ethereum as the entry chain matches how technical users expect a
+ * "default network" to read.
  */
-export const DEFAULT_CHAIN_ID = CHAIN_IDS.BASE;
+export const DEFAULT_CHAIN_ID = CHAIN_IDS.ETHEREUM;
 
 /**
  * Storage keys for chrome.storage.local

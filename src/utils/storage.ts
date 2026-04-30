@@ -537,7 +537,7 @@ export class StorageManager {
     const settings = await this.get(STORAGE_KEYS.SETTINGS);
     return (
       settings || {
-        defaultChain: DEFAULT_CHAIN_ID, // Base
+        defaultChain: DEFAULT_CHAIN_ID,
         autoLockTimeout: 15, // Minutes. 0 means "never" on the popup side.
         showTestNetworks: false, // Hide testnets by default
         currency: "USD",

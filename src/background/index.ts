@@ -9,6 +9,7 @@ import { MessageHandler } from "./messageHandler";
 import { DappManager } from "./dappManager";
 import { LockStatus } from "./lockStatus";
 import { StorageManager } from "../utils/storage";
+import { DEFAULT_CHAIN_ID } from "../utils/constants";
 import type { Message, MessageResponse } from "../types/messages";
 
 /**
@@ -221,7 +222,7 @@ class BackgroundService {
     try {
       // Initialize default settings
       const defaultSettings = {
-        defaultChain: 8453, // Base
+        defaultChain: DEFAULT_CHAIN_ID,
         autoLockTimeout: 15, // Minutes. 0 means "never" on the popup side.
         showTestNetworks: false,
         currency: "USD",
