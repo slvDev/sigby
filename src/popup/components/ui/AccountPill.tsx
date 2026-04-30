@@ -7,19 +7,10 @@ import { spring } from "../../styles/motion";
 
 type AccountPillProps = {
   displayName: string;
-  addressTruncated: string;
   onClick?: (e: MouseEvent<HTMLButtonElement>) => void;
 };
 
-/**
- * Account switcher pill. Avatar initial + display name + truncated
- * address + chevron. Click opens account switcher.
- */
-export function AccountPill({
-  displayName,
-  addressTruncated,
-  onClick,
-}: AccountPillProps) {
+export function AccountPill({ displayName, onClick }: AccountPillProps) {
   return (
     <motion.button
       type="button"
@@ -37,9 +28,6 @@ export function AccountPill({
         <InitialMorph initial={displayName} />
       </span>
       <span className="leading-none">{displayName}</span>
-      <span className="text-zinc-500 font-normal leading-none tabular-nums">
-        {addressTruncated}
-      </span>
       <Icon name="chevron-down" className="w-3.5 h-3.5 text-zinc-400" />
     </motion.button>
   );

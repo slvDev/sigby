@@ -56,10 +56,6 @@ export function AccountSwitcher() {
     navigate("/settings");
   }
 
-  const truncated = activeAddress
-    ? `${activeAddress.slice(0, 6)}\u2026${activeAddress.slice(-4)}`
-    : "";
-
   if (!activeAccount) {
     return <div className="text-[12px] text-zinc-500">No account</div>;
   }
@@ -68,7 +64,6 @@ export function AccountSwitcher() {
     <div ref={rootRef} className="relative">
       <AccountPill
         displayName={activeAccount.displayName || "Account"}
-        addressTruncated={truncated}
         onClick={() => setOpen((v) => !v)}
       />
 
@@ -105,7 +100,7 @@ export function AccountSwitcher() {
                         {acc.displayName}
                       </div>
                       <div className="text-[10px] text-zinc-500 font-mono tabular-nums">
-                        {`${addr.slice(0, 6)}\u2026${addr.slice(-4)}`}
+                        {`${addr.slice(0, 6)}…${addr.slice(-4)}`}
                       </div>
                     </div>
                     {isActive && (
