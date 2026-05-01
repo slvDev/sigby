@@ -13,7 +13,7 @@ import { useLock } from "./useLock";
  * Composition: stylized lock glyph centered in the available space,
  * unlock button anchored bottom. Account-anonymous — no address,
  * name, balance, or count is rendered. The extension's toolbar icon
- * already identifies this as Berth; the popup itself doesn't need
+ * already identifies this as Sigby; the popup itself doesn't need
  * to repeat the brand. A passerby sees only "this is locked."
  */
 export function Lock() {

@@ -27,7 +27,7 @@ type NumberScrambleProps = {
  *
  * Chaos model: while scrambling, we render `random in [value * 0.3,
  * value * 2.4]` at ~60 Hz. On the final frame we spring to `value`
- * using the standard soft preset so the landing still feels like Berth.
+ * using the standard soft preset so the landing still feels like Sigby.
  *
  * Reduced-motion: degrades to a tabular-nums cross-fade of the string
  * form (no numeric chaos).

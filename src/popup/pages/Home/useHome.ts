@@ -70,7 +70,7 @@ export function useHome() {
     setLoading(true);
     setError(null);
     try {
-      const keychainLabel = `Berth ${accountCount + 1}`;
+      const keychainLabel = `Sigby ${accountCount + 1}`;
       const displayName = walletName.trim() || `Account ${accountCount + 1}`;
 
       const result = await popupPortoService.createAccount({

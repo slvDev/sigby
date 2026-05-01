@@ -1,5 +1,5 @@
 {
-  "name": "berth-wallet",
+  "name": "sigby-wallet",
   "version": "0.1.0",
   "description": "A browser wallet that signs with a passkey. Built on Porto.",
   "private": true,

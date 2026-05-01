@@ -987,7 +987,7 @@ async function fetchAndUpdateBalance(address: string, chainId: number): Promise<
         payload: {
           method: "eth_getBalance",
           params: [address, "latest"],
-          origin: "popup://porto-wallet",
+          origin: "popup://sigby-wallet",
           chainId,
         },
       });

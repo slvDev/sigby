@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Berth",
+  "name": "Sigby",
   "version": "0.1.0",
   "description": "A browser wallet that signs with a passkey. Built on Porto.",
 
@@ -59,7 +59,7 @@
       "48": "public/icons/icon48.png",
       "128": "public/icons/icon128.png"
     },
-    "default_title": "Berth"
+    "default_title": "Sigby"
   },
 
   "icons": {

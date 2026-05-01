@@ -125,7 +125,7 @@ class DappBridge {
         typeof data !== "object" ||
         Array.isArray(data) ||
         Object.getPrototypeOf(data) !== Object.prototype ||
-        data.type !== "PORTO_REQUEST" ||
+        data.type !== "SIGBY_REQUEST" ||
         !isUuid(data.requestId) ||
         typeof data.method !== "string" ||
         (data.params !== undefined && !Array.isArray(data.params))
@@ -201,7 +201,7 @@ class DappBridge {
         // Notify the page that extension needs refresh
         window.postMessage(
           {
-            type: "PORTO_RESPONSE",
+            type: "SIGBY_RESPONSE",
             requestId,
             error: "Extension was updated or reloaded. Please refresh the page to reconnect.",
           },
@@ -232,7 +232,7 @@ class DappBridge {
       console.log("[DappBridge] Posting response to page:", requestId);
       window.postMessage(
         {
-          type: "PORTO_RESPONSE",
+          type: "SIGBY_RESPONSE",
           requestId,
           result: response.data,
           error: response.error,
@@ -256,7 +256,7 @@ class DappBridge {
         const recovered = await this.pollPersistedRequest(requestId);
         window.postMessage(
           {
-            type: "PORTO_RESPONSE",
+            type: "SIGBY_RESPONSE",
             requestId,
             result: recovered.result,
             error: recovered.error,
@@ -272,7 +272,7 @@ class DappBridge {
 
       window.postMessage(
         {
-          type: "PORTO_RESPONSE",
+          type: "SIGBY_RESPONSE",
           requestId,
           error: isInvalidated
             ? "Extension was updated or reloaded. Please refresh the page to reconnect."
@@ -328,7 +328,7 @@ class DappBridge {
     // Use specific origin for security
     window.postMessage(
       {
-        type: "PORTO_EVENT",
+        type: "SIGBY_EVENT",
         event,
         data,
       },

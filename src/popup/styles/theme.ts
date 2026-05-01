@@ -1,5 +1,5 @@
 /**
- * Berth visual design tokens.
+ * Sigby visual design tokens.
  *
  * Palette, typography, radius, shadow system. Every UI primitive in
  * `src/popup/components/ui/` reads from here; pages should never

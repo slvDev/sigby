@@ -328,9 +328,9 @@ export const PROVIDER_EVENTS = {
  * Extension metadata
  */
 export const EXTENSION_METADATA = {
-  NAME: "Berth",
+  NAME: "Sigby",
   VERSION: "0.1.0",
   DESCRIPTION: "A browser wallet that signs with a passkey. Built on Porto.",
-  PROVIDER_RDNS: "com.berthwallet",
+  PROVIDER_RDNS: "com.sigbywallet",
   PROVIDER_UUID: "e6a4f8b2-9c3d-4a1b-8b5f-7d2c4e6a1f93",
 } as const;

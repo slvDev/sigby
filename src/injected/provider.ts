@@ -34,7 +34,7 @@ function errorFromResponse(err: unknown): Error {
 
 // Extend Window interface for TypeScript (this gets stripped in build)
 interface EthereumProvider {
-  isBerth: boolean;
+  isSigby: boolean;
   isMetaMask: boolean;
   request(args: { method: string; params?: any[] }): Promise<any>;
   on(event: string, handler: (...args: any[]) => void): unknown;
@@ -51,12 +51,12 @@ interface Window {
 }
 
 /**
- * Berth Provider implementation
+ * Sigby Provider implementation
  * Provides window.ethereum interface for dApps
  */
-class BerthProvider implements EthereumProvider {
+class SigbyProvider implements EthereumProvider {
   // Provider identification
-  readonly isBerth = true;
+  readonly isSigby = true;
   // Do NOT advertise the legacy `isMetaMask: true` compatibility flag.
   // Some dApps still branch on it into provider-specific code paths
   // that assume implementation details we don't share — e.g. assuming
@@ -107,7 +107,7 @@ class BerthProvider implements EthereumProvider {
   >();
 
   constructor() {
-    console.log("[Berth] Initializing Ethereum provider");
+    console.log("[Sigby] Initializing Ethereum provider");
 
     // EIP-6963 §Security: once the provider is announced, dApps and other
     // extensions pass a reference around. A hostile page script could try
@@ -115,7 +115,7 @@ class BerthProvider implements EthereumProvider {
     // EIP-1193 surface as non-writable + non-configurable so that fails.
     // State fields (chainId, selectedAddress, …) stay mutable because the
     // provider needs to update them on events.
-    const lockedMethods: Array<keyof BerthProvider> = [
+    const lockedMethods: Array<keyof SigbyProvider> = [
       "request",
       "on",
       "removeListener",
@@ -159,14 +159,14 @@ class BerthProvider implements EthereumProvider {
    * Main entry point for dApp interactions
    */
   async request(args: { method: string; params?: any[] }): Promise<any> {
-    console.log("[Berth] Request:", args.method);
+    console.log("[Sigby] Request:", args.method);
 
     const requestId = crypto.randomUUID();
 
     return new Promise((resolve, reject) => {
       // Set up timeout (2 minutes for signing requests)
       const timeout = setTimeout(() => {
-        console.warn("[Berth] Request timeout:", requestId, args.method);
+        console.warn("[Sigby] Request timeout:", requestId, args.method);
         this.pendingRequests.delete(requestId);
         reject(new Error("Request timeout"));
       }, 120000);
@@ -177,7 +177,7 @@ class BerthProvider implements EthereumProvider {
       // Send request to content script via postMessage (use specific origin for security)
       window.postMessage(
         {
-          type: "PORTO_REQUEST",
+          type: "SIGBY_REQUEST",
           requestId,
           method: args.method,
           params: args.params || [],
@@ -232,7 +232,7 @@ class BerthProvider implements EthereumProvider {
       try {
         handler(...args);
       } catch (err) {
-        console.error("[Berth] once() handler error:", err);
+        console.error("[Sigby] once() handler error:", err);
       }
     };
     return this.on(event, wrapper);
@@ -248,7 +248,7 @@ class BerthProvider implements EthereumProvider {
         try {
           handler(...args);
         } catch (error) {
-          console.error("[Berth] Event handler error:", error);
+          console.error("[Sigby] Event handler error:", error);
         }
       });
     }
@@ -280,10 +280,10 @@ class BerthProvider implements EthereumProvider {
         return;
       }
 
-      if (data.type === "PORTO_RESPONSE") {
+      if (data.type === "SIGBY_RESPONSE") {
         if (!isUuid(data.requestId)) return;
         this.handleResponse(data);
-      } else if (data.type === "PORTO_EVENT") {
+      } else if (data.type === "SIGBY_EVENT") {
         if (typeof data.event !== "string") return;
         this.handleEvent(data);
       }
@@ -296,11 +296,11 @@ class BerthProvider implements EthereumProvider {
   private handleResponse(data: any): void {
     const { requestId, result, error } = data;
 
-    console.log("[Berth] Handling response:", requestId, "result:", result, "error:", error);
+    console.log("[Sigby] Handling response:", requestId, "result:", result, "error:", error);
 
     const pending = this.pendingRequests.get(requestId);
     if (pending) {
-      console.log("[Berth] Found pending request, resolving:", requestId);
+      console.log("[Sigby] Found pending request, resolving:", requestId);
       clearTimeout(pending.timeout);
 
       // Update locally-cached state for sync legacy accessors
@@ -313,14 +313,14 @@ class BerthProvider implements EthereumProvider {
       this.pendingRequests.delete(requestId);
 
       if (error) {
-        console.log("[Berth] Rejecting with error:", error);
+        console.log("[Sigby] Rejecting with error:", error);
         pending.reject(errorFromResponse(error));
       } else {
-        console.log("[Berth] Resolving with result:", result);
+        console.log("[Sigby] Resolving with result:", result);
         pending.resolve(result);
       }
     } else {
-      console.warn("[Berth] No pending request found for:", requestId);
+      console.warn("[Sigby] No pending request found for:", requestId);
     }
   }
 
@@ -339,7 +339,7 @@ class BerthProvider implements EthereumProvider {
         if (typeof result === "string" && /^0x[0-9a-fA-F]+$/.test(result)) {
           this.chainId = result;
           this.networkVersion = String(parseInt(result, 16));
-          console.log("[Berth] Updated chainId:", this.chainId, "networkVersion:", this.networkVersion);
+          console.log("[Sigby] Updated chainId:", this.chainId, "networkVersion:", this.networkVersion);
 
           // EIP-1193: emit `connect` with `{ chainId }` the first time
           // the provider is able to submit RPC requests to a chain.
@@ -367,7 +367,7 @@ class BerthProvider implements EthereumProvider {
         if (Array.isArray(result)) {
           const first = result[0];
           this.selectedAddress = typeof first === "string" ? first : null;
-          console.log("[Berth] Updated selectedAddress:", this.selectedAddress);
+          console.log("[Sigby] Updated selectedAddress:", this.selectedAddress);
         }
         break;
       case "net_version":
@@ -384,7 +384,7 @@ class BerthProvider implements EthereumProvider {
   private handleEvent(data: any): void {
     const { event, data: eventData } = data;
 
-    console.log("[Berth] Emitting event:", event, eventData);
+    console.log("[Sigby] Emitting event:", event, eventData);
 
     // Mirror EIP-1193 event payloads into the locally-cached state
     // properties so legacy sync accessors stay in sync without a
@@ -429,7 +429,7 @@ class BerthProvider implements EthereumProvider {
    * Legacy enable() method (deprecated, use request({method: 'eth_requestAccounts'}))
    */
   async enable(): Promise<string[]> {
-    console.warn("[Berth] enable() is deprecated, use request({ method: 'eth_requestAccounts' })");
+    console.warn("[Sigby] enable() is deprecated, use request({ method: 'eth_requestAccounts' })");
     return this.request({ method: "eth_requestAccounts" });
   }
 
@@ -437,7 +437,7 @@ class BerthProvider implements EthereumProvider {
    * Legacy send() method (deprecated)
    */
   send(methodOrPayload: string | any, paramsOrCallback?: any[] | Function): any {
-    console.warn("[Berth] send() is deprecated, use request()");
+    console.warn("[Sigby] send() is deprecated, use request()");
 
     // Handle callback style: send(payload, callback)
     if (typeof paramsOrCallback === "function") {
@@ -483,7 +483,7 @@ class BerthProvider implements EthereumProvider {
    * Legacy sendAsync() method (deprecated)
    */
   sendAsync(payload: any, callback: (error: any, response: any) => void): void {
-    console.warn("[Berth] sendAsync() is deprecated, use request()");
+    console.warn("[Sigby] sendAsync() is deprecated, use request()");
     this.request({ method: payload.method, params: payload.params })
       .then((result) => callback(null, { id: payload.id, jsonrpc: "2.0", result }))
       .catch((error) => callback(error, null));
@@ -493,7 +493,7 @@ class BerthProvider implements EthereumProvider {
    * Legacy `_metamask` namespace — the API name is fixed by widely-
    * deployed dApp code that gates UI on `provider._metamask.isUnlocked()`.
    * The implementation is ours: queries the background's cached lock
-   * state via a Berth-private RPC method so the answer reflects the
+   * state via a Sigby-private RPC method so the answer reflects the
    * popup's actual lock state, not just whether a `selectedAddress`
    * happens to be cached locally. Falls back to the address-present
    * heuristic on any RPC error so flaky background comms don't strand
@@ -502,7 +502,7 @@ class BerthProvider implements EthereumProvider {
   _metamask = {
     isUnlocked: async (): Promise<boolean> => {
       try {
-        const locked = await this.request({ method: "_berth_isLocked" });
+        const locked = await this.request({ method: "_sigby_isLocked" });
         return !locked;
       } catch {
         return this.selectedAddress !== null;
@@ -516,10 +516,10 @@ class BerthProvider implements EthereumProvider {
    */
   private announceProvider(): void {
     const info = {
-      uuid: "e6a4f8b2-9c3d-4a1b-8b5f-7d2c4e6a1f93", // Berth provider UUID
-      name: "Berth",
+      uuid: "e6a4f8b2-9c3d-4a1b-8b5f-7d2c4e6a1f93", // Sigby provider UUID
+      name: "Sigby",
       icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2MzY2RjEiLz4KPHBhdGggZD0iTTE2IDhDMTEuNTggOCA4IDExLjU4IDggMTZDOCAyMC40MiAxMS41OCAyNCAxNiAyNEMyMC40MiAyNCAyNCwyMC40MiAyNCAxNkMyNCAxMS41OCAyMC40MiA4IDE2IDhaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4=",
-      rdns: "com.berthwallet",
+      rdns: "com.sigbywallet",
     };
 
     const announce = () => {
@@ -552,10 +552,10 @@ class BerthProvider implements EthereumProvider {
 // Initialize and inject provider
 (function () {
   try {
-    console.log("[Berth] Injecting provider into window");
+    console.log("[Sigby] Injecting provider into window");
 
     // Create provider instance
-    const provider = new BerthProvider();
+    const provider = new SigbyProvider();
 
     // Inject as window.ethereum if not already present. If another wallet
     // got there first, leave its object alone — multi-wallet discovery is
@@ -564,16 +564,16 @@ class BerthProvider implements EthereumProvider {
     // other wallet's freezing / isolation guarantees.
     if (!window.ethereum) {
       (window as any).ethereum = provider;
-      console.log("[Berth] Set as window.ethereum");
+      console.log("[Sigby] Set as window.ethereum");
     } else {
-      console.log("[Berth] window.ethereum already exists — relying on EIP-6963 for discovery");
+      console.log("[Sigby] window.ethereum already exists — relying on EIP-6963 for discovery");
     }
 
     // Dispatch initialization event
     window.dispatchEvent(new Event("ethereum#initialized"));
 
-    console.log("[Berth] Provider injection complete");
+    console.log("[Sigby] Provider injection complete");
   } catch (error) {
-    console.error("[Berth] Failed to inject provider:", error);
+    console.error("[Sigby] Failed to inject provider:", error);
   }
 })();

@@ -1,5 +1,5 @@
 /**
- * Signature motion — Berth's memorable beats.
+ * Signature motion — Sigby's memorable beats.
  *
  * Four moments land here:
  *   1. Passkey success beat (orb pulse) — HeroCard + approval CTAs.
@@ -113,7 +113,7 @@ export function getChainPalette(chainId: number): ChainPalette {
 /**
  * Approval docking — one-beat arrival for `chrome.windows.create`
  * approval windows. The tiny positive bounce is the hull kissing the
- * berth; any more reads as cartoon. Never repeats; fires once per
+ * sigby; any more reads as cartoon. Never repeats; fires once per
  * window lifetime.
  *
  * Reduced-motion: primitives that consume this substitute an

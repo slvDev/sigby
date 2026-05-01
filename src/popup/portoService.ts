@@ -69,13 +69,13 @@ class PopupPortoService {
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
-      console.log('[Berth:Popup] Already initialized');
+      console.log('[Sigby:Popup] Already initialized');
       return;
     }
 
     try {
-      console.log('[Berth:Popup] Initializing Porto SDK in popup...');
-      console.log('[Berth:Popup] Configuring with', SUPPORTED_CHAINS.length, 'chains');
+      console.log('[Sigby:Popup] Initializing Porto SDK in popup...');
+      console.log('[Sigby:Popup] Configuring with', SUPPORTED_CHAINS.length, 'chains');
 
       this.porto = Porto.Porto.create({
         // All supported chains (cast to satisfy readonly tuple type)
@@ -97,10 +97,10 @@ class PopupPortoService {
       this.provider = this.porto.provider;
       this.isInitialized = true;
 
-      console.log('[Berth:Popup] Porto SDK initialized successfully');
-      console.log('[Berth:Popup] Provider ready:', !!this.provider);
+      console.log('[Sigby:Popup] Porto SDK initialized successfully');
+      console.log('[Sigby:Popup] Provider ready:', !!this.provider);
     } catch (error) {
-      console.error('[Berth:Popup] Failed to initialize Porto:', error);
+      console.error('[Sigby:Popup] Failed to initialize Porto:', error);
       throw error;
     }
   }
@@ -119,15 +119,15 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Creating new account...');
-    console.log('[Berth:Popup] Display name:', options.displayName);
-    console.log('[Berth:Popup] Keychain label:', options.keychainLabel);
-    console.log('[Berth:Popup] This will trigger WebAuthn prompt in popup window');
+    console.log('[Sigby:Popup] Creating new account...');
+    console.log('[Sigby:Popup] Display name:', options.displayName);
+    console.log('[Sigby:Popup] Keychain label:', options.keychainLabel);
+    console.log('[Sigby:Popup] This will trigger WebAuthn prompt in popup window');
 
     try {
       // Use keychainLabel for WebAuthn credential (appears in Touch ID)
       // Use displayName for extension UI (can be changed later)
-      const keychainLabel = options.keychainLabel || options.displayName || 'Berth';
+      const keychainLabel = options.keychainLabel || options.displayName || 'Sigby';
 
       const result = await this.provider.request({
         method: 'wallet_connect',
@@ -141,7 +141,7 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[Berth:Popup] Account created successfully:', result);
+      console.log('[Sigby:Popup] Account created successfully:', result);
 
       // Extract address from Porto response
       // Porto returns: { accounts: [{ address, capabilities }], chainIds: [...] }
@@ -152,14 +152,14 @@ class PopupPortoService {
 
       // Get the address string from the first account
       const address = accountsArray[0].address;
-      console.log('[Berth:Popup] Extracted address:', address);
+      console.log('[Sigby:Popup] Extracted address:', address);
 
       return {
         address,
         accounts: accountsArray.map((acc: any) => acc.address),
       };
     } catch (error: any) {
-      console.error('[Berth:Popup] Account creation failed:', error);
+      console.error('[Sigby:Popup] Account creation failed:', error);
       throw error;
     }
   }
@@ -175,7 +175,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Connecting to existing account...');
+    console.log('[Sigby:Popup] Connecting to existing account...');
 
     try {
       const result = await this.provider.request({
@@ -188,7 +188,7 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[Berth:Popup] Account connected:', result);
+      console.log('[Sigby:Popup] Account connected:', result);
 
       // Extract address from Porto response
       const accountsArray = result.accounts || [];
@@ -198,14 +198,14 @@ class PopupPortoService {
 
       // Get the address string from the first account
       const address = accountsArray[0].address;
-      console.log('[Berth:Popup] Extracted address:', address);
+      console.log('[Sigby:Popup] Extracted address:', address);
 
       return {
         address,
         accounts: accountsArray.map((acc: any) => acc.address),
       };
     } catch (error: any) {
-      console.error('[Berth:Popup] Account connection failed:', error);
+      console.error('[Sigby:Popup] Account connection failed:', error);
       throw error;
     }
   }
@@ -226,7 +226,7 @@ class PopupPortoService {
       });
       return accounts || [];
     } catch (error) {
-      console.error('[Berth:Popup] Failed to get accounts:', error);
+      console.error('[Sigby:Popup] Failed to get accounts:', error);
       return [];
     }
   }
@@ -247,11 +247,11 @@ class PopupPortoService {
     );
 
     if (isAuthorized) {
-      console.log('[Berth:Popup] Account already authorized:', address);
+      console.log('[Sigby:Popup] Account already authorized:', address);
       return true;
     }
 
-    console.log('[Berth:Popup] Account not authorized, connecting:', address);
+    console.log('[Sigby:Popup] Account not authorized, connecting:', address);
 
     // Need to connect/authorize the account
     // This will trigger WebAuthn to verify ownership
@@ -270,7 +270,7 @@ class PopupPortoService {
       const newAccounts = result.accounts?.map((acc: any) => acc.address.toLowerCase()) || [];
       return newAccounts.includes(address.toLowerCase());
     } catch (error) {
-      console.error('[Berth:Popup] Failed to authorize account:', error);
+      console.error('[Sigby:Popup] Failed to authorize account:', error);
       return false;
     }
   }
@@ -317,7 +317,7 @@ class PopupPortoService {
     });
 
     const bundleId = typeof result === 'string' ? result : result?.id || result;
-    console.log('[Berth:Popup] wallet_sendCalls bundleId:', bundleId);
+    console.log('[Sigby:Popup] wallet_sendCalls bundleId:', bundleId);
     return bundleId;
   }
 
@@ -357,7 +357,7 @@ class PopupPortoService {
   }): Promise<string> {
     const bundleId = await this.sendCalls(params);
     const txHash = await this.waitForTransactionHash(bundleId);
-    console.log('[Berth:Popup] sendTransaction resolved to tx hash:', txHash);
+    console.log('[Sigby:Popup] sendTransaction resolved to tx hash:', txHash);
     return txHash;
   }
 
@@ -370,7 +370,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Waiting for transaction hash for bundle:', bundleId);
+    console.log('[Sigby:Popup] Waiting for transaction hash for bundle:', bundleId);
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -379,7 +379,7 @@ class PopupPortoService {
           params: [bundleId],
         });
 
-        console.log('[Berth:Popup] Bundle status:', status);
+        console.log('[Sigby:Popup] Bundle status:', status);
 
         // Check if we have receipts with transaction hash
         if (status?.receipts && status.receipts.length > 0) {
@@ -411,14 +411,14 @@ class PopupPortoService {
       } catch (error) {
         // Don't swallow our own terminal-failure rejection.
         if (error instanceof ProviderRpcError) throw error;
-        console.warn('[Berth:Popup] Error getting bundle status:', error);
+        console.warn('[Sigby:Popup] Error getting bundle status:', error);
         // Transient RPC error: wait and retry.
         await new Promise(resolve => setTimeout(resolve, intervalMs));
       }
     }
 
     // If we couldn't get the tx hash, return the bundle ID as fallback
-    console.warn('[Berth:Popup] Could not get tx hash, returning bundle ID:', bundleId);
+    console.warn('[Sigby:Popup] Could not get tx hash, returning bundle ID:', bundleId);
     return bundleId;
   }
 
@@ -434,7 +434,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Signing message...');
+    console.log('[Sigby:Popup] Signing message...');
 
     try {
       // personal_sign params are [message, account]
@@ -443,10 +443,10 @@ class PopupPortoService {
         params: [message, account],
       });
 
-      console.log('[Berth:Popup] Message signed successfully');
+      console.log('[Sigby:Popup] Message signed successfully');
       return signature;
     } catch (error: any) {
-      console.error('[Berth:Popup] Message signing failed:', error);
+      console.error('[Sigby:Popup] Message signing failed:', error);
       throw error;
     }
   }
@@ -471,7 +471,7 @@ class PopupPortoService {
     if (!this.provider) {
       throw new Error('Porto provider not initialized');
     }
-    console.log('[Berth:Popup] Canary unlock for:', address);
+    console.log('[Sigby:Popup] Canary unlock for:', address);
 
     const authorizedAccounts = await this.getAuthorizedAccounts();
     const isAuthorized = authorizedAccounts.some(
@@ -485,18 +485,18 @@ class PopupPortoService {
       if (!authorized) {
         throw new Error('Account not authorized. Please reconnect the account.');
       }
-      console.log('[Berth:Popup] Canary unlock via wallet_connect');
+      console.log('[Sigby:Popup] Canary unlock via wallet_connect');
       return;
     }
 
     // Warm-start path — Porto's schema requires params[0] as hex.
-    const message = `Unlock Berth — ${new Date().toISOString()}`;
+    const message = `Unlock Sigby — ${new Date().toISOString()}`;
     const hex = toHex(message);
     await this.provider.request({
       method: 'personal_sign',
       params: [hex, address],
     });
-    console.log('[Berth:Popup] Canary unlock via personal_sign');
+    console.log('[Sigby:Popup] Canary unlock via personal_sign');
   }
 
   /**
@@ -511,7 +511,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Signing typed data...');
+    console.log('[Sigby:Popup] Signing typed data...');
 
     try {
       // eth_signTypedData_v4 params are [account, typedDataJson]
@@ -522,10 +522,10 @@ class PopupPortoService {
         params: [account, typedDataJson],
       });
 
-      console.log('[Berth:Popup] Typed data signed successfully');
+      console.log('[Sigby:Popup] Typed data signed successfully');
       return signature;
     } catch (error: any) {
-      console.error('[Berth:Popup] Typed data signing failed:', error);
+      console.error('[Sigby:Popup] Typed data signing failed:', error);
       throw error;
     }
   }
@@ -546,7 +546,7 @@ class PopupPortoService {
     }
 
     const { index = 0, limit = 50, sort = 'desc' } = opts;
-    console.log('[Berth:Popup] Getting calls history for:', address, { index, limit, sort });
+    console.log('[Sigby:Popup] Getting calls history for:', address, { index, limit, sort });
 
     try {
       const history = await this.provider.request({
@@ -559,10 +559,10 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[Berth:Popup] Calls history retrieved:', history?.length || 0, 'entries');
+      console.log('[Sigby:Popup] Calls history retrieved:', history?.length || 0, 'entries');
       return history || [];
     } catch (error: any) {
-      console.error('[Berth:Popup] Failed to get calls history:', error);
+      console.error('[Sigby:Popup] Failed to get calls history:', error);
       throw error;
     }
   }
@@ -578,7 +578,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Getting calls status for bundle:', bundleId);
+    console.log('[Sigby:Popup] Getting calls status for bundle:', bundleId);
 
     try {
       const status = await this.provider.request({
@@ -586,10 +586,10 @@ class PopupPortoService {
         params: [bundleId],
       });
 
-      console.log('[Berth:Popup] Calls status:', status);
+      console.log('[Sigby:Popup] Calls status:', status);
       return status;
     } catch (error: any) {
-      console.error('[Berth:Popup] Failed to get calls status:', error);
+      console.error('[Sigby:Popup] Failed to get calls status:', error);
       throw error;
     }
   }
@@ -623,7 +623,7 @@ class PopupPortoService {
         ) || null;
     } catch (error) {
       console.error(
-        '[Berth:Popup] Failed to load history for transaction detail:',
+        '[Sigby:Popup] Failed to load history for transaction detail:',
         error,
       );
     }
@@ -632,7 +632,7 @@ class PopupPortoService {
       status = await this.getCallsStatus(bundleId);
     } catch (error) {
       console.error(
-        '[Berth:Popup] Failed to load status for transaction detail:',
+        '[Sigby:Popup] Failed to load status for transaction detail:',
         error,
       );
     }
@@ -651,7 +651,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Getting assets for:', address, 'chains:', chainIds);
+    console.log('[Sigby:Popup] Getting assets for:', address, 'chains:', chainIds);
 
     try {
       // Convert chain IDs to hex strings (Porto expects hex format)
@@ -666,10 +666,10 @@ class PopupPortoService {
         }],
       });
 
-      console.log('[Berth:Popup] Assets retrieved:', assets);
+      console.log('[Sigby:Popup] Assets retrieved:', assets);
       return assets || {};
     } catch (error: any) {
-      console.error('[Berth:Popup] Failed to get assets:', error);
+      console.error('[Sigby:Popup] Failed to get assets:', error);
       throw error;
     }
   }
@@ -686,7 +686,7 @@ class PopupPortoService {
 
     const chainIdHex = `0x${chainId.toString(16)}`;
 
-    console.log('[Berth:Popup] Getting capabilities for chain:', chainIdHex);
+    console.log('[Sigby:Popup] Getting capabilities for chain:', chainIdHex);
 
     try {
       const capabilities = await this.provider.request({
@@ -694,10 +694,10 @@ class PopupPortoService {
         params: [undefined, [chainIdHex]],
       });
 
-      console.log('[Berth:Popup] Capabilities retrieved:', capabilities);
+      console.log('[Sigby:Popup] Capabilities retrieved:', capabilities);
       return capabilities[chainIdHex] || null;
     } catch (error: any) {
-      console.error('[Berth:Popup] Failed to get capabilities:', error);
+      console.error('[Sigby:Popup] Failed to get capabilities:', error);
       return null;
     }
   }
@@ -708,20 +708,20 @@ class PopupPortoService {
    */
   async disconnect(): Promise<void> {
     if (!this.provider) {
-      console.warn('[Berth:Popup] Provider not initialized, skipping disconnect');
+      console.warn('[Sigby:Popup] Provider not initialized, skipping disconnect');
       return;
     }
 
-    console.log('[Berth:Popup] Disconnecting from Porto...');
+    console.log('[Sigby:Popup] Disconnecting from Porto...');
 
     try {
       await this.provider.request({
         method: 'wallet_disconnect',
       });
-      console.log('[Berth:Popup] Successfully disconnected from Porto');
+      console.log('[Sigby:Popup] Successfully disconnected from Porto');
     } catch (error: any) {
       // Log but don't throw - local deletion should still proceed
-      console.error('[Berth:Popup] Disconnect error:', error);
+      console.error('[Sigby:Popup] Disconnect error:', error);
     }
   }
 
@@ -745,7 +745,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Granting permissions:', JSON.stringify(params, null, 2));
+    console.log('[Sigby:Popup] Granting permissions:', JSON.stringify(params, null, 2));
 
     // Porto's schema allows feeToken to be `null` — that grants a session
     // key that cannot pay fees at all. Only enforce `limit` when the caller
@@ -772,10 +772,10 @@ class PopupPortoService {
         params: [permissionParams],
       });
 
-      console.log('[Berth:Popup] Permissions granted:', result);
+      console.log('[Sigby:Popup] Permissions granted:', result);
       return result;
     } catch (error: any) {
-      console.error('[Berth:Popup] Failed to grant permissions:', error);
+      console.error('[Sigby:Popup] Failed to grant permissions:', error);
       throw error;
     }
   }
@@ -788,7 +788,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Getting permissions for:', address);
+    console.log('[Sigby:Popup] Getting permissions for:', address);
 
     try {
       const result = await this.provider.request({
@@ -796,14 +796,14 @@ class PopupPortoService {
         params: [{ address }],
       });
 
-      console.log('[Berth:Popup] Permissions retrieved:', result);
+      console.log('[Sigby:Popup] Permissions retrieved:', result);
       return result || [];
     } catch (error: any) {
       // Unauthorized errors are expected when account not connected - log as info
       if (error?.name?.includes('Unauthorized') || error?.message?.includes('Unauthorized')) {
-        console.log('[Berth:Popup] Permissions unavailable - account not connected');
+        console.log('[Sigby:Popup] Permissions unavailable - account not connected');
       } else {
-        console.error('[Berth:Popup] Failed to get permissions:', error);
+        console.error('[Sigby:Popup] Failed to get permissions:', error);
       }
       throw error;
     }
@@ -817,7 +817,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Revoking permission:', permissionId);
+    console.log('[Sigby:Popup] Revoking permission:', permissionId);
 
     try {
       await this.provider.request({
@@ -825,9 +825,9 @@ class PopupPortoService {
         params: [{ id: permissionId }],
       });
 
-      console.log('[Berth:Popup] Permission revoked');
+      console.log('[Sigby:Popup] Permission revoked');
     } catch (error: any) {
-      console.error('[Berth:Popup] Failed to revoke permission:', error);
+      console.error('[Sigby:Popup] Failed to revoke permission:', error);
       throw error;
     }
   }
@@ -840,7 +840,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Getting keys for:', address);
+    console.log('[Sigby:Popup] Getting keys for:', address);
 
     try {
       const result = await this.provider.request({
@@ -848,14 +848,14 @@ class PopupPortoService {
         params: [{ address }],
       });
 
-      console.log('[Berth:Popup] Keys retrieved:', result);
+      console.log('[Sigby:Popup] Keys retrieved:', result);
       return result || [];
     } catch (error: any) {
       // Unauthorized errors are expected when account not connected - log as info
       if (error?.name?.includes('Unauthorized') || error?.message?.includes('Unauthorized')) {
-        console.log('[Berth:Popup] Keys unavailable - account not connected');
+        console.log('[Sigby:Popup] Keys unavailable - account not connected');
       } else {
-        console.error('[Berth:Popup] Failed to get keys:', error);
+        console.error('[Sigby:Popup] Failed to get keys:', error);
       }
       throw error;
     }
@@ -869,7 +869,7 @@ class PopupPortoService {
       throw new Error('Porto provider not initialized');
     }
 
-    console.log('[Berth:Popup] Checking relay health...');
+    console.log('[Sigby:Popup] Checking relay health...');
 
     try {
       const startTime = Date.now();
@@ -880,8 +880,8 @@ class PopupPortoService {
       const latency = Date.now() - startTime;
 
       // Log the raw response to understand its structure
-      console.log('[Berth:Popup] Relay health raw result:', JSON.stringify(result, null, 2));
-      console.log('[Berth:Popup] Relay health latency:', latency);
+      console.log('[Sigby:Popup] Relay health raw result:', JSON.stringify(result, null, 2));
+      console.log('[Sigby:Popup] Relay health latency:', latency);
 
       // Extract version from result (Porto returns { version: "..." } or similar)
       const version = typeof result === 'object' && result !== null
@@ -895,7 +895,7 @@ class PopupPortoService {
         version,
       };
     } catch (error: any) {
-      console.error('[Berth:Popup] Relay health check failed:', error);
+      console.error('[Sigby:Popup] Relay health check failed:', error);
       return {
         status: 'offline',
         latency: null,

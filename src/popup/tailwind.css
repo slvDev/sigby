@@ -71,7 +71,7 @@
 
 /* Cold-start entrance: runs during initial paint, before React has
  * mounted. @starting-style is Baseline 2024; supported everywhere
- * Berth targets. */
+ * Sigby targets. */
 @starting-style {
   body { opacity: 0; transform: translateY(2px); }
 }

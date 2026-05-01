@@ -113,10 +113,10 @@ export class AccountManager {
 
       // Derive a local-only index from how many accounts we already hold on
       // this device — do NOT touch the global `accountCount` counter. That
-      // counter drives the immutable `Berth N` keychain label set in
+      // counter drives the immutable `Sigby N` keychain label set in
       // `createAccount`, and bumping it on every cross-device reconnect is
-      // what caused the label to drift (e.g. "Berth 3" on device A but
-      // "Berth 5" on device B for the same synced passkey).
+      // what caused the label to drift (e.g. "Sigby 3" on device A but
+      // "Sigby 5" on device B for the same synced passkey).
       const localAccounts = await this.storageManager.getAllAccounts();
       const accountIndex = Object.keys(localAccounts).length + 1;
 

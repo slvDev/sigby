@@ -12,7 +12,7 @@ export default defineConfig({
     emptyOutDir: false, // Don't clear dist, we're adding to it
     lib: {
       entry: resolve(__dirname, "src/injected/provider.ts"),
-      name: "BerthProvider",
+      name: "SigbyProvider",
       formats: ["iife"],
       fileName: () => "injected.js",
     },

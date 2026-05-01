@@ -778,7 +778,7 @@ export class StorageManager {
     const address = legacyAccount.address;
     const migratedAccount = {
       ...legacyAccount,
-      displayName: legacyAccount.displayName || "Berth 1",
+      displayName: legacyAccount.displayName || "Sigby 1",
       accountIndex: 1,
     };
 

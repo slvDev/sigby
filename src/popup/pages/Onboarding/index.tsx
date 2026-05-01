@@ -20,7 +20,7 @@ const STEP_TRANSITION = { duration: 0.24, ease: [0.16, 1, 0.3, 1] as const };
  * blue-600 primary button. The earlier "plain wizard" look read as a
  * different app.
  *
- * 1. What Berth is — passkey wallet, no seed phrase, Porto SDK + Relay.
+ * 1. What Sigby is — passkey wallet, no seed phrase, Porto SDK + Relay.
  * 2. Trust model — explicit map of what each component sees.
  * 3. Create or Restore — the WebAuthn-issuing surface.
  * 4. Account ready — address + chain + account-type metadata block.
@@ -201,7 +201,7 @@ function FactRow({
 }
 
 // ----------------------------------------------------------------------
-// Step 1 — What Berth is.
+// Step 1 — What Sigby is.
 // ----------------------------------------------------------------------
 
 function WhatStep({ onNext }: { onNext: () => void }) {
@@ -209,7 +209,7 @@ function WhatStep({ onNext }: { onNext: () => void }) {
     <StepShell
       body={
         <>
-          <H1>Berth is a passkey wallet</H1>
+          <H1>Sigby is a passkey wallet</H1>
           <Lede>
             A Chrome extension wallet controlled by your synced passkey, not
             a seed phrase or extension-held private key.
@@ -226,7 +226,7 @@ function WhatStep({ onNext }: { onNext: () => void }) {
             />
             <FactRow
               label="Built on Porto SDK + Relay"
-              body="Account abstraction stack from Ithaca. Berth is an independent open-source Chrome extension. It provides the UI and signing client; Porto SDK + Relay provide the account-abstraction execution path."
+              body="Account abstraction stack from Ithaca. Sigby is an independent open-source Chrome extension. It provides the UI and signing client; Porto SDK + Relay provide the account-abstraction execution path."
             />
           </div>
         </>
@@ -253,7 +253,7 @@ function TrustModelStep({ onNext }: { onNext: () => void }) {
         <>
           <H1>Trust boundary</H1>
           <Lede>
-            Three components, three roles. Berth doesn&apos;t run a signing
+            Three components, three roles. Sigby doesn&apos;t run a signing
             server.
           </Lede>
 
@@ -263,12 +263,12 @@ function TrustModelStep({ onNext }: { onNext: () => void }) {
               body="Your passkey stays in iCloud Keychain, Google Password Manager, 1Password, or a security key."
             />
             <FactRow
-              label="Berth stores metadata"
+              label="Sigby stores metadata"
               body="The extension stores addresses, names, and settings locally in chrome.storage.local. Open source."
             />
             <FactRow
               label="Porto relays execution"
-              body="Porto SDK + Relay submit account operations on-chain. Neither Berth nor Porto receives your passkey or private key."
+              body="Porto SDK + Relay submit account operations on-chain. Neither Sigby nor Porto receives your passkey or private key."
             />
           </div>
 
@@ -277,7 +277,7 @@ function TrustModelStep({ onNext }: { onNext: () => void }) {
             transition={tween.mediumOutStrong}
             className="text-[11px] text-zinc-500 leading-relaxed mt-4 px-1"
           >
-            No silent approvals. Berth requires your passkey before granting
+            No silent approvals. Sigby requires your passkey before granting
             any signing authority.
           </motion.p>
         </>
@@ -318,7 +318,7 @@ function CreateOrRestoreStep({
   onConnect: () => void;
   onDismissError: () => void;
 }) {
-  const keychainLabel = `Berth ${accountCount + 1}`;
+  const keychainLabel = `Sigby ${accountCount + 1}`;
 
   return (
     <StepShell
@@ -488,7 +488,7 @@ function AccountReadyStep({
             className="text-[11px] text-zinc-500 leading-relaxed mt-4 px-1"
           >
             Back up access through iCloud Keychain, Google Password Manager,
-            1Password, or a security key. If you lose passkey access, Berth
+            1Password, or a security key. If you lose passkey access, Sigby
             cannot recover it.
           </motion.p>
         </>

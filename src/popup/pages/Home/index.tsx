@@ -56,7 +56,7 @@ export function Home() {
   // for users who completed onboarding once and then deleted every
   // account; copy + visual language mirrors Onboarding Step 3.
   if (!hasAccounts) {
-    const keychainLabel = `Berth ${accountCount + 1}`;
+    const keychainLabel = `Sigby ${accountCount + 1}`;
     return (
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col">

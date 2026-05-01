@@ -269,7 +269,7 @@ export interface PermissionRequest {
  * Granted permission (response from wallet_grantPermissions).
  * Matches Porto's schema (wallet_grantPermissions.Response) —
  * `address` and `chainId` identify the account + chain the permission
- * applies to; `createdAt` was a Berth-side invention and isn't returned
+ * applies to; `createdAt` was a Sigby-side invention and isn't returned
  * by the relay.
  */
 export interface GrantedPermission {

@@ -167,7 +167,7 @@ export class MessageHandler {
    * the popup already enforces the lock at the AuthGuard layer and
    * does its own biometric for signing via the Porto SDK.
    */
-  private readonly POPUP_ORIGIN = "popup://porto-wallet";
+  private readonly POPUP_ORIGIN = "popup://sigby-wallet";
 
   /**
    * Methods that return user-scoped derived state and must be
@@ -193,7 +193,7 @@ export class MessageHandler {
    *   - `eth_requestAccounts` / signing / `wallet_sendCalls`: open
    *     their own approval popup with biometric.
    *   - chain reads: not user-scoped.
-   *   - `_berth_isLocked`: dedicated bypass for honest
+   *   - `_sigby_isLocked`: dedicated bypass for honest
    *     `_metamask.isUnlocked()` answers (the namespace name is the
    *     dApp-facing API contract; the implementation is ours).
    */
@@ -523,7 +523,7 @@ export class MessageHandler {
       // Signing / approval methods bypass entirely (they open their
       // own approval popups with biometric).
       //
-      // `_berth_isLocked` bypasses (dedicated switch case) so
+      // `_sigby_isLocked` bypasses (dedicated switch case) so
       // `_metamask.isUnlocked()` — the legacy dApp-facing API
       // namespace — can return an honest answer.
       //
@@ -648,7 +648,7 @@ export class MessageHandler {
         case "wallet_getCallsStatus":
           return await this.handleWalletGetCallsStatus(params || [], origin);
 
-        // Berth-specific: lock-state probe for _metamask.isUnlocked.
+        // Sigby-specific: lock-state probe for _metamask.isUnlocked.
         // Restricted to popup origin + origins connected to the active
         // account. Random dApps get `true` (default-locked) so they
         // can't poll this to fingerprint user idle/active patterns.
@@ -656,7 +656,7 @@ export class MessageHandler {
         // connected — they see the real state; everyone else sees
         // safe-default `true`. Reuses the `locked` value captured at
         // the gate so `computeLocked()` doesn't run twice per request.
-        case "_berth_isLocked": {
+        case "_sigby_isLocked": {
           if (isPopupOrigin) return { success: true, data: locked };
           const active = await this.accountManager.getAccount();
           const allowed =

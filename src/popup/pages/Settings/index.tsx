@@ -54,8 +54,8 @@ export function Settings() {
   } = useSettings();
 
   // Same shape as Onboarding/Home so the immutable browser passkey
-  // label always reads "Berth N" with mono styling, not raw text.
-  const keychainLabel = `Berth ${accountCount + 1}`;
+  // label always reads "Sigby N" with mono styling, not raw text.
+  const keychainLabel = `Sigby ${accountCount + 1}`;
 
   const renameAccount = renameTarget ? accounts[renameTarget] : null;
   const deleteAccount = deleteTarget ? accounts[deleteTarget] : null;
