@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "minimum_chrome_version": "122",
   "name": "Sigby",
   "version": "0.1.0",
   "description": "A browser wallet that signs with a passkey. Built on Porto.",
@@ -10,6 +11,7 @@
   ],
 
   "host_permissions": [
+    "https://id.sigby.xyz/*",
     "https://rpc.porto.sh/*",
     "https://eth.llamarpc.com/*",
     "https://mainnet.base.org/*",

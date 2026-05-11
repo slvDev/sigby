@@ -84,7 +84,7 @@ class PopupPortoService {
         // Use relay mode (no iframe, direct WebAuthn)
         mode: Porto.Mode.relay({
           multichain: true,
-          keystoreHost: undefined,
+          keystoreHost: 'id.sigby.xyz',
         }),
 
         // Use IndexedDB storage
