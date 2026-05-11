@@ -468,35 +468,62 @@ class PopupPortoService {
    * Throws if the user cancels or a different account is selected.
    */
   async signCanary(address: string): Promise<void> {
+    const selected = await this.unlockAdoptive(address);
+    if (selected.toLowerCase() !== address.toLowerCase()) {
+      throw new Error(
+        `Selected passkey belongs to ${selected}, but this action requires ${address}.`
+      );
+    }
+  }
+
+  /**
+   * Unlock by letting WebAuthn pick which account to sign for. Returns
+   * the address whose passkey was actually used — if it differs from
+   * `preferredAddress`, the caller should adopt it as the new active.
+   *
+   * Warm path: `preferredAddress` is already authorized in this Porto
+   * session, so we sign a canary on it (no picker shown — Porto signs
+   * with that account's key directly).
+   *
+   * Cold path: `wallet_connect` shows the WebAuthn picker; whichever
+   * passkey the user taps is the account they want to unlock into.
+   */
+  async unlockAdoptive(preferredAddress: string): Promise<string> {
     if (!this.provider) {
       throw new Error('Porto provider not initialized');
     }
-    console.log('[Sigby:Popup] Canary unlock for:', address);
+    console.log('[Sigby:Popup] Adoptive unlock, preferred:', preferredAddress);
 
     const authorizedAccounts = await this.getAuthorizedAccounts();
-    const isAuthorized = authorizedAccounts.some(
-      (acc) => acc.toLowerCase() === address.toLowerCase()
+    const isWarm = authorizedAccounts.some(
+      (a) => a.toLowerCase() === preferredAddress.toLowerCase()
     );
-    if (!isAuthorized) {
-      // Cold-start path — wallet_connect prompts biometric itself.
-      // After success, the account is authorized and the unlock gate
-      // is cleared. No canary sign needed.
-      const authorized = await this.ensureAccountAuthorized(address);
-      if (!authorized) {
-        throw new Error('Account not authorized. Please reconnect the account.');
-      }
-      console.log('[Sigby:Popup] Canary unlock via wallet_connect');
-      return;
+
+    if (isWarm) {
+      const message = `Unlock Sigby — ${new Date().toISOString()}`;
+      await this.provider.request({
+        method: 'personal_sign',
+        params: [toHex(message), preferredAddress],
+      });
+      console.log('[Sigby:Popup] Adoptive unlock via personal_sign');
+      return preferredAddress;
     }
 
-    // Warm-start path — Porto's schema requires params[0] as hex.
-    const message = `Unlock Sigby — ${new Date().toISOString()}`;
-    const hex = toHex(message);
-    await this.provider.request({
-      method: 'personal_sign',
-      params: [hex, address],
+    const result = await this.provider.request({
+      method: 'wallet_connect',
+      params: [
+        {
+          capabilities: { selectAccount: true },
+          chainIds: SUPPORTED_CHAIN_IDS_HEX,
+        },
+      ],
     });
-    console.log('[Sigby:Popup] Canary unlock via personal_sign');
+    const selected = result?.accounts?.[0]?.address;
+    if (!selected) {
+      throw new Error('No account selected');
+    }
+    console.log('[Sigby:Popup] Adoptive unlock via wallet_connect, selected:', selected);
+    return selected;
   }
 
   /**

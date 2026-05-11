@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { useWalletStore } from "../../store";
+import { MessageType } from "../../../types/messages";
+import { errorToString } from "../../../utils/rpcError";
 import { popupPortoService } from "../../portoService";
+import { syncStoreWithBackground, useWalletStore } from "../../store";
 
 export interface LockView {
   isUnlocking: boolean;
@@ -29,7 +31,22 @@ export function useLock(): LockView {
       if (!popupPortoService.isReady()) {
         await popupPortoService.initialize();
       }
-      await popupPortoService.signCanary(activeAddress);
+
+      const selectedAddress = await popupPortoService.unlockAdoptive(activeAddress);
+
+      if (selectedAddress.toLowerCase() !== activeAddress.toLowerCase()) {
+        const response = await chrome.runtime.sendMessage({
+          type: MessageType.CONNECT_ACCOUNT,
+          payload: { address: selectedAddress },
+        });
+
+        if (!response?.success) {
+          throw new Error(errorToString(response?.error) || "Failed to activate account");
+        }
+
+        await syncStoreWithBackground();
+      }
+
       unlock();
       celebrate("passkey-success");
     } catch (err) {
