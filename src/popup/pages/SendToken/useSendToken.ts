@@ -47,6 +47,13 @@ export function useSendToken() {
   }, [chainId]);
 
   const tokenBalanceRaw = token ? BigInt(token.balance) : 0n;
+  const selectedFeeTokenInfo = feeTokens.find((t) => t.symbol === selectedFeeToken);
+  const paysFeeWithSentToken =
+    !!token &&
+    !!selectedFeeTokenInfo &&
+    (selectedFeeTokenInfo.address
+      ? token.address.toLowerCase() === selectedFeeTokenInfo.address.toLowerCase()
+      : token.symbol.toLowerCase() === selectedFeeTokenInfo.symbol.toLowerCase());
 
   const handleSetMax = () => {
     if (token) setAmount(token.formatted);
@@ -69,6 +76,12 @@ export function useSendToken() {
     }
     if (amountRaw > tokenBalanceRaw) {
       setError(`Insufficient balance. You have ${token.formatted} ${token.symbol}`);
+      return;
+    }
+    if (paysFeeWithSentToken && amountRaw >= tokenBalanceRaw) {
+      setError(
+        `Cannot send your full ${token.symbol} balance while paying gas with ${token.symbol}. Reduce the amount or choose another fee token.`
+      );
       return;
     }
     if (activeAddress && recipient.toLowerCase() === activeAddress.toLowerCase()) {
