@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
   "minimum_chrome_version": "122",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6+4hlgjfavNXvwxi8KcLLzoy5S8Zw7ifu1FFo+pFZEC0npbIiMLTkwoKY8fbZyCmu6mGI+eePxXoADn8Df9NI0JNwz3HYv0uc2pFN77+CqRSDwJ9aue0nDBZFA2UH9mEfi893OrArKRbDmRVkc9mh/iMC7IxktncOW1FDR/vjx/QBOYJXTlCbBTgM+q9aDrM4tqTT8BbpcYfYyhh0ZmlnT1VCU7RbcGtY+a/R+w+HiMcvtOCAxExWwVCtuMB3IGr46Ewcx/YZRBXWfWl/rGmPQ/vXp2yDKzU9IAydYHzxu/dQCunPxt/m4pJ2TUeqTsZN9Vqh67sgT1+0XRT4/41yQIDAQAB",
   "name": "Sigby",
   "version": "0.1.0",
   "description": "A browser wallet that signs with a passkey. Built on Porto.",
