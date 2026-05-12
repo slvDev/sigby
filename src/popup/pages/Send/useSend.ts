@@ -4,6 +4,7 @@ import { formatUnits, parseUnits } from "viem";
 import { useWalletStore } from "../../store";
 import { popupPortoService } from "../../portoService";
 import { CHAIN_CONFIGS } from "../../../utils/constants";
+import { errorToString } from "../../../utils/rpcError";
 import { useToast } from "../../components/common";
 
 const isValidAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr);
@@ -135,7 +136,7 @@ export function useSend() {
       navigate("/history");
     } catch (err) {
       console.error("[Send] Failed:", err);
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      setError(errorToString(err) || "Transaction failed");
     } finally {
       setIsLoading(false);
     }

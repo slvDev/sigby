@@ -164,7 +164,7 @@ export function useTransactionApproval() {
       window.close();
     } catch (err) {
       console.error("Transaction failed:", err);
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      setError(errorToString(err) || "Transaction failed");
     } finally {
       setIsLoading(false);
     }

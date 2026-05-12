@@ -4,6 +4,7 @@ import { useWalletStore } from "../../store";
 import { popupPortoService } from "../../portoService";
 import { useToast } from "../../components/common";
 import { encodeTransfer, parseTokenAmount } from "../../../utils/erc20Abi";
+import { errorToString } from "../../../utils/rpcError";
 import type { TokenBalance } from "../../../types/account";
 import type { FeeToken } from "../../../types/porto";
 
@@ -108,7 +109,7 @@ export function useSendToken() {
       navigate("/history");
     } catch (err) {
       console.error("[SendToken] Failed:", err);
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      setError(errorToString(err) || "Transaction failed");
     } finally {
       setIsLoading(false);
     }

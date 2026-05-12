@@ -85,11 +85,119 @@ export function deserializeRpcError(obj: SerializedRpcError): ProviderRpcError {
  * renders as "[object Object]".
  */
 export function errorToString(err: unknown): string {
+  const portoDeficitMessage = portoQuoteDeficitMessage(err);
+  if (portoDeficitMessage) return portoDeficitMessage;
+
   if (err === undefined || err === null) return "";
   if (typeof err === "string") return err;
   if (isSerializedRpcError(err)) return err.message;
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+function portoQuoteDeficitMessage(err: unknown): string | null {
+  const message = rawErrorMessage(err);
+  if (!message.includes("quote has asset deficits")) return null;
+
+  const requestBody = extractRequestBody(message);
+  const deficits = requestBody
+    ? extractQuoteAssetDeficits(requestBody)
+    : [];
+
+  if (deficits.length === 0) {
+    return "Insufficient funds. Add funds or reduce the amount before sending.";
+  }
+
+  const first = deficits[0];
+  if (!first) {
+    return "Insufficient funds. Add funds or reduce the amount before sending.";
+  }
+
+  return `Insufficient ${first.symbol}. Need ${first.required}, short ${first.deficit}. Add funds or reduce the amount before sending.`;
+}
+
+function rawErrorMessage(err: unknown): string {
+  if (err === undefined || err === null) return "";
+  if (typeof err === "string") return err;
+  if (isSerializedRpcError(err)) return err.message;
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+function extractRequestBody(message: string): unknown | null {
+  const marker = "Request body: ";
+  const start = message.indexOf(marker);
+  if (start === -1) return null;
+
+  const jsonStart = start + marker.length;
+  const detailsStart = message.indexOf(" Details:", jsonStart);
+  const json = message.slice(
+    jsonStart,
+    detailsStart === -1 ? undefined : detailsStart
+  );
+
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function extractQuoteAssetDeficits(requestBody: unknown): Array<{
+  deficit: string;
+  required: string;
+  symbol: string;
+}> {
+  const quotes =
+    (requestBody as any)?.params?.[0]?.context?.quote?.quotes;
+  if (!Array.isArray(quotes)) return [];
+
+  return quotes.flatMap((quote) => {
+    const deficits = quote?.assetDeficits;
+    if (!Array.isArray(deficits)) return [];
+
+    return deficits.map((deficit) => {
+      const decimals =
+        typeof deficit?.decimals === "number" ? deficit.decimals : 18;
+      const symbol =
+        typeof deficit?.symbol === "string" ? deficit.symbol : "token";
+
+      return {
+        deficit: formatTokenAmount(deficit?.deficit, decimals),
+        required: formatTokenAmount(deficit?.required, decimals),
+        symbol,
+      };
+    });
+  });
+}
+
+function formatTokenAmount(value: unknown, decimals: number): string {
+  try {
+    const raw =
+      typeof value === "bigint"
+        ? value
+        : typeof value === "number"
+          ? BigInt(value)
+          : typeof value === "string" && value.startsWith("0x")
+            ? BigInt(value)
+            : typeof value === "string"
+              ? BigInt(value)
+              : 0n;
+    if (raw === 0n) return "0";
+
+    const scale = 10n ** BigInt(Math.max(0, decimals));
+    const whole = raw / scale;
+    const fraction = raw % scale;
+    if (fraction === 0n) return whole.toString();
+
+    const fractionText = fraction
+      .toString()
+      .padStart(Math.max(0, decimals), "0")
+      .replace(/0+$/, "");
+    return `${whole}.${fractionText}`;
+  } catch {
+    return "unknown";
+  }
 }
 
 /** Common factories. */
