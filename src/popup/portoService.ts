@@ -452,20 +452,12 @@ class PopupPortoService {
   }
 
   /**
-   * Force a fresh biometric prompt by either reconnecting (cold start)
-   * or signing a canary message (warm start). Used as the unlock gate.
-   * The resulting signature — if any — is discarded; we only care that
-   * the user successfully touched the passkey.
-   *
-   * Cold start (Porto's in-memory auth empty — e.g. after extension
-   * reload or IDB clear): `ensureAccountAuthorized` calls
-   * `wallet_connect` which itself fires a biometric. We return after
-   * that — no need for a second prompt.
-   *
-   * Warm start (account already in `eth_accounts`): `personal_sign`
-   * forces the biometric.
-   *
-   * Throws if the user cancels or a different account is selected.
+   * Strict canary unlock for callers that require the signature to be
+   * produced by a specific account (sendCalls, useTransactionApproval,
+   * useConnectionApproval, store.connectActiveAccount). Delegates to
+   * `unlockAdoptive` and throws if the user picked a passkey for a
+   * different account. Lock should call `unlockAdoptive` directly so
+   * it can adopt the picker's selection instead of failing.
    */
   async signCanary(address: string): Promise<void> {
     const selected = await this.unlockAdoptive(address);
