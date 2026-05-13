@@ -513,7 +513,3 @@ The injected build (`vite.injected.config.ts`) is separate because the injected 
 ### Why two builds
 
 The content script is bundled as an ES module; the injected script must not be. The content script has access to `chrome.*` APIs; the injected script must not have them in scope, because the page must not see extension APIs. Sharing code between them would leak `chrome.*` references through bundler inlining, so separate builds enforce isolation.
-
----
-
-For the current feature status and Porto RPC method coverage, see [docs/PORTO_FEATURE_LIST.md](docs/PORTO_FEATURE_LIST.md). For dApp integration examples (`window.ethereum` usage), see [docs/PORTO_API_REFERENCE.md](docs/PORTO_API_REFERENCE.md).

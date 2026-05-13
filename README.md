@@ -250,15 +250,13 @@ The Porto relay and smart contracts have been audited by @MiloTruck, @rholterhus
 - Node 20 or newer and pnpm for development. This isn't enforced by an `engines` field, so older toolchains may still work, but they aren't tested.
 - A platform passkey provider, such as iCloud Keychain (macOS/iOS), Google Password Manager, 1Password, Bitwarden, or equivalent.
 
-## Limits & TODO
+## Current Limits
 
-- Custom chain addition (`wallet_addEthereumChain` with non-built-in chains) is not yet supported.
-- Raw transactions (`eth_sendRawTransaction`) are not implemented. Porto doesn't expose private keys, so this is an architectural limit rather than a missing feature.
-- NFTs get partial coverage. Transaction Detail renders an "NFT" row with collection name, symbol, and signed direction when an asset diff has `type === "erc721"`. The row does **not** carry the token id or contract address, because Porto's diff currently doesn't surface them and we haven't backfilled. There is also no dedicated NFT inventory or transfer UI.
-- EOA upgrade (`wallet_prepareUpgradeAccount` and `wallet_upgradeAccount`) is pending.
-- Sponsored gas is detected heuristically. Transaction Detail shows a "Sponsored" badge and a "Paid by sponsor" fee state when there is no outgoing native asset diff for the chain matching the fee currency (see `useTransactionDetail.ts`). The relay's `capabilities.merchantUrl` field isn't actually inspected, so without paymaster metadata the heuristic can't be exact, and edge cases like a fee paid in ERC-20 while the sponsor still covered native dust may misclassify. The wallet UI also doesn't let _the user_ configure or request sponsorship; it only surfaces sponsorship that the dApp arranged.
-
-See [docs/PORTO_FEATURE_LIST.md](docs/PORTO_FEATURE_LIST.md) for the full status matrix.
+- Sigby supports the built-in chains listed above. `wallet_addEthereumChain` can switch to one of those chains, but it does not add arbitrary RPC networks yet.
+- Raw transactions (`eth_sendRawTransaction`) are intentionally unsupported. Porto does not expose private keys, so dApps should request `eth_sendTransaction` or EIP-5792 calls instead.
+- NFT support is history-only for now. Sigby can show an NFT movement when Porto returns an ERC-721 asset diff, but there is no NFT gallery or transfer flow, and history data may not include a token id or contract address.
+- EOA upgrade is supported by Porto, but Sigby has not exposed `wallet_prepareUpgradeAccount` or `wallet_upgradeAccount` yet.
+- Sponsored gas can appear after a dApp arranges it through Porto capabilities. Sigby does not provide a user setting to request sponsorship, and history labels are best-effort because they are inferred from relay asset and fee data.
 
 ## Acknowledgments
 
