@@ -24,6 +24,31 @@ export type CelebrationKind = "passkey-success";
 export type AutoLockMinutes = number | "never";
 
 const SESSION_UNLOCK_KEY = SESSION_STORAGE_KEYS.LAST_UNLOCKED_AT;
+const BACKGROUND_SYNC_RETRY_DELAYS_MS = [80, 160, 320];
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function sendBackgroundMessageWithRetry<T = any>(
+  message: Record<string, unknown>,
+  retryDelaysMs = BACKGROUND_SYNC_RETRY_DELAYS_MS
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (error) {
+      lastError = error;
+      const waitMs = retryDelaysMs[attempt];
+      if (waitMs === undefined) break;
+      await delay(waitMs);
+    }
+  }
+
+  throw lastError;
+}
 
 /**
  * Account state (simplified for UI)
@@ -836,7 +861,7 @@ interface BackgroundStateResponse {
  */
 export async function syncStoreWithBackground(): Promise<void> {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendBackgroundMessageWithRetry({
       type: "GET_STATE",
     });
 
@@ -884,24 +909,31 @@ export async function syncStoreWithBackground(): Promise<void> {
         isAuthenticated: isAuthenticated || false,
         chainId: chainId || DEFAULT_CHAIN_ID,
         error: null,
+        errorAt: null,
 
         // Reset assets cache if address or chain changed
         ...(addressChanged || chainChanged
           ? { assets: [], assetsLastFetched: null, assetsLastAttemptedAt: null }
           : {}),
       });
+    } else {
+      throw new Error(
+        response?.error
+          ? String(response.error)
+          : "Background state unavailable"
+      );
     }
   } catch (error) {
     console.error("[Store] Failed to sync with background:", error);
-    // Reset to safe initial state on sync failure
+    // A popup can open while Chrome is still waking the service worker.
+    // Treat that as a transient hydration failure, not proof that local
+    // accounts disappeared. Preserving the current state prevents a
+    // brief GET_STATE race from dumping the user onto the create/restore
+    // screen with a misleading connection error.
     useWalletStore.setState({
-      accounts: {},
-      accountOrder: [],
-      activeAddress: null,
-      account: null,
-      isAuthenticated: false,
       isLoading: false,
       error: "Failed to connect to wallet. Please try again.",
+      errorAt: Date.now(),
     });
   }
 }
