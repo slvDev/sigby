@@ -9,11 +9,8 @@
   <em>Built on <a href="https://porto.sh">Porto</a>.</em>
 </p>
 
-> **Alpha warning:** Sigby is in active development. Newly created passkeys
-> are currently locked to the WebAuthn RP ID `id.sigby.xyz`, though older dev
-> passkeys may still be scoped to the extension origin. The extension signing
-> key and extension ID can still change before a stable release or a Chrome
-> Web Store launch. Do not store meaningful funds in this wallet yet.
+> [!NOTE]
+> **Archived for reference.** Sigby was a development project built on [Porto](https://porto.sh) by Ithaca. In June 2026 Ithaca [announced](https://ithaca.xyz/updates/sunsetting-porto) that Porto is sunsetting on **July 24, 2026**, after which the Porto Relay stops serving requests. Sigby was never released to end users — no accounts, no funds, no Chrome Web Store listing. This repository remains public as a reference implementation of a passkey wallet built on Porto's SDK + Relay.
 
 ---
 
@@ -258,9 +255,13 @@ The Porto relay and smart contracts have been audited by @MiloTruck, @rholterhus
 - EOA upgrade is supported by Porto, but Sigby has not exposed `wallet_prepareUpgradeAccount` or `wallet_upgradeAccount` yet.
 - Sponsored gas can appear after a dApp arranges it through Porto capabilities. Sigby does not provide a user setting to request sponsorship, and history labels are best-effort because they are inferred from relay asset and fee data.
 
+## Status
+
+Archived as a reference implementation. Sigby was never released — there are no users, no funds, no Chrome Web Store listing. Porto sunsets on July 24, 2026; after that date the smart-account RPCs (`wallet_sendCalls`, `wallet_getCapabilities`, `wallet_getCallsHistory`, `wallet_getAssets`, `wallet_grantPermissions`, `wallet_getCallsStatus`) will stop working against the public Porto Relay, but the code in this repo still documents how the integration was built.
+
 ## Acknowledgments
 
-Built on [Porto](https://porto.sh) (SDK and Relay) by [Ithaca](https://ithaca.xyz). Ethereum client code comes from [viem](https://viem.sh). The UI uses React, Zustand, and Tailwind, bundled with Vite and `@crxjs/vite-plugin`.
+Built on [Porto](https://porto.sh) (SDK and Relay) by [Ithaca](https://ithaca.xyz), with gratitude to the team for the work and the open-source release. Ethereum client code comes from [viem](https://viem.sh). The UI uses React, Zustand, and Tailwind, bundled with Vite and `@crxjs/vite-plugin`.
 
 ## License
 
